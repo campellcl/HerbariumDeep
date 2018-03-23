@@ -142,3 +142,24 @@ loss.backward()
 print('conv1.bias.grad after backward (backpropagation):')
 print(net.conv1.bias.grad)
 
+# Ths simplest update rule used in practice is Stochastic Gradient Descent (SGD):
+#   weight = weight - learning_rate * gradient
+
+# A pythonic way to do this:
+learning_rate = 0.01
+# I am not sure how they structure the weights within this data structure.
+for f in net.parameters():
+    f.data.sub_(f.grad.data * learning_rate)
+
+# To use various update rules we can use torch.optim
+import torch.optim as optim
+
+# create the optimizer:
+optimizer = optim.SGD(net.parameters(), lr=0.01)
+
+# in the training loop we now write:
+optimizer.zero_grad()                   # zero the gradient buffers
+output = net(input)                     # compute a forward pass
+loss = criterion(output, target)        # compute the loss
+loss.backward()                         # perform backpropagation
+optimizer.step()                        # Update the weights
