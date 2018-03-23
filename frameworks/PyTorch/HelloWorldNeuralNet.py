@@ -80,7 +80,8 @@ class Net(nn.Module):
         :param x: The input data.
         :return num_features: The number of flat features?
         """
-        size = x.size()[1:] # get every dimension except the batch dimension (what is this)?
+        size = x.size()[1:]  # get every dimension except the batch dimension (input dimension of size 1)
+        # size = torch.Size([16, 5, 5])
         num_features = 1
         for s in size:
             num_features *= s
@@ -108,3 +109,26 @@ print(out)
 # Zero the gradient buffers of all parameters and backprops with random gradients:
 net.zero_grad()
 out.backward(torch.randn(1, 10))
+
+# There are several different loss functions in the nn package. The loss function computes how far off the output is
+#   from the target value.
+# The nn.MSELoss function computes the mean-squared error between the input and the target.
+output = net(input)
+target = Variable(torch.arange(1, 11)) # create a dummy target, for example's sake
+criterion = nn.MSELoss()
+loss = criterion(output, target)
+print('For a dummy target, the MSE Loss is:')
+print(loss)
+
+# We can follow loss backward through the network and view the computation graph:
+'''
+input -> conv2d -> relu -> maxpool2d -> conv2d -> relu -> maxpool2d
+      -> view -> linear -> relu -> linear -> relu -> linear
+      -> MSELoss
+      -> loss
+'''
+print('Computation Graph for loss:')
+print('\tMSELoss function: %s' % loss.grad_fn)
+print('\tLinear function: %s' % loss.grad_fn.next_functions[0][0])
+print('\tReLU function: %s' % loss.grad_fn.next_functions[0][0].next_functions[0][0])
+
