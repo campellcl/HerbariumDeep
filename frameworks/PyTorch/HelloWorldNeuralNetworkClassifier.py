@@ -109,6 +109,9 @@ def main():
     # train the network:
     train(net, trainloader)
 
+    # test the network:
+    test(net, testloader, classes)
+
 
 def train(net, trainloader):
     """
@@ -149,6 +152,29 @@ def train(net, trainloader):
                 running_loss = 0.0
     print('Finished Training')
 
+
+def test(net, testloader, classes):
+    """
+    test: Tests the neural network by first displaying testing images with correct label, and then the network's
+        prediction. Afterward the network is tested on the entire dataset.
+    :param net: A nn.Module instance representing the neural network.
+    :param testloader: A nn.data.DataLoader instance which performs loading.
+    :return:
+    """
+    dataiter = iter(testloader)
+    images, labels = dataiter.next()
+
+    # print images
+    plt.clf()
+    print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
+    imshow(torchvision.utils.make_grid(images))
+    # predict:
+    outputs = net(Variable(images))
+    # predict class labels:
+    _, predicted = torch.max(outputs.data)
+    print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] for j in range(4)))
+    plt.show()
+
 '''
 The torchvision package contains the CIFAR10 dataset. This dataset has the classes: 
     ‘airplane’, ‘automobile’, ‘bird’, ‘cat’, ‘deer’, ‘dog’, ‘frog’, ‘horse’, ‘ship’, ‘truck’. 
@@ -174,10 +200,3 @@ if __name__ == '__main__':
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
 
     main()
-
-
-
-
-
-
-
