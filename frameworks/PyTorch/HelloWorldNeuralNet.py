@@ -132,3 +132,13 @@ print('\tMSELoss function: %s' % loss.grad_fn)
 print('\tLinear function: %s' % loss.grad_fn.next_functions[0][0])
 print('\tReLU function: %s' % loss.grad_fn.next_functions[0][0].next_functions[0][0])
 
+# To backpropagate error through the network call loss.backward(). However, existing gradients must be cleared or they
+#   will be accumulated.
+print()
+net.zero_grad()     # zero the gradient buffers.
+print('conv1.bias.grad before backward (backpropagation):')
+print(net.conv1.bias.grad)
+loss.backward()
+print('conv1.bias.grad after backward (backpropagation):')
+print(net.conv1.bias.grad)
+
