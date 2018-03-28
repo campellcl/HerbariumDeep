@@ -187,6 +187,23 @@ def test(net, testloader, classes):
         correct += (predicted == labels).sum()
     print('Accuracy of the network on the 10,000 test images: %d %%' % (100 * correct / total))
 
+    # Lets look at the classes that did well compared to those that did poorly:
+    class_correct = list(0. for i in range(10))
+    class_total = list(0. for i in range(10))
+    for data in testloader:
+        images, labels = data
+        outputs = net(Variable(images))
+        _, predicted = torch.max(outputs.data, 1)
+        c = (predicted == labels).squeeze()
+        for i in range(4):
+            label = labels[i]
+            class_correct[label] += c[i]
+            class_total[label] += 1
+
+    for i in range(10):
+        print('Accuracy of %5s: %2d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
+
+
 '''
 The torchvision package contains the CIFAR10 dataset. This dataset has the classes: 
     ‘airplane’, ‘automobile’, ‘bird’, ‘cat’, ‘deer’, ‘dog’, ‘frog’, ‘horse’, ‘ship’, ‘truck’. 
