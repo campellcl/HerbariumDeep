@@ -223,9 +223,9 @@ if __name__ == '__main__':
     '''
 
     # Download (or load if already present) the CIFAR10 training dataset:
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    trainset = torchvision.datasets.CIFAR10(root='./demos/data', train=True, download=True, transform=transform)
 
     # Download (or load if already present) the CIFAR10 test dataset:
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+    testset = torchvision.datasets.CIFAR10(root='./demos/data', train=False, download=True, transform=transform)
 
     main()
