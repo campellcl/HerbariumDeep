@@ -164,15 +164,16 @@ def test(net, testloader, classes):
     dataiter = iter(testloader)
     images, labels = dataiter.next()
 
-    # print images
-    plt.clf()
+    # Print the true labels in the test set for four classes:
     print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
-    imshow(torchvision.utils.make_grid(images))
     # predict:
     outputs = net(Variable(images))
     # predict class labels:
-    _, predicted = torch.max(outputs.data)
+    _, predicted = torch.max(outputs.data, 1)
     print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] for j in range(4)))
+    # print images
+    plt.clf()
+    imshow(torchvision.utils.make_grid(images))
     plt.show()
 
 '''
