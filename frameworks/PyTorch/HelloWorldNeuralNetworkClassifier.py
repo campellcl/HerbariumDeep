@@ -103,7 +103,7 @@ def main():
     # show images
     imshow(torchvision.utils.make_grid(images))
 
-     # instantiate the network:
+    # instantiate the network:
     net = Net()
 
     # train the network:
