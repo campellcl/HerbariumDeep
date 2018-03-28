@@ -176,6 +176,17 @@ def test(net, testloader, classes):
     imshow(torchvision.utils.make_grid(images))
     plt.show()
 
+    # evaluate the network:
+    correct = 0
+    total = 0
+    for data in testloader:
+        images, labels = data
+        outputs = net(Variable(images))
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum()
+    print('Accuracy of the network on the 10,000 test images: %d %%' % (100 * correct / total))
+
 '''
 The torchvision package contains the CIFAR10 dataset. This dataset has the classes: 
     ‘airplane’, ‘automobile’, ‘bird’, ‘cat’, ‘deer’, ‘dog’, ‘frog’, ‘horse’, ‘ship’, ‘truck’. 
