@@ -6,6 +6,15 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import tensorflow.contrib.eager as tfe
 
+# Wondering about the following error?:
+#   2018-04-03 15:50:58.999473: I T:\src\github\tensorflow\tensorflow\core\platform\cpu_feature_guard.cc:140]
+#   Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2
+# See:
+#   https://stackoverflow.com/questions/47068709/your-cpu-supports-instructions-that-this-tensorflow-binary-was-not-compiled-to-u
+# TLDR; Don't care about AVX support because most expensive linear algebra operations will be handled via GPU. So
+#   perform warning suppression:
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 '''
 TensorFlow's eager execution is an imperative programming environment that evaluates operations immediately, 
     without an extra graph-building step. Operations return concrete values instead of constructing a 
@@ -107,3 +116,95 @@ def grad(model, inputs, targets):
     with tfe.GradientTape() as tape:
         loss_value = loss(model, inputs, targets)
     return tape.gradient(loss_value, model.variables)
+
+
+'''
+Create an optimizer.
+'''
+# This model uses the tf.train.GradientDescentOptimizer which implements the standard gradient descent (SGD) algorithm.
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01)
+
+'''
+Train the model:
+'''
+# Retain the results for plotting
+train_loss_results = []
+train_accuracy_results = []
+
+num_epochs = 201
+
+for epoch in range(num_epochs):
+    epoch_loss_avg = tfe.metrics.Mean()
+    epoch_accuracy = tfe.metrics.Accuracy()
+
+    # Training loop - use mini-batches of 32
+    for x, y in tfe.Iterator(train_dataset):
+        # Optimize the model
+        grads = grad(model=model, inputs=x, targets=y)
+        optimizer.apply_gradients(zip(grads, model.variables),
+                                  global_step=tf.train.get_or_create_global_step())
+        # Track progress
+        epoch_loss_avg(loss(model=model, x=x, y=y))     # add current mini-batch loss
+        # compare predicted label to actual label:
+        epoch_accuracy(tf.argmax(input=model(x), axis=1, output_type=tf.int32), y)
+
+    # end epoch
+    train_loss_results.append(epoch_loss_avg.result())
+    train_accuracy_results.append(epoch_accuracy.result())
+
+    # Print the loss and accuracy every 50 epochs:
+    if epoch % 50 == 0:
+        print("Epoch {:03d}: Loss: {:.3f}, Accuracy: {:.3%}".format(epoch,
+                                                                    epoch_loss_avg.result(),
+                                                                    epoch_accuracy.result()))
+
+'''
+Visualize the loss function over time:
+'''
+# Tensorflow utilizes TensorBoard but we can just use matplotlib for simplicity and familiarity:
+fig, axes = plt.subplots(2, sharex=True, figsize=(12, 8))
+fig.suptitle('Training Metrics')
+axes[0].set_ylabel('Loss', fontsize=14)
+axes[0].plot(train_loss_results)
+
+axes[1].set_ylabel('Accuracy', fontsize=14)
+axes[1].set_xlabel('Epoch', fontsize=14)
+axes[1].plot(train_accuracy_results)
+plt.show()
+
+'''
+Evaluate the model on the test dataset:
+'''
+test_url = "http://download.tensorflow.org/data/iris_test.csv"
+# This program uses tf.data.TextLineDataset to load a CSV-formatted text file:
+test_fp = tf.keras.utils.get_file(fname=os.path.basename(test_url),
+                                  origin=test_url)
+test_dataset = tf.data.TextLineDataset(test_fp)
+test_dataset = test_dataset.skip(1)             # skip header row
+test_dataset = test_dataset.map(parse_csv)      # parse each row with the function created earlier
+test_dataset = test_dataset.shuffle(1000)       # randomize
+test_dataset = test_dataset.batch(32)           # use the same batch size as the training set
+
+test_accuracy = tfe.metrics.Accuracy()
+for (x, y) in tfe.Iterator(test_dataset):
+    prediction = tf.argmax(input=model(x), axis=1, output_type=tf.int32)
+    test_accuracy(prediction, y)
+print("Test set accuracy: {:.3%}".format(test_accuracy.result()))
+
+'''
+Use the trained model to make predictions:
+'''
+# Save the (index, class) mapping.
+class_ids = ['Iris setosa', 'Iris versicolor', 'Iris virginica']
+# Provide manually three unlabeled feature vectors for classification:
+predict_dataset = tf.convert_to_tensor([
+    [5.1, 3.3, 1.7, 0.5],
+    [5.9, 3.0, 4.2, 1.5,],
+    [6.9, 3.1, 5.4, 2.1]
+])
+predictions = model(predict_dataset)
+
+for i, logits in enumerate(predictions):
+    class_idx = tf.argmax(logits).numpy()
+    name = class_ids[class_idx]
+    print("Example {} prediction: {}".format(i, name))
