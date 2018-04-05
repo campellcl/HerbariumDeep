@@ -1,6 +1,7 @@
 """
 GoogLeNet.py
 An implementation of the Inception v1 (GoogLeNet) convolutional neural network in TensorFlow.
+source:
 """
 
 __created__ = "4/3/2018"
