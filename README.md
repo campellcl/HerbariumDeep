@@ -16,5 +16,19 @@ Required External Data:
     * When specifying a `$DATA_DIR` be sure to use:
     `$DATA_DIR=../../data/TFRecords/<dataset_name>`
 
-##### TensorFlow Slim (TFSlim) Helpful Resources
+## Resources
+### TensorFlow Resources:
+#### TensorFlow Slim (TFSlim) Helpful Resources:
 * [We Need to Go Deeper: A Practical Guide to Tensorflow and Inception](https://medium.com/initialized-capital/we-need-to-go-deeper-a-practical-guide-to-tensorflow-and-inception-50e66281804f)
+
+### GoogLeNet (Inception v1) Resources:
+#### GoogLeNet TensorFlow Implementation Tutorials:
+* [Inception Modules Explained and Implemented](https://hacktilldawn.com/2016/09/25/inception-modules-explained-and-implemented/)
+
+#### GoogLeNet TensorFlow Implementations:
+* [Google Inception Models](https://github.com/khanrc/mnist/blob/master/inception.py)
+
+### Datasets:
+#### MNIST Handwritten Digits Dataset:
+* [MINST LeCun](http://yann.lecun.com/exdb/mnist/)
+* [MNIST in CSV Form](https://pjreddie.com/projects/mnist-in-csv/)
