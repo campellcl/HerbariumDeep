@@ -22,11 +22,16 @@ Required External Data:
 * [We Need to Go Deeper: A Practical Guide to Tensorflow and Inception](https://medium.com/initialized-capital/we-need-to-go-deeper-a-practical-guide-to-tensorflow-and-inception-50e66281804f)
 
 ### GoogLeNet (Inception v1) Resources:
+* [Inception v3](https://research.googleblog.com/2016/03/train-your-own-image-classifier-with.html)
 #### GoogLeNet TensorFlow Implementation Tutorials:
 * [Inception Modules Explained and Implemented](https://hacktilldawn.com/2016/09/25/inception-modules-explained-and-implemented/)
 
+#### GoogLeNet PyTorch Implementation Tutorials:
+
 #### GoogLeNet TensorFlow Implementations:
 * [Google Inception Models](https://github.com/khanrc/mnist/blob/master/inception.py)
+#### GoogLeNet PyTorch Implementations:
+* [Inception v1](https://github.com/antspy/inception_v1.pytorch)
 
 ### Datasets:
 #### MNIST Handwritten Digits Dataset:
