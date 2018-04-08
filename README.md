@@ -37,3 +37,5 @@ Required External Data:
 #### MNIST Handwritten Digits Dataset:
 * [MINST LeCun](http://yann.lecun.com/exdb/mnist/)
 * [MNIST in CSV Form](https://pjreddie.com/projects/mnist-in-csv/)
+#### ImageNet LSVRC Training and Validation Sets:
+* [Academic Torrents](http://academictorrents.com/browse.php?search=imagenet)
