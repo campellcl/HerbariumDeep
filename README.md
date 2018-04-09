@@ -8,6 +8,12 @@ URLs and move the extracted folders to the HerbariumDeep/data/ folder.
 Required External Data:
 1. [Herbarium255_Images](http://otmedia.lirmm.fr/LifeCLEF/GoingDeeperHerbarium/Herbaria255_Images.zip)
 
+## Implementation Resources
+### TensorFlow
+### PyTorch
+#### Transfer Learning:
+* [Transfer Learning PyTorch Tutorial](http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html)
+
 ## Learning Resources:
 ### Normalization:
 #### Local Response Normalization (LRN):
