@@ -33,23 +33,42 @@ channel_means = None
 # The standard deviation of each channel should be 1 so that the range after normalization for the tensor is [-1, 1]
 channel_std = [1, 1, 1]
 
+'''
+Model hyperparameters:
+'''
+local_resp_norm0_size = 11      # Some implementations use 5 and across input channels.
+
 
 class GoogLeNet(nn.Module):
+    """
+    GoogLeNet: Implementation of the GoogLeNet CNN.
+    source: Going Deeper with Convolutions arXiv:1409.4842v1 [cs.CV] 17 Sep 2014
+    Implementation Notes:
+        The original paper takes the ceiling of ((n + 2p)-f)/s instead of the floor (as proposed by AndrewNg).
+    """
 
     def __init__(self):
         super(GoogLeNet, self).__init__()
         # conv2d 0
-        # TODO: Two implementations say padding should be 3 here, one says p=1.
-        # TODO: Why would this be the case? Do the Andrew Ng math.
+        '''
+        n = output dimension of preceeding layer.
+        p = padding
+        s = stride
+        f = filter/kernel
+        size = floor(((n+2p)-f)/s))
+        '''
         self.conv0 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=(7, 7), stride=2, padding=3)
         # Note: the ReLU would be defined here but it is run during the call to the forward pass function.
+        # We call maxpooling with a stride of 2 to halve the grid resolution:
         self.max_pool0 = nn.MaxPool2d(kernel_size=(3, 3), stride=2, padding=1)
-        # TODO: What is the Local Resp Norm? Can still issue library calls but would be good to know the math.
-        # self.loc_resp_norm = nn.CrossMapLRN2d(size=)
+        # During Local Response Normalization the output remains the same shape as the input, see:
+        # http://pytorch.org/docs/master/nn.html#localresponsenorm
+        # TODO: How to choose a local neighborhood size for Local Area Normalization? Is it 5 or 11 given 56 x 56 input?
+        # self.loc_resp_norm = nn.LocalResponseNorm(size=11, )
 
     def forward(self, x):
         output = self.max_pool0(F.relu(self.conv0(x)))
-        return x
+        return output
 
 if __name__ == '__main__':
     '''
