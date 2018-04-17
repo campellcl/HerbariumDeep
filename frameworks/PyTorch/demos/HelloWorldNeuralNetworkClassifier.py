@@ -87,71 +87,6 @@ def imshow(img):
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
 
-def main():
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
-
-    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-    # grab some random training images:
-    dataiter = iter(trainloader)
-    images, labels = dataiter.next()
-
-    # print labels
-    print(' '.join('%5s' % classes[labels[j]] for j in range(4)))
-
-    # show images
-    imshow(torchvision.utils.make_grid(images))
-
-    # instantiate the network:
-    net = Net()
-
-    # train the network:
-    train(net, trainloader)
-
-    # test the network:
-    test_classifier(net, testloader, classes)
-
-
-def train(net, trainloader):
-    """
-    train: Trains a PyTorch neural network (nn.Module) via optimizer.
-    :param net: A nn.Module instance representing the neural network.
-    :param trainloader: A nn.data.DataLoader instance which performs loading.
-    :return:
-    """
-    # Use Cross Entropy as a loss function:
-    criterion = nn.CrossEntropyLoss()
-    # Use Stochastic Gradient Descent (SGD) with momentum for an update rule:
-    optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    # We only need two epochs apparently:
-    num_epochs = 2
-    # Iterate over the dataset num_epochs times:
-    for epoch in range(num_epochs):
-        running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            # get the inputs:
-            inputs, labels = data
-            # wrap them in an autograd.Variable:
-            inputs, labels = Variable(inputs), Variable(labels)
-            # zero the parameter gradients:
-            optimizer.zero_grad()
-            # compute the forward pass:
-            outputs = net(inputs)
-            # compute the loss:
-            loss = criterion(outputs, labels)
-            # perform backpropagation:
-            loss.backward()
-            # update the weights with the update/learning rule:
-            optimizer.step()
-
-            # print statistics:
-            running_loss += loss.data[0]
-            if i % 2000 == 1999:        # print every 2000 mini-batches
-                print('<epoch, batch>:\t\t[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 2000))
-                running_loss = 0.0
-    print('Finished Training')
-
 
 def test_classifier(net, testloader, classes):
     """
@@ -202,6 +137,71 @@ def test_classifier(net, testloader, classes):
 
     for i in range(10):
         print('Accuracy of %5s: %2d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
+
+
+def train(net, trainloader):
+    """
+    train: Trains a PyTorch neural network (nn.Module) via optimizer.
+    :param net: A nn.Module instance representing the neural network.
+    :param trainloader: A nn.data.DataLoader instance which performs loading.
+    :return:
+    """
+    # Use Cross Entropy as a loss function:
+    criterion = nn.CrossEntropyLoss()
+    # Use Stochastic Gradient Descent (SGD) with momentum for an update rule:
+    optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    # We only need two epochs apparently:
+    num_epochs = 2
+    # Iterate over the dataset num_epochs times:
+    for epoch in range(num_epochs):
+        running_loss = 0.0
+        for i, data in enumerate(trainloader, 0):
+            # get the inputs:
+            inputs, labels = data
+            # wrap them in an autograd.Variable:
+            inputs, labels = Variable(inputs), Variable(labels)
+            # zero the parameter gradients:
+            optimizer.zero_grad()
+            # compute the forward pass:
+            outputs = net(inputs)
+            # compute the loss:
+            loss = criterion(outputs, labels)
+            # perform backpropagation:
+            loss.backward()
+            # update the weights with the update/learning rule:
+            optimizer.step()
+
+            # print statistics:
+            running_loss += loss.data[0]
+            if i % 2000 == 1999:        # print every 2000 mini-batches
+                print('<epoch, batch>:\t\t[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 2000))
+                running_loss = 0.0
+    print('Finished Training')
+
+def main():
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
+
+    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+    # grab some random training images:
+    dataiter = iter(trainloader)
+    images, labels = dataiter.next()
+
+    # print labels
+    print(' '.join('%5s' % classes[labels[j]] for j in range(4)))
+
+    # show images
+    imshow(torchvision.utils.make_grid(images))
+
+    # instantiate the network:
+    net = Net()
+
+    # train the network:
+    train(net, trainloader)
+
+    # test the network:
+    test_classifier(net, testloader, classes)
 
 
 '''
