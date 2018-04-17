@@ -110,7 +110,7 @@ def main():
     train(net, trainloader)
 
     # test the network:
-    test(net, testloader, classes)
+    test_classifier(net, testloader, classes)
 
 
 def train(net, trainloader):
@@ -153,9 +153,9 @@ def train(net, trainloader):
     print('Finished Training')
 
 
-def test(net, testloader, classes):
+def test_classifier(net, testloader, classes):
     """
-    test: Tests the neural network by first displaying testing images with correct label, and then the network's
+    test_classifier: Tests the neural network by first displaying testing images with correct label, and then the network's
         prediction. Afterward the network is tested on the entire dataset.
     :param net: A nn.Module instance representing the neural network.
     :param testloader: A nn.data.DataLoader instance which performs loading.
@@ -223,9 +223,9 @@ if __name__ == '__main__':
     '''
 
     # Download (or load if already present) the CIFAR10 training dataset:
-    trainset = torchvision.datasets.CIFAR10(root='./demos/data', train=True, download=True, transform=transform)
+    trainset = torchvision.datasets.CIFAR10(root='/data', train=True, download=True, transform=transform)
 
     # Download (or load if already present) the CIFAR10 test dataset:
-    testset = torchvision.datasets.CIFAR10(root='./demos/data', train=False, download=True, transform=transform)
+    testset = torchvision.datasets.CIFAR10(root='/data', train=False, download=True, transform=transform)
 
     main()
