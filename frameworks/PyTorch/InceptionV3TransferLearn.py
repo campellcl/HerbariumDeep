@@ -171,25 +171,25 @@ def main():
     # Display several training images:
     imshow_tensor(input=out, title=[class_names[x] for x in classes])
     # Load a pre-trained model:
-    inception_v3 = models.inception_v3(pretrained=True)
+    resnet_18 = models.resnet18(pretrained=True)
     # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
-    for param in inception_v3.parameters():
+    for param in resnet_18.parameters():
         param.requires_grad = False
     # Parameters of newly constructed modules have requires_grad=True by default
-    num_ftrs = inception_v3.fc.in_features
-    inception_v3.fc = nn.Linear(num_ftrs, 2)
+    num_ftrs = resnet_18.fc.in_features
+    resnet_18.fc = nn.Linear(num_ftrs, 2)
     if use_gpu:
-        inception_v3 = inception_v3.cuda()
+        resnet_18 = resnet_18.cuda()
     criterion = nn.CrossEntropyLoss()
 
     # Observe that only parameters of final layer are being optimized:
-    optimizer_conv = optim.SGD(inception_v3.fc.parameters(), lr=0.001, momentum=0.9)
+    optimizer_conv = optim.SGD(resnet_18.fc.parameters(), lr=0.001, momentum=0.9)
 
     # Decay the learning rate by a factor of 0.1 every 7 epochs:
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer_conv, step_size=7, gamma=0.1)
 
     # Train and evaluate:
-    inception_v3 = train_model(model=inception_v3, criterion=criterion, optimizer=optimizer_conv,
+    resnet_18 = train_model(model=resnet_18, criterion=criterion, optimizer=optimizer_conv,
                                scheduler=exp_lr_scheduler, num_epochs=25)
 
 
