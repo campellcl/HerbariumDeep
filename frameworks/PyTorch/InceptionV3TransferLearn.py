@@ -153,7 +153,7 @@ def get_top_1_error(model):
     return 100 * correct / total
 
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_board=False):
     """
     train_model: Trains the model.
     :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
@@ -217,28 +217,28 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # If in the training phase then backpropagate and optimize by taking step in the gradient:
                 if phase == 'train':
-                    #============ TensorBoard logging ============#
-                    # Source: https://github.com/yunjey/pytorch-tutorial/blob/master/tutorials/04-utils/tensorboard/main.py
-                    # Log the scalar values
-                    info = {
-                        'loss-Train': loss.data[0],
-                        'accuracy-Train': accuracy
-                    }
+                    if tensor_board:
+                        #============ TensorBoard logging ============#
+                        # Source: https://github.com/yunjey/pytorch-tutorial/blob/master/tutorials/04-utils/tensorboard/main.py
+                        # Log the scalar values
+                        info = {
+                            'loss-Train': loss.data[0],
+                            'accuracy-Train': accuracy
+                        }
 
-                    step = ittr - 1
-                    for tag, value in info.items():
-                        logger.scalar_summary(tag, value, step+1)
-                    # Log values and gradients of the parameters (histogram)
-                    for tag, value in model.named_parameters():
-                        tag = tag.replace('.', '/')
-                        logger.histo_summary(tag, value.data.cpu().numpy(), step+1)
-                        # Since param.requires_grad = False can't log gradient data (transfer learning). Would have to
-                        # log gradient data of the last two fc layers only.
-                        # logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy(), setp+1)
+                        step = ittr - 1
+                        for tag, value in info.items():
+                            logger.scalar_summary(tag, value, step+1)
+                        # Log values and gradients of the parameters (histogram)
+                        for tag, value in model.named_parameters():
+                            tag = tag.replace('.', '/')
+                            logger.histo_summary(tag, value.data.cpu().numpy(), step+1)
+                            # Since param.requires_grad = False can't log gradient data (transfer learning). Would have to
+                            # log gradient data of the last two fc layers only.
+                            # logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy(), setp+1)
                     #============ Backpropagation and Optimization ============#
                     loss.backward()
                     optimizer.step()
-
 
                 # update loss and accuracy statistics:
                 running_loss += loss.data[0] * inputs.size(0)
@@ -254,9 +254,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects / dataset_sizes[phase]
 
-
-
-
             print('[{}]:\t Epoch Loss: {:.4f} Epoch Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
             # print('[%s]:\t Epoch Top-5 Error on %sset: %.3f' % (phase, phase, top1.val))
@@ -267,12 +264,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 best_model_wts = copy.deepcopy(model.state_dict())
         print('Accuracy (Top-1 Error or Precision at 1) of the network on %d %s images: %.2f%%'
               % (dataset_sizes[phase], phase, epoch_acc * 100))
-
-        # top_1_err = get_top_1_error(model=model)
-        # print('Overall accuracy (Top-1 Error) of the network on %d %s images: %.2f %%'
-        #       % (dataset_sizes['test'] if has_test_set else dataset_sizes['val'],
-        #          'test' if has_test_set else 'val',
-        #          top_1_err))
         print()
 
     time_elapsed = time.time() - since
@@ -357,7 +348,7 @@ def main():
 
     # Train and evaluate:
     resnet_18 = train_model(model=resnet_18, criterion=criterion, optimizer=optimizer_conv,
-                               scheduler=exp_lr_scheduler, num_epochs=25)
+                               scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
 
 
 if __name__ == '__main__':
