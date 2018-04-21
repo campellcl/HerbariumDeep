@@ -35,10 +35,27 @@ def imshow_tensor(input, title=None):
     input = std * input + mean
     # Restrict to [0, 1] interval:
     input = np.clip(input, a_min=0, a_max=1)
+    fig = plt.figure()
+    has_title = title is not None
+    # fig.add_suplot(Rows,Cols,Pos)
+    # Below code does not work because we are dealing with a tensor object.
+    # for position in range(num_image):
+    #     sub_plt = fig.add_subplot(1, num_image, position+1)
+    #     if has_title:
+    #         sub_plt.set_title(title[position])
+    #         plt.imshow(input)
+    # fig.show()
+    # a = fig.add_subplot(1, num_image, 0)
+    # if has_title:
+    #     a.set_title(title[0])
+    # b = fig.add_subplot(1, num_image, 1)
+    # if has_title:
+    #     b.set_title(title[1])
     plt.imshow(input)
     if title is not None:
         plt.title(title)
     # plt.pause(0.001)    # pause a second so that plots are updated?
+    # plt.figure(num='Training Data and Ground Truth Labels')
     plt.show()
 
 
@@ -172,6 +189,12 @@ def main():
     imshow_tensor(input=out, title=[class_names[x] for x in classes])
     # Load a pre-trained model:
     resnet_18 = models.resnet18(pretrained=True)
+    source_model = 'resnet_18'
+    # model_pretrained_accuracies_url = 'http://pytorch.org/docs/master/torchvision/models.html'
+    print('Loaded %s source model pre-trained on ImageNet.' % source_model)
+    print('The initial error rates for the %s model with 1-crop (224 x 224) are as follows:'
+          '\n\tTop-1 error: 30.24'
+          '\n\tTop-5 error: 10.92' % source_model)
     # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
     for param in resnet_18.parameters():
         param.requires_grad = False
@@ -197,7 +220,6 @@ if __name__ == '__main__':
     data_dir = '../../data/ImageNet/SubSets/hymenoptera_data/'
     input_load_size = 256
     receptive_field_size = 224
-
     '''
     Training Data and Validation Data Input Pipeline:
         Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
@@ -214,15 +236,67 @@ if __name__ == '__main__':
             transforms.CenterCrop(receptive_field_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]),
+        'test': transforms.Compose([
+            transforms.Resize(input_load_size),
+            transforms.CenterCrop(receptive_field_size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
     }
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x])
-                      for x in ['train', 'val']}
-    print('INIT: Loaded image datasets.')
-    data_loaders = {x: pt.utils.data.DataLoader(image_datasets[x], batch_size=4, shuffle=True, num_workers=4)
-                    for x in ['train', 'val']}
-    print('INIT: Created data loaders.')
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+    # Training set data loader:
+    trainset = torchvision.datasets.ImageFolder(os.path.join(data_dir, 'train'), data_transforms['train'])
+    # Validation set data loader:
+    valset = torchvision.datasets.ImageFolder(os.path.join(data_dir, 'val'), data_transforms['val'])
+    image_datasets = {
+        'train': trainset,
+        'val': valset,
+    }
+    # Does a test set directory exist, or only a validation set?
+    has_test_set = os.path.isdir(os.path.join(data_dir, 'test'))
+    if has_test_set:
+        # Test set data loader:
+        testset = torchvision.datasets.ImageFolder(os.path.join(data_dir, 'test'), data_transforms['test'])
+        image_datasets['test'] = testset
+    # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x])
+    #                   for x in ['train', 'val']}
+    # Four async threads per data loader:
+    num_workers = 4
+    # Shuffle the data as it is loaded:
+    shuffle = True
+    # How many images the data loader grabs during one call to next(iter(data_loader)):
+    batch_sizes = {'train': 5, 'val': 5, 'test': 6}
+    # Instantiate training dataset loader:
+    train_loader = pt.utils.data.DataLoader(trainset, batch_size=batch_sizes['train'], shuffle=shuffle, num_workers=num_workers)
+    print('Training data loader instantiated with:'
+          '\n\tshuffle data: %s'
+          '\n\tnumber of workers (async threads): %d'
+          '\n\tbatch size (during iteration):%d'
+          % (shuffle, num_workers, batch_sizes['train']))
+    # Instantiate validation dataset loader:
+    val_loader = pt.utils.data.DataLoader(valset, batch_size=batch_sizes['val'], shuffle=shuffle, num_workers=num_workers)
+    print('Validation data loader instantiated with:'
+          '\n\tshuffle data: %s'
+          '\n\tnumber of workers (async threads): %d'
+          '\n\tbatch size (during iteration):%d'
+          % (shuffle, num_workers, batch_sizes['val']))
+    # data_loaders = {x: pt.utils.data.DataLoader(image_datasets[x], batch_size=5, shuffle=True, num_workers=4)
+    #                 for x in ['train', 'val']}
+    data_loaders = {
+        'train': train_loader,
+        'val': val_loader,
+    }
+    if has_test_set:
+        # Instantiate testing dataset loader:
+        test_loader = pt.utils.data.DataLoader(valset, batch_size=batch_sizes['test'], shuffle=shuffle, num_workers=num_workers)
+        print('Testing data loader instantiated with:'
+              '\n\tshuffle data: %s'
+              '\n\tnumber of workers (async threads): %d'
+              '\n\tbatch size (during iteration):%d'
+              % (shuffle, num_workers, batch_sizes['test']))
+        data_loaders['test'] = test_loader
+
+    dataset_sizes = {x: len(image_datasets[x]) for x in list(image_datasets.keys())}
     print('Number of Images in Each Dataset: %s' % dataset_sizes)
     class_names = image_datasets['train'].classes
     print('All class labels in the dataset: %s' % class_names)
