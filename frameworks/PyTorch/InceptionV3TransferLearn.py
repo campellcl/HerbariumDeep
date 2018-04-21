@@ -3,7 +3,7 @@ InceptionV3TrainedPrior.py
 An example utilizing the Inception v3 torchvision.models implementation with pre-trained weights.
 source: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
 """
-
+import warnings
 import torch as pt
 import torch.nn as nn
 import torch.optim as optim
@@ -16,7 +16,12 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
+from frameworks.PyTorch.logger import Logger
 
+
+
+with warnings.catch_warnings():
+    warnings.simplefilter(action='ignore', category=FutureWarning)
 # plt.ion()   # interactive mode
 
 
@@ -165,6 +170,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
+    # Initialize TensorBoard logger:
+    logger = Logger('./TBLogs')
+    ittr = 0
+
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -202,10 +211,26 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 _, preds = pt.max(outputs.data, 1)
                 loss = criterion(outputs, labels)
 
+                # Compute accuracy for TensorBoard logs:
+                _, argmax = pt.max(outputs, 1)
+                accuracy = (labels == argmax.squeeze()).float().mean()
+
                 # If in the training phase then backpropagate and optimize by taking step in the gradient:
                 if phase == 'train':
+                    #============ TensorBoard logging ============#
+                    # Log the scalar values
+                    info = {
+                        'loss-Train': loss.data[0],
+                        'accuracy-Train': accuracy
+                    }
+
+                    step = ittr - 1
+                    for tag, value in info.items():
+                        logger.scalar_summary(tag, value, step+1)
+                    #============ Backpropagation and Optimization ============#
                     loss.backward()
                     optimizer.step()
+
 
                 # update loss and accuracy statistics:
                 running_loss += loss.data[0] * inputs.size(0)
@@ -220,6 +245,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects / dataset_sizes[phase]
+
+
 
 
             print('[{}]:\t Epoch Loss: {:.4f} Epoch Acc: {:.4f}'.format(
@@ -326,6 +353,10 @@ def main():
 
 
 if __name__ == '__main__':
+    print('WARNING: Future Warnings are set to Ignore.')
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+    warnings.resetwarnings()
+    # warnings.filterwarnings('once', FutureWarning)
     data_dir = '../../data/ImageNet/SubSets/hymenoptera_data/'
     input_load_size = 256
     receptive_field_size = 224
