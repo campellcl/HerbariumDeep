@@ -218,6 +218,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # If in the training phase then backpropagate and optimize by taking step in the gradient:
                 if phase == 'train':
                     #============ TensorBoard logging ============#
+                    # Source: https://github.com/yunjey/pytorch-tutorial/blob/master/tutorials/04-utils/tensorboard/main.py
                     # Log the scalar values
                     info = {
                         'loss-Train': loss.data[0],
@@ -227,6 +228,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     step = ittr - 1
                     for tag, value in info.items():
                         logger.scalar_summary(tag, value, step+1)
+                    # Log values and gradients of the parameters (histogram)
+                    for tag, value in model.named_parameters():
+                        tag = tag.replace('.', '/')
+                        logger.histo_summary(tag, value.data.cpu().numpy(), step+1)
+                        # Since param.requires_grad = False can't log gradient data (transfer learning). Would have to
+                        # log gradient data of the last two fc layers only.
+                        # logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy(), setp+1)
                     #============ Backpropagation and Optimization ============#
                     loss.backward()
                     optimizer.step()
