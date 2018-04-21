@@ -18,10 +18,6 @@ import matplotlib.pyplot as plt
 import copy
 from frameworks.PyTorch.logger import Logger
 
-
-
-with warnings.catch_warnings():
-    warnings.simplefilter(action='ignore', category=FutureWarning)
 # plt.ion()   # interactive mode
 
 
@@ -170,9 +166,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_bo
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
-    # Initialize TensorBoard logger:
-    logger = Logger('./TBLogs')
-    ittr = 0
+    if tensor_board:
+        # Initialize TensorBoard logger:
+        logger = Logger('./TBLogs')
+        ittr = 0
+
+    losses = []
+    accuracies = []
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -211,9 +211,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_bo
                 _, preds = pt.max(outputs.data, 1)
                 loss = criterion(outputs, labels)
 
-                # Compute accuracy for TensorBoard logs:
-                _, argmax = pt.max(outputs, 1)
-                accuracy = (labels == argmax.squeeze()).float().mean()
+                if tensor_board:
+                    # Compute accuracy for TensorBoard logs:
+                    _, argmax = pt.max(outputs, 1)
+                    accuracy = (labels == argmax.squeeze()).float().mean()
 
                 # If in the training phase then backpropagate and optimize by taking step in the gradient:
                 if phase == 'train':
@@ -252,7 +253,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_bo
                 # top5.update(prec5[0], inputs.size(0))
 
             epoch_loss = running_loss / dataset_sizes[phase]
+            losses.append(epoch_loss)
             epoch_acc = running_corrects / dataset_sizes[phase]
+            accuracies.append(epoch_acc)
 
             print('[{}]:\t Epoch Loss: {:.4f} Epoch Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
@@ -270,6 +273,19 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_bo
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
+
+    '''
+    Visualize the loss function over time:
+    '''
+    fig, axes = plt.subplots(2, sharex=True, figsize=(12, 8))
+    fig.suptitle('Training Metrics')
+    axes[0].set_ylabel('Loss', fontsize=14)
+    axes[0].plot(losses)
+
+    axes[1].set_ylabel('Accuracy', fontsize=14)
+    axes[1].set_xlabel('Epoch', fontsize=14)
+    axes[1].plot(accuracies)
+    plt.show()
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -311,6 +327,56 @@ def visualize_model(model, num_images=6):
     model.train(mode=was_training)
 
 
+def test_classifier(net, testloader, classes):
+    """
+    test_classifier: Tests the neural network by first displaying testing images with correct label, and then the network's
+        prediction. Afterward the network is tested on the entire dataset.
+    :param net: A nn.Module instance representing the neural network.
+    :param testloader: A nn.data.DataLoader instance which performs loading.
+    :return:
+    """
+    dataiter = iter(testloader)
+    images, labels = dataiter.next()
+
+    # Print the true labels in the test set for four classes:
+    print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
+    # predict:
+    outputs = net(Variable(images))
+    # predict class labels:
+    _, predicted = pt.max(outputs.data, 1)
+    print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] for j in range(4)))
+    # print images
+    plt.clf()
+    plt.imshow(torchvision.utils.make_grid(images))
+    plt.show()
+
+    # evaluate the network:
+    correct = 0
+    total = 0
+    for data in testloader:
+        images, labels = data
+        outputs = net(Variable(images))
+        _, predicted = pt.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum()
+    print('Accuracy of the network on the 10,000 test images: %d %%' % (100 * correct / total))
+
+    # Lets look at the classes that did well compared to those that did poorly:
+    class_correct = list(0. for i in range(10))
+    class_total = list(0. for i in range(10))
+    for data in testloader:
+        images, labels = data
+        outputs = net(Variable(images))
+        _, predicted = pt.max(outputs.data, 1)
+        c = (predicted == labels).squeeze()
+        for i in range(4):
+            label = labels[i]
+            class_correct[label] += c[i]
+            class_total[label] += 1
+
+    for i in range(10):
+        print('Accuracy of %5s: %2d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
+
 def main():
     """
 
@@ -350,12 +416,14 @@ def main():
     resnet_18 = train_model(model=resnet_18, criterion=criterion, optimizer=optimizer_conv,
                                scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
 
+    # Test images and predictions on the trained classifier:
+    test_classifier(net=resnet_18, testloader=test_loader, classes=class_names)
+
 
 if __name__ == '__main__':
     print('WARNING: Future Warnings are set to Ignore.')
     warnings.simplefilter(action='ignore', category=FutureWarning)
     warnings.resetwarnings()
-    # warnings.filterwarnings('once', FutureWarning)
     data_dir = '../../data/ImageNet/SubSets/hymenoptera_data/'
     input_load_size = 256
     receptive_field_size = 224
