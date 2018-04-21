@@ -19,6 +19,7 @@ import copy
 
 # plt.ion()   # interactive mode
 
+
 def imshow_tensor(input, title=None):
     """
     imshow_tensor: Matplotlib imshow function for PyTorch Tensor Objects.
@@ -116,19 +117,27 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     loss.backward()
                     optimizer.step()
 
-                # update statistics:
+                # update loss and accuracy statistics:
                 running_loss += loss.data[0] * inputs.size(0)
                 running_corrects += pt.sum(preds == labels.data)
+
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects / dataset_sizes[phase]
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+            print('[{}]:\t Epoch Loss: {:.4f} Epoch Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
+            # print('Overall Top-5 Error on %s: %.4f' % ('test' if has_test_set else 'val', get_top_5_error(model=model, classes=class_names)))
 
             # deep copy the model's weights if this epoch was the best performing:
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
+
+        top_1_err = get_top_1_error(model=model)
+        print('Overall accuracy (Top-1 Error) of the network on %d %s images: %d %%'
+            % (dataset_sizes['test'] if has_test_set else dataset_sizes['val'],
+               'test' if has_test_set else 'val',
+               top_1_err))
         print()
 
     time_elapsed = time.time() - since
@@ -176,6 +185,47 @@ def visualize_model(model, num_images=6):
     model.train(mode=was_training)
 
 
+def get_top_1_error(model):
+    # This is the same as the overall accuracy (how many times is the network correct out of all of the test samples).
+    if has_test_set:
+        # entire_test_set = pt.utils.data.DataLoader(testset, batch_size=len(testset), shuffle=True, num_workers=1)
+        # sequential_test_loader = plt.utils.data.DataLoader(testset, batch_size=1, shuffle=True, num_workers=1)
+        data_iter = iter(test_loader)
+        data_loader = test_loader
+    else:
+        # entire_val_set = pt.utils.data.DataLoader(valset, batch_size=len(valset), shuffle=True, num_workers=1)
+        # sequential_val_loader = plt.utils.data.DataLoader(valset, batch_size=1, shuffle=True, num_workers=1)
+        data_iter = iter(val_loader)
+        data_loader = val_loader
+    # Ground truth images and class labels:
+    # images, labels = data_iter.next()
+    # predict:
+    # if use_gpu:
+    #     outputs = model(Variable(images.cuda()))
+    # else:
+    #     outputs = model(Variable(images))
+    # true class labels:
+    # _, predicted = pt.max(outputs.data, 1)
+    # evaluate the model:
+    original_model_state_is_training = model.training
+    if model.training:
+        model.train(False)
+    correct = 0
+    total = 0
+    for data in data_loader:
+        images, labels = data
+        if use_gpu:
+            outputs = model(Variable(images.cuda()))
+        else:
+            outputs = model(Variable(images))
+        _, predicted = pt.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels.cuda()).sum()
+    if original_model_state_is_training:
+        model.train(True)
+    return 100 * correct / total
+
+
 def main():
     """
 
@@ -192,9 +242,9 @@ def main():
     source_model = 'resnet_18'
     # model_pretrained_accuracies_url = 'http://pytorch.org/docs/master/torchvision/models.html'
     print('Loaded %s source model pre-trained on ImageNet.' % source_model)
-    print('The initial error rates for the %s model with 1-crop (224 x 224) are as follows:'
-          '\n\tTop-1 error: 30.24'
-          '\n\tTop-5 error: 10.92' % source_model)
+    print('The initial error rates for the %s model with 1-crop (224 x 224) on the entire ImageNet database are as follows:'
+          '\n\tTop-1 error: 30.24%%'
+          '\n\tTop-5 error: 10.92%%' % source_model)
     # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
     for param in resnet_18.parameters():
         param.requires_grad = False
