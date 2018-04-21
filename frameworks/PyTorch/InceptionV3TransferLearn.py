@@ -20,6 +20,53 @@ import copy
 # plt.ion()   # interactive mode
 
 
+class AverageMeter(object):
+    """
+    AverageMeter: Computes and stores the average and current value.
+    source: https://github.com/pytorch/examples/blob/master/imagenet/main.py
+    """
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def accuracy(output, target, topk=(1,)):
+    """
+    accuracy: Computes the precision@k for the specified values of k
+    source: https://github.com/pytorch/examples/blob/master/imagenet/main.py
+    """
+    maxk = max(topk)
+    batch_size = target.size(0)
+
+    # http://pytorch.org/docs/stable/torch.html#torch.topk
+    # TODO: This dim choice may not be correct investigating why output is 5x2 and lables is 5x1
+    # max_preds, max_pred_indices = pt.max(output.data, dim=1)
+    _, pred = pt.topk(output.data, k=maxk, dim=0)
+    # _, preds = pt.topk(max_preds, k=maxk, sorted=False)
+    # _, pred = pt.topk(output, k=maxk, dim=0, sorted=True)
+    # _, pred = output.topk(maxk, 1, True, True)
+    # _, preds = pt.max(outputs.data, dim=1)
+    pred = pred.t()
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+    res = []
+    for k in topk:
+        correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+        res.append(correct_k.mul_(100.0 / batch_size))
+    return res
+
+
 def imshow_tensor(input, title=None):
     """
     imshow_tensor: Matplotlib imshow function for PyTorch Tensor Objects.
@@ -60,6 +107,47 @@ def imshow_tensor(input, title=None):
     plt.show()
 
 
+def get_top_1_error(model):
+    # This is the same as the overall accuracy (how many times is the network correct out of all of the test samples).
+    if has_test_set:
+        # entire_test_set = pt.utils.data.DataLoader(testset, batch_size=len(testset), shuffle=True, num_workers=1)
+        # sequential_test_loader = plt.utils.data.DataLoader(testset, batch_size=1, shuffle=True, num_workers=1)
+        data_iter = iter(test_loader)
+        data_loader = test_loader
+    else:
+        # entire_val_set = pt.utils.data.DataLoader(valset, batch_size=len(valset), shuffle=True, num_workers=1)
+        # sequential_val_loader = plt.utils.data.DataLoader(valset, batch_size=1, shuffle=True, num_workers=1)
+        data_iter = iter(val_loader)
+        data_loader = val_loader
+    # Ground truth images and class labels:
+    # images, labels = data_iter.next()
+    # predict:
+    # if use_gpu:
+    #     outputs = model(Variable(images.cuda()))
+    # else:
+    #     outputs = model(Variable(images))
+    # true class labels:
+    # _, predicted = pt.max(outputs.data, 1)
+    # evaluate the model:
+    original_model_state_is_training = model.training
+    if model.training:
+        model.train(False)
+    correct = 0
+    total = 0
+    for data in data_loader:
+        images, labels = data
+        if use_gpu:
+            outputs = model(Variable(images.cuda()))
+        else:
+            outputs = model(Variable(images))
+        _, predicted = pt.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels.cuda()).sum()
+    if original_model_state_is_training:
+        model.train(True)
+    return 100 * correct / total
+
+
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     """
     train_model: Trains the model.
@@ -71,6 +159,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     :param num_epochs:
     :return:
     """
+    top1 = AverageMeter()
+    top5 = AverageMeter()
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
@@ -96,7 +186,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             for data in data_loaders[phase]:
                 # get the inputs
                 inputs, labels = data
-
+                # print('inputs size: %s' % (inputs.size(),))
                 # wrap them in a TensorFlow Variable:
                 if use_gpu:
                     inputs = Variable(inputs.cuda())
@@ -120,24 +210,34 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # update loss and accuracy statistics:
                 running_loss += loss.data[0] * inputs.size(0)
                 running_corrects += pt.sum(preds == labels.data)
+                # Measure accuracy and record:
+                # print('size of outputs.data: %s' % (outputs.data.size(),))
+                # print('outputs.data: %s' % outputs)
+                # print('size of lables: %s' % labels.size())
+                # prec1, prec5 = accuracy(output=outputs, target=labels, topk=(1, 5))
+                # top1.update(prec1[0], inputs.size(0))
+                # top5.update(prec5[0], inputs.size(0))
 
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects / dataset_sizes[phase]
 
+
             print('[{}]:\t Epoch Loss: {:.4f} Epoch Acc: {:.4f}'.format(
                     phase, epoch_loss, epoch_acc))
-            # print('Overall Top-5 Error on %s: %.4f' % ('test' if has_test_set else 'val', get_top_5_error(model=model, classes=class_names)))
+            # print('[%s]:\t Epoch Top-5 Error on %sset: %.3f' % (phase, phase, top1.val))
 
             # deep copy the model's weights if this epoch was the best performing:
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
+        print('Accuracy (Top-1 Error or Precision at 1) of the network on %d %s images: %.2f%%'
+              % (dataset_sizes[phase], phase, epoch_acc * 100))
 
-        top_1_err = get_top_1_error(model=model)
-        print('Overall accuracy (Top-1 Error) of the network on %d %s images: %.2f %%'
-            % (dataset_sizes['test'] if has_test_set else dataset_sizes['val'],
-               'test' if has_test_set else 'val',
-               top_1_err))
+        # top_1_err = get_top_1_error(model=model)
+        # print('Overall accuracy (Top-1 Error) of the network on %d %s images: %.2f %%'
+        #       % (dataset_sizes['test'] if has_test_set else dataset_sizes['val'],
+        #          'test' if has_test_set else 'val',
+        #          top_1_err))
         print()
 
     time_elapsed = time.time() - since
@@ -183,47 +283,6 @@ def visualize_model(model, num_images=6):
                 model.train(mode=was_training)
                 return
     model.train(mode=was_training)
-
-
-def get_top_1_error(model):
-    # This is the same as the overall accuracy (how many times is the network correct out of all of the test samples).
-    if has_test_set:
-        # entire_test_set = pt.utils.data.DataLoader(testset, batch_size=len(testset), shuffle=True, num_workers=1)
-        # sequential_test_loader = plt.utils.data.DataLoader(testset, batch_size=1, shuffle=True, num_workers=1)
-        data_iter = iter(test_loader)
-        data_loader = test_loader
-    else:
-        # entire_val_set = pt.utils.data.DataLoader(valset, batch_size=len(valset), shuffle=True, num_workers=1)
-        # sequential_val_loader = plt.utils.data.DataLoader(valset, batch_size=1, shuffle=True, num_workers=1)
-        data_iter = iter(val_loader)
-        data_loader = val_loader
-    # Ground truth images and class labels:
-    # images, labels = data_iter.next()
-    # predict:
-    # if use_gpu:
-    #     outputs = model(Variable(images.cuda()))
-    # else:
-    #     outputs = model(Variable(images))
-    # true class labels:
-    # _, predicted = pt.max(outputs.data, 1)
-    # evaluate the model:
-    original_model_state_is_training = model.training
-    if model.training:
-        model.train(False)
-    correct = 0
-    total = 0
-    for data in data_loader:
-        images, labels = data
-        if use_gpu:
-            outputs = model(Variable(images.cuda()))
-        else:
-            outputs = model(Variable(images))
-        _, predicted = pt.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels.cuda()).sum()
-    if original_model_state_is_training:
-        model.train(True)
-    return 100 * correct / total
 
 
 def main():
