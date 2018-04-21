@@ -8,9 +8,12 @@ URLs and move the extracted folders to the HerbariumDeep/data/ folder.
 Required External Data:
 1. [Herbarium255_Images](http://otmedia.lirmm.fr/LifeCLEF/GoingDeeperHerbarium/Herbaria255_Images.zip)
 
-## Implementation Resources
-### TensorFlow
-### PyTorch
+### TensorFlow Resources:
+### PyTorch Resources:
+#### Using TensorBoard in PyTorch:
+* [PyTorch Hack - Use TensorBoard for plotting Training Accuracy and Loss](https://beerensahu.wordpress.com/2018/04/18/pytorch-hack-use-tensorboard-for-plotting-training-accuracy-and-loss/)
+    * [Referenced Repository](https://github.com/yunjey/pytorch-tutorial/tree/master/tutorials/04-utils/tensorboard)
+
 #### Transfer Learning:
 * [Transfer Learning PyTorch Tutorial](http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html)
     * [Debugging the Above Tutorial](https://github.com/ahirner/pytorch-retraining/blob/master/retrain.py)
