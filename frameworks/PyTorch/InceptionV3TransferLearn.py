@@ -134,7 +134,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 best_model_wts = copy.deepcopy(model.state_dict())
 
         top_1_err = get_top_1_error(model=model)
-        print('Overall accuracy (Top-1 Error) of the network on %d %s images: %d %%'
+        print('Overall accuracy (Top-1 Error) of the network on %d %s images: %.2f %%'
             % (dataset_sizes['test'] if has_test_set else dataset_sizes['val'],
                'test' if has_test_set else 'val',
                top_1_err))
