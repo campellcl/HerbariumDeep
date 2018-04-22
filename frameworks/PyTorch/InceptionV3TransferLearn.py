@@ -412,18 +412,23 @@ def main():
     # Decay the learning rate by a factor of 0.1 every 7 epochs:
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer_conv, step_size=7, gamma=0.1)
 
+    print('==' * 15 + 'Begin Training' + '==' * 15)
+
     # Train and evaluate:
     resnet_18 = train_model(model=resnet_18, criterion=criterion, optimizer=optimizer_conv,
                                scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
 
+    print('==' * 15 + 'Test Classifier' + '==' * 15)
     # Test images and predictions on the trained classifier:
     test_classifier(net=resnet_18, testloader=test_loader, classes=class_names)
 
 
 if __name__ == '__main__':
-    print('WARNING: Future Warnings are set to Ignore.')
+    print(15 * '==' + 'WARNING: Future Warnings are set to Ignore.' + '==' * 15)
+    # warnings.warn('Beware of deprecation, FutureWarnings are set to ignore')
     warnings.simplefilter(action='ignore', category=FutureWarning)
     warnings.resetwarnings()
+
     data_dir = '../../data/ImageNet/SubSets/hymenoptera_data/'
     input_load_size = 256
     receptive_field_size = 224
