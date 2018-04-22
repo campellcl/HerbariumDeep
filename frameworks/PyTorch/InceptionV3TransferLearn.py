@@ -535,7 +535,7 @@ def main():
 
     :return:
     """
-    global args, best_prec_1, use_gpu, class_names
+    global args, best_prec_1, use_gpu
     args = parser.parse_args()
     use_gpu = pt.cuda.is_available()
     print('CUDA is enabled?: %s' % use_gpu)
@@ -593,8 +593,8 @@ def main():
             model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model,
                                 criterion=criterion, optimizer=optimizer, scheduler=exp_lr_scheduler,
                                 num_epochs=25, tensor_board=False)
-
     else:
+        # Resume flag not enabled from cmd line, training the model from scratch:
         data_loaders, dataset_sizes = get_data_loaders()
         # Train the model:
         model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model, criterion=criterion,
