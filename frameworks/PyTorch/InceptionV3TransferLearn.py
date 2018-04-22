@@ -4,6 +4,8 @@ An example utilizing the Inception v3 torchvision.models implementation with pre
 source: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
 """
 import warnings
+import shutil
+import argparse
 import torch as pt
 import torch.nn as nn
 import torch.optim as optim
@@ -17,6 +19,48 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 from frameworks.PyTorch.logger import Logger
+
+model_names = sorted(name for name in models.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(models.__dict__[name]))
+
+parser = argparse.ArgumentParser(description='PyTorch Transfer Learning Demo on ImageNet subset')
+parser.add_argument('data', metavar='DIR',
+                    help='path to dataset')
+parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
+                    choices=model_names,
+                    help='model architecture: ' +
+                        ' | '.join(model_names) +
+                        ' (default: resnet18)')
+parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+                    help='number of data loading workers (default: 4)')
+parser.add_argument('--epochs', default=90, type=int, metavar='N',
+                    help='number of total epochs to run')
+# parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+#                     help='manual epoch number (useful on restarts)')
+parser.add_argument('-b', '--batch-size', default=256, type=int,
+                    metavar='N', help='mini-batch size (default: 256)')
+parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                    metavar='LR', help='initial learning rate')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                    help='momentum')
+parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
+                    metavar='W', help='weight decay (default: 1e-4)')
+# parser.add_argument('--print-freq', '-p', default=10, type=int,
+#                     metavar='N', help='print frequency (default: 10)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
+parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+                    help='evaluate model on validation set')
+parser.add_argument('--pretrained', dest='pretrained', action='store_true',
+                    help='use pre-trained model')
+# parser.add_argument('--world-size', default=1, type=int,
+#                     help='number of distributed processes')
+# parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
+#                     help='url used to set up distributed training')
+# parser.add_argument('--dist-backend', default='gloo', type=str,
+#                     help='distributed backend')
+
 
 # plt.ion()   # interactive mode
 
@@ -149,6 +193,12 @@ def get_top_1_error(model):
     return 100 * correct / total
 
 
+def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+    pt.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, 'model_best.pth.tar')
+
+
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_board=False):
     """
     train_model: Trains the model.
@@ -265,6 +315,14 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_bo
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
+                # create checkpoint:
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'arch': args.arch,
+                    'state_dict': copy.deepcopy(model.state_dict()),
+                    'best_prec_1': best_acc,
+                    'optimizer': optimizer.state_dict()
+                }, is_best=True, filename='../../data/PTCheckpoints/model_best.pth.tar')
         print('Accuracy (Top-1 Error or Precision at 1) of the network on %d %s images: %.2f%%'
               % (dataset_sizes[phase], phase, epoch_acc * 100))
         print()
@@ -377,58 +435,68 @@ def test_classifier(net, testloader, classes):
     for i in range(10):
         print('Accuracy of %5s: %2d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
 
+
 def main():
     """
 
     :return:
     """
-    # Get a batch of training data:
-    inputs, classes = next(iter(data_loaders['train']))
-    # Make a grid from batch:
-    out = torchvision.utils.make_grid(inputs)
-    # Display several training images:
-    imshow_tensor(input=out, title=[class_names[x] for x in classes])
-    # Load a pre-trained model:
-    resnet_18 = models.resnet18(pretrained=True)
-    source_model = 'resnet_18'
-    # model_pretrained_accuracies_url = 'http://pytorch.org/docs/master/torchvision/models.html'
-    print('Loaded %s source model pre-trained on ImageNet.' % source_model)
-    print('The initial error rates for the %s model with 1-crop (224 x 224) on the entire ImageNet database are as follows:'
-          '\n\tTop-1 error: 30.24%%'
-          '\n\tTop-5 error: 10.92%%' % source_model)
-    # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
-    for param in resnet_18.parameters():
-        param.requires_grad = False
-    # Parameters of newly constructed modules have requires_grad=True by default
-    num_ftrs = resnet_18.fc.in_features
-    resnet_18.fc = nn.Linear(num_ftrs, 2)
-    if use_gpu:
-        resnet_18 = resnet_18.cuda()
-    criterion = nn.CrossEntropyLoss()
+    global args, best_prec_1, use_gpu
+    args = parser.parse_args()
+    use_gpu = pt.cuda.is_available()
+    print('CUDA is enabled?: %s' % use_gpu)
+
+    # create model
+    if args.pretrained:
+        print("=> using pre-trained model '{}'".format(args.arch))
+        model = models.__dict__[args.arch](pretrained=True)
+        print('Loaded %s source model pre-trained on ImageNet.' % args.arch)
+        # model_pretrained_accuracies_url = 'http://pytorch.org/docs/master/torchvision/models.html'
+        print('The initial error rates for the %s model with 1-crop (224 x 224) on the entire ImageNet database are as follows:'
+              '\n\tTop-1 error: 30.24%%'
+              '\n\tTop-5 error: 10.92%%' % args.arch)
+        # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
+        # Parameters of newly constructed modules have requires_grad=True by default:
+        for param in model.parameters():
+            param.requires_grad = False
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, 2)
+        if use_gpu:
+            model = model.cuda()
+    else:
+        print("=> creating model '{}'".format(args.arch))
+        model = models.__dict__[args.arch]()
+
+    # define loss function (criterion) and optimizer
+    criterion = nn.CrossEntropyLoss().cuda()
 
     # Observe that only parameters of final layer are being optimized:
-    optimizer_conv = optim.SGD(resnet_18.fc.parameters(), lr=0.001, momentum=0.9)
+    optimizer = pt.optim.SGD(model.fc.parameters(), args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
 
     # Decay the learning rate by a factor of 0.1 every 7 epochs:
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer_conv, step_size=7, gamma=0.1)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=7, gamma=0.1)
 
-    print('==' * 15 + 'Begin Training' + '==' * 15)
-
-    # Train and evaluate:
-    resnet_18 = train_model(model=resnet_18, criterion=criterion, optimizer=optimizer_conv,
+    # resume from checkpoint if present and valid path:
+    if args.resume:
+        if os.path.isfile(os.path.join(args.resume)):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            checkpoint = pt.load(args.resume)
+            args.start_epoch = checkpoint['epoch']
+            best_prec_1 = checkpoint['best_prec_1']
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+            print('==' * 15 + 'Begin Training' + '==' * 15)
+            print('CUDA is enabled?: %s\nWill use GPU to train?: %s' % (use_gpu, use_gpu))
+            # Train the model:
+            model = train_model(model=model, criterion=criterion, optimizer=optimizer,
                                scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
-
-    print('==' * 15 + 'Test Classifier' + '==' * 15)
-    # Test images and predictions on the trained classifier:
-    test_classifier(net=resnet_18, testloader=test_loader, classes=class_names)
-
-
-if __name__ == '__main__':
-    print(15 * '==' + 'WARNING: Future Warnings are set to Ignore.' + '==' * 15)
-    # warnings.warn('Beware of deprecation, FutureWarnings are set to ignore')
-    warnings.simplefilter(action='ignore', category=FutureWarning)
-    warnings.resetwarnings()
-
+    # data_transforms = get_data_transformations(args.dir)
     data_dir = '../../data/ImageNet/SubSets/hymenoptera_data/'
     input_load_size = 256
     receptive_field_size = 224
@@ -512,6 +580,23 @@ if __name__ == '__main__':
     print('Number of Images in Each Dataset: %s' % dataset_sizes)
     class_names = image_datasets['train'].classes
     print('All class labels in the dataset: %s' % class_names)
-    use_gpu = pt.cuda.is_available()
-    print('CUDA is enabled?: %s\nWill use GPU to train?: %s' % (use_gpu, use_gpu))
+    # Get a batch of training data:
+    inputs, classes = next(iter(data_loaders['train']))
+    # Make a grid from batch:
+    out = torchvision.utils.make_grid(inputs)
+    # Display several training images:
+    imshow_tensor(input=out, title=[class_names[x] for x in classes])
+    print('==' * 15 + 'Test Classifier' + '==' * 15)
+    # Test images and predictions on the trained classifier:
+    if has_test_set:
+        test_classifier(net=model, testloader=test_loader, classes=class_names)
+    else:
+        test_classifier(net=model, testloader=val_loader, classes=class_names)
+
+
+if __name__ == '__main__':
+    print(15 * '==' + 'WARNING: Future Warnings are set to Ignore.' + '==' * 15)
+    # warnings.warn('Beware of deprecation, FutureWarnings are set to ignore')
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+    warnings.resetwarnings()
     main()
