@@ -152,7 +152,7 @@ def imshow_tensor(input, title=None):
     plt.show()
 
 
-def get_top_1_error(model):
+def get_top_1_error(model, data_loaders):
     # This is the same as the overall accuracy (how many times is the network correct out of all of the test samples).
     if 'test' in data_loaders:
         # entire_test_set = pt.utils.data.DataLoader(testset, batch_size=len(testset), shuffle=True, num_workers=1)
@@ -199,7 +199,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         shutil.copyfile(filename, 'model_best.pth.tar')
 
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_board=False):
+def train_model(data_loaders, dataset_sizes, model, criterion, optimizer, scheduler, num_epochs=25, tensor_board=False):
     """
     train_model: Trains the model.
     :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
@@ -315,6 +315,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_bo
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
+                print('Checkpoint:This epoch had the best accuracy. The model weights have been saved.')
                 # create checkpoint:
                 save_checkpoint({
                     'epoch': epoch + 1,
@@ -350,7 +351,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25, tensor_bo
     return model
 
 
-def visualize_model(model, num_images=6):
+def visualize_model(data_loaders, model, num_images=6):
     """
     visualize_model: Generic function to display the models predictions for a few images.
     :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
@@ -436,66 +437,13 @@ def test_classifier(net, testloader, classes):
         print('Accuracy of %5s: %2d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
 
 
-def main():
+def get_data_loaders():
     """
-
-    :return:
+    instantiate_data_loaders: Creates either two or three instances of torch.utils.data.DataLoader depending on the
+        datasets present in the data dir provided via command line argument 'data'. Instantiates a data loader for the
+        training dataset, validation dataset, and the test dataset (if present).
+    :return data_loaders:
     """
-    global args, best_prec_1, use_gpu, data_loaders, dataset_sizes, class_names
-    args = parser.parse_args()
-    use_gpu = pt.cuda.is_available()
-    print('CUDA is enabled?: %s' % use_gpu)
-
-    # create model
-    if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
-        print('Loaded %s source model pre-trained on ImageNet.' % args.arch)
-        # model_pretrained_accuracies_url = 'http://pytorch.org/docs/master/torchvision/models.html'
-        print('The initial error rates for the %s model with 1-crop (224 x 224) on the entire ImageNet database are as follows:'
-              '\n\tTop-1 error: 30.24%%'
-              '\n\tTop-5 error: 10.92%%' % args.arch)
-        # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
-        # Parameters of newly constructed modules have requires_grad=True by default:
-        for param in model.parameters():
-            param.requires_grad = False
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, 2)
-        if use_gpu:
-            model = model.cuda()
-    else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
-
-    # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss().cuda()
-
-    # Observe that only parameters of final layer are being optimized:
-    optimizer = pt.optim.SGD(model.fc.parameters(), args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
-
-    # Decay the learning rate by a factor of 0.1 every 7 epochs:
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=7, gamma=0.1)
-
-    # resume from checkpoint if present and valid path:
-    if args.resume:
-        if os.path.isfile(os.path.join(args.resume)):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = pt.load(args.resume)
-            args.start_epoch = checkpoint['epoch']
-            best_prec_1 = checkpoint['best_prec_1']
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
-            print('==' * 15 + 'Begin Training' + '==' * 15)
-            print('CUDA is enabled?: %s\nWill use GPU to train?: %s' % (use_gpu, use_gpu))
-            # Train the model:
-            model = train_model(model=model, criterion=criterion, optimizer=optimizer,
-                               scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
     # data_transforms = get_data_transformations(args.dir)
     data_dir = '../../data/ImageNet/SubSets/hymenoptera_data/'
     input_load_size = 256
@@ -575,11 +523,84 @@ def main():
               '\n\tbatch size (during iteration):%d'
               % (shuffle, num_workers, batch_sizes['test']))
         data_loaders['test'] = test_loader
-
     dataset_sizes = {x: len(image_datasets[x]) for x in list(image_datasets.keys())}
     print('Number of Images in Each Dataset: %s' % dataset_sizes)
     class_names = image_datasets['train'].classes
     print('All class labels in the dataset: %s' % class_names)
+    return data_loaders, dataset_sizes
+
+
+def main():
+    """
+
+    :return:
+    """
+    global args, best_prec_1, use_gpu, class_names
+    args = parser.parse_args()
+    use_gpu = pt.cuda.is_available()
+    print('CUDA is enabled?: %s' % use_gpu)
+    model = None
+    # create model
+    if args.pretrained:
+        print("=> using pre-trained model '{}'".format(args.arch))
+        model = models.__dict__[args.arch](pretrained=True)
+        print('Loaded %s source model pre-trained on ImageNet.' % args.arch)
+        # model_pretrained_accuracies_url = 'http://pytorch.org/docs/master/torchvision/models.html'
+        print('The initial error rates for the %s model with 1-crop (224 x 224) on the entire ImageNet database are as follows:'
+              '\n\tTop-1 error: 30.24%%'
+              '\n\tTop-5 error: 10.92%%' % args.arch)
+        # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
+        # Parameters of newly constructed modules have requires_grad=True by default:
+        for param in model.parameters():
+            param.requires_grad = False
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, 2)
+        if use_gpu:
+            model = model.cuda()
+    else:
+        print("=> creating model '{}'".format(args.arch))
+        model = models.__dict__[args.arch]()
+
+    # define loss function (criterion) and optimizer
+    criterion = nn.CrossEntropyLoss().cuda()
+
+    # Observe that only parameters of final layer are being optimized:
+    optimizer = pt.optim.SGD(model.fc.parameters(), args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay)
+
+    # Decay the learning rate by a factor of 0.1 every 7 epochs:
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=7, gamma=0.1)
+
+    # resume from checkpoint if present and valid path:
+    if args.resume:
+        if os.path.isfile(os.path.join(args.resume)):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            checkpoint = pt.load(args.resume)
+            args.start_epoch = checkpoint['epoch']
+            best_prec_1 = checkpoint['best_prec_1']
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+            print('==' * 15 + 'Begin Training' + '==' * 15)
+            print('CUDA is enabled?: %s\nWill use GPU to train?: %s' % (use_gpu, use_gpu))
+
+            # Train the model:
+            data_loaders, dataset_sizes = get_data_loaders()
+            model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model,
+                                criterion=criterion, optimizer=optimizer, scheduler=exp_lr_scheduler,
+                                num_epochs=25, tensor_board=False)
+
+    else:
+        data_loaders, dataset_sizes = get_data_loaders()
+        # Train the model:
+        model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model, criterion=criterion,
+                            optimizer=optimizer, scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
+
+
     # Get a batch of training data:
     inputs, classes = next(iter(data_loaders['train']))
     # Make a grid from batch:
