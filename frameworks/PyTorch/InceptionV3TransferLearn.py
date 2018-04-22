@@ -154,16 +154,16 @@ def imshow_tensor(input, title=None):
 
 def get_top_1_error(model):
     # This is the same as the overall accuracy (how many times is the network correct out of all of the test samples).
-    if has_test_set:
+    if 'test' in data_loaders:
         # entire_test_set = pt.utils.data.DataLoader(testset, batch_size=len(testset), shuffle=True, num_workers=1)
         # sequential_test_loader = plt.utils.data.DataLoader(testset, batch_size=1, shuffle=True, num_workers=1)
-        data_iter = iter(test_loader)
-        data_loader = test_loader
+        data_iter = iter(data_loaders['test'])
+        data_loader = data_loaders['test']
     else:
         # entire_val_set = pt.utils.data.DataLoader(valset, batch_size=len(valset), shuffle=True, num_workers=1)
         # sequential_val_loader = plt.utils.data.DataLoader(valset, batch_size=1, shuffle=True, num_workers=1)
-        data_iter = iter(val_loader)
-        data_loader = val_loader
+        data_iter = iter(data_loaders['val'])
+        data_loader = data_loaders['val']
     # Ground truth images and class labels:
     # images, labels = data_iter.next()
     # predict:
@@ -441,7 +441,7 @@ def main():
 
     :return:
     """
-    global args, best_prec_1, use_gpu
+    global args, best_prec_1, use_gpu, data_loaders, dataset_sizes, class_names
     args = parser.parse_args()
     use_gpu = pt.cuda.is_available()
     print('CUDA is enabled?: %s' % use_gpu)
