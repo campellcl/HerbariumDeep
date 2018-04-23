@@ -386,7 +386,7 @@ def visualize_model(data_loaders, class_names, model, num_images=6):
     model.train(mode=was_training)
 
 
-def test_classifier(net, testloader, classes):
+def test_classifier(net, testloader, class_names):
     """
     test_classifier: Tests the neural network by first displaying testing images with correct label, and then the network's
         prediction. Afterward the network is tested on the entire dataset.
@@ -398,15 +398,22 @@ def test_classifier(net, testloader, classes):
     images, labels = dataiter.next()
 
     # Print the true labels in the test set for four classes:
-    print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
+    print('GroundTruth: ', ' '.join('%5s' % class_names[labels[j]] for j in range(5)))
     # predict:
-    outputs = net(Variable(images))
+    if pt.cuda.is_available():
+        outputs = net(Variable(images.cuda()))
+    else:
+        outputs = net(Variable(images))
     # predict class labels:
     _, predicted = pt.max(outputs.data, 1)
-    print('Predicted: ', ' '.join('%5s' % classes[predicted[j]] for j in range(4)))
+    print('Predicted: ', ' '.join('%5s' % class_names[predicted[j]] for j in range(5)))
     # print images
-    plt.clf()
-    plt.imshow(torchvision.utils.make_grid(images))
+    # plt.clf()
+    # Make a grid from batch:
+    out = torchvision.utils.make_grid(images)
+    # Display several training images:
+    imshow_tensor(input=out, title=[class_names[x] for x in labels])
+    # plt.imshow(torchvision.utils.make_grid(images))
     plt.show()
 
     # evaluate the network:
@@ -414,27 +421,33 @@ def test_classifier(net, testloader, classes):
     total = 0
     for data in testloader:
         images, labels = data
-        outputs = net(Variable(images))
+        if pt.cuda.is_available():
+            outputs = net(Variable(images.cuda()))
+        else:
+            outputs = net(Variable(images))
         _, predicted = pt.max(outputs.data, 1)
         total += labels.size(0)
-        correct += (predicted == labels).sum()
-    print('Accuracy of the network on the 10,000 test images: %d %%' % (100 * correct / total))
+        correct += (predicted == labels.cuda()).sum()
+    print('Accuracy of the network on the %d test images: %.2f %%' % (153, (100 * correct / total)))
 
     # Lets look at the classes that did well compared to those that did poorly:
-    class_correct = list(0. for i in range(10))
-    class_total = list(0. for i in range(10))
+    class_correct = list(0. for i in range(len(class_names)))
+    class_total = list(0. for i in range(len(class_names)))
     for data in testloader:
         images, labels = data
-        outputs = net(Variable(images))
+        if pt.cuda.is_available():
+            outputs = net(Variable(images.cuda()))
+        else:
+            outputs = net(Variable(images))
         _, predicted = pt.max(outputs.data, 1)
-        c = (predicted == labels).squeeze()
-        for i in range(4):
+        c = (predicted == labels.cuda()).squeeze()
+        for i in range(len(labels)):
             label = labels[i]
             class_correct[label] += c[i]
             class_total[label] += 1
 
-    for i in range(10):
-        print('Accuracy of %5s: %2d %%' % (classes[i], 100 * class_correct[i] / class_total[i]))
+    for i in range(len(class_names)):
+        print('Accuracy of %5s: %2d %%' % (class_names[i], 100 * class_correct[i] / class_total[i]))
 
 
 def get_data_loaders():
@@ -605,13 +618,20 @@ def main():
         model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model, criterion=criterion,
                             optimizer=optimizer, scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
 
+    print('==' * 15 + 'Test Classifier' + '==' * 15)
     # Get a batch of training data:
-    inputs, classes = next(iter(data_loaders['train']))
+    if 'test' in data_loaders:
+        test_classifier(model, data_loaders['test'], class_names=class_names)
+    else:
+        test_classifier(model, data_loaders['val'], class_names=class_names)
+        # inputs, classes = next(iter(data_loaders['val']))
+
+    # inputs, classes = next(iter(data_loaders['test']))
     # Make a grid from batch:
-    out = torchvision.utils.make_grid(inputs)
+    # out = torchvision.utils.make_grid(inputs)
     # Display several training images:
-    imshow_tensor(input=out, title=[class_names[x] for x in classes])
-    # print('==' * 15 + 'Test Classifier' + '==' * 15)
+    # imshow_tensor(input=out, title=[class_names[x] for x in classes])
+
     # # Test images and predictions on the trained classifier:
     # if has_test_set:
     #     test_classifier(net=model, testloader=test_loader, classes=class_names)
