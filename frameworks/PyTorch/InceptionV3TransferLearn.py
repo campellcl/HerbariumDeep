@@ -627,7 +627,7 @@ def main():
               '\n\tTop-1 error: 30.24%%'
               '\n\tTop-5 error: 10.92%%' % args.arch)
         imagenet_subset_err = get_top_1_error_resnet_pretrained(model, data_loaders)
-        print('ImageNet Subset Accuracy: %.2f' % imagenet_subset_err)
+        print('Accuracy of the pre-trained %s on the target domain ImageNet subset: %.2f%%' % (args.arch, imagenet_subset_err))
         # print('==' * 15 + 'Test Pre-Trained Classifier' + '==' * 15)
         # # Get a batch of training data:
         # if 'test' in data_loaders:
