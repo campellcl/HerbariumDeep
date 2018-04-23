@@ -351,7 +351,7 @@ def train_model(data_loaders, dataset_sizes, model, criterion, optimizer, schedu
     return model
 
 
-def visualize_model(data_loaders, model, num_images=6):
+def visualize_model(data_loaders, class_names, model, num_images=6):
     """
     visualize_model: Generic function to display the models predictions for a few images.
     :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
@@ -527,7 +527,7 @@ def get_data_loaders():
     print('Number of Images in Each Dataset: %s' % dataset_sizes)
     class_names = image_datasets['train'].classes
     print('All class labels in the dataset: %s' % class_names)
-    return data_loaders, dataset_sizes
+    return data_loaders, dataset_sizes, class_names
 
 
 def main():
@@ -540,6 +540,8 @@ def main():
     use_gpu = pt.cuda.is_available()
     print('CUDA is enabled?: %s' % use_gpu)
     model = None
+    data_loaders = None
+
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
@@ -572,6 +574,9 @@ def main():
     # Decay the learning rate by a factor of 0.1 every 7 epochs:
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=7, gamma=0.1)
 
+    # Data loaders:
+    data_loaders, dataset_sizes, class_names = get_data_loaders()
+
     # resume from checkpoint if present and valid path:
     if args.resume:
         if os.path.isfile(os.path.join(args.resume)):
@@ -583,23 +588,22 @@ def main():
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
+
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
             print('==' * 15 + 'Begin Training' + '==' * 15)
             print('CUDA is enabled?: %s\nWill use GPU to train?: %s' % (use_gpu, use_gpu))
 
             # Train the model:
-            data_loaders, dataset_sizes = get_data_loaders()
             model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model,
                                 criterion=criterion, optimizer=optimizer, scheduler=exp_lr_scheduler,
                                 num_epochs=25, tensor_board=False)
     else:
         # Resume flag not enabled from cmd line, training the model from scratch:
-        data_loaders, dataset_sizes = get_data_loaders()
+        print('==' * 15 + 'Begin Training' + '==' * 15)
         # Train the model:
         model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model, criterion=criterion,
                             optimizer=optimizer, scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
-
 
     # Get a batch of training data:
     inputs, classes = next(iter(data_loaders['train']))
@@ -607,12 +611,12 @@ def main():
     out = torchvision.utils.make_grid(inputs)
     # Display several training images:
     imshow_tensor(input=out, title=[class_names[x] for x in classes])
-    print('==' * 15 + 'Test Classifier' + '==' * 15)
-    # Test images and predictions on the trained classifier:
-    if has_test_set:
-        test_classifier(net=model, testloader=test_loader, classes=class_names)
-    else:
-        test_classifier(net=model, testloader=val_loader, classes=class_names)
+    # print('==' * 15 + 'Test Classifier' + '==' * 15)
+    # # Test images and predictions on the trained classifier:
+    # if has_test_set:
+    #     test_classifier(net=model, testloader=test_loader, classes=class_names)
+    # else:
+    #     test_classifier(net=model, testloader=val_loader, classes=class_names)
 
 
 if __name__ == '__main__':
