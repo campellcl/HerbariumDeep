@@ -152,6 +152,64 @@ def imshow_tensor(input, title=None):
     plt.show()
 
 
+def get_top_1_error_resnet_pretrained(model, data_loaders):
+     # This is the same as the overall accuracy (how many times is the network correct out of all of the test samples).
+    if 'test' in data_loaders:
+        # entire_test_set = pt.utils.data.DataLoader(testset, batch_size=len(testset), shuffle=True, num_workers=1)
+        # sequential_test_loader = plt.utils.data.DataLoader(testset, batch_size=1, shuffle=True, num_workers=1)
+        data_iter = iter(data_loaders['test'])
+        data_loader = data_loaders['test']
+    else:
+        # entire_val_set = pt.utils.data.DataLoader(valset, batch_size=len(valset), shuffle=True, num_workers=1)
+        # sequential_val_loader = plt.utils.data.DataLoader(valset, batch_size=1, shuffle=True, num_workers=1)
+        data_iter = iter(data_loaders['val'])
+        data_loader = data_loaders['val']
+    # Ground truth images and class labels:
+    # images, labels = data_iter.next()
+    # predict:
+    # if use_gpu:
+    #     outputs = model(Variable(images.cuda()))
+    # else:
+    #     outputs = model(Variable(images))
+    # true class labels:
+    # _, predicted = pt.max(outputs.data, 1)
+    # evaluate the model:
+    original_model_state_is_training = model.training
+    if model.training:
+        model.train(False)
+    correct = 0
+    total = 0
+    for data in data_loader:
+        images, imgnet_labels = data
+        if use_gpu:
+            outputs = model(Variable(images.cuda()))
+        else:
+            outputs = model(Variable(images))
+        _, predicted = pt.max(outputs.data, 1)
+        total += imgnet_labels.size(0)
+        # Load imagenet 1ds:
+        imagenet_class_labels_human_readable = {}
+        # with open('../../data/ImageNet/imagenet1000_clsid_to_human.txt', 'r') as fp:
+        #     for line in fp:
+        #         (key, val) = line.split()
+        #         imagenet_class_labels_human_readable[int(key)] = val
+        labels = []
+        for imgnet_label in predicted:
+            if imgnet_label == 309:
+                labels.append(1)
+            elif imgnet_label == 310:
+                labels.append(0)
+            else:
+                labels.append(-1)
+        labels_tensor = pt.LongTensor(labels)
+        # print(labels)
+        # print(labels_tensor)
+        # print(predicted)
+        correct += (imgnet_labels.cuda() == labels_tensor.cuda()).sum()
+    if original_model_state_is_training:
+        model.train(True)
+    return 100 * correct / total
+
 def get_top_1_error(model, data_loaders):
     # This is the same as the overall accuracy (how many times is the network correct out of all of the test samples).
     if 'test' in data_loaders:
@@ -315,7 +373,7 @@ def train_model(data_loaders, dataset_sizes, model, criterion, optimizer, schedu
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
-                print('Checkpoint:This epoch had the best accuracy. The model weights have been saved.')
+                print('Checkpoint: This epoch had the best accuracy. The model weights have been saved.')
                 # create checkpoint:
                 save_checkpoint({
                     'epoch': epoch + 1,
@@ -343,6 +401,7 @@ def train_model(data_loaders, dataset_sizes, model, criterion, optimizer, schedu
 
     axes[1].set_ylabel('Accuracy', fontsize=14)
     axes[1].set_xlabel('Epoch', fontsize=14)
+    # axes.set_xlim(0, num_epochs)
     axes[1].plot(accuracies)
     plt.show()
 
@@ -398,7 +457,7 @@ def test_classifier(net, testloader, class_names):
     images, labels = dataiter.next()
 
     # Print the true labels in the test set for four classes:
-    print('GroundTruth: ', ' '.join('%5s' % class_names[labels[j]] for j in range(5)))
+    print('GroundTruth: ', ' '.join('%5s' % class_names[labels[j]] for j in range(len(labels))))
     # predict:
     if pt.cuda.is_available():
         outputs = net(Variable(images.cuda()))
@@ -406,7 +465,7 @@ def test_classifier(net, testloader, class_names):
         outputs = net(Variable(images))
     # predict class labels:
     _, predicted = pt.max(outputs.data, 1)
-    print('Predicted: ', ' '.join('%5s' % class_names[predicted[j]] for j in range(5)))
+    print('Predicted: ', ' '.join('%5s' % class_names[predicted[j]] for j in range(len(labels))))
     # print images
     # plt.clf()
     # Make a grid from batch:
@@ -553,17 +612,28 @@ def main():
     use_gpu = pt.cuda.is_available()
     print('CUDA is enabled?: %s' % use_gpu)
     model = None
-    data_loaders = None
+
+    # Data loaders:
+    data_loaders, dataset_sizes, class_names = get_data_loaders()
 
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
-        model = models.__dict__[args.arch](pretrained=True)
+        model = models.__dict__[args.arch](pretrained=True).cuda()
+            # cudnn.benchmark = True
         print('Loaded %s source model pre-trained on ImageNet.' % args.arch)
         # model_pretrained_accuracies_url = 'http://pytorch.org/docs/master/torchvision/models.html'
         print('The initial error rates for the %s model with 1-crop (224 x 224) on the entire ImageNet database are as follows:'
               '\n\tTop-1 error: 30.24%%'
               '\n\tTop-5 error: 10.92%%' % args.arch)
+        imagenet_subset_err = get_top_1_error_resnet_pretrained(model, data_loaders)
+        print('ImageNet Subset Accuracy: %.2f' % imagenet_subset_err)
+        # print('==' * 15 + 'Test Pre-Trained Classifier' + '==' * 15)
+        # # Get a batch of training data:
+        # if 'test' in data_loaders:
+        #     test_classifier(model, data_loaders['test'], class_names=class_names)
+        # else:
+        #     test_classifier(model, data_loaders['val'], class_names=class_names)
         # Freeze all of the network except the final layer (as detailed in Going Deeper in the Automated Id. of Herb. Spec.)
         # Parameters of newly constructed modules have requires_grad=True by default:
         for param in model.parameters():
@@ -587,8 +657,7 @@ def main():
     # Decay the learning rate by a factor of 0.1 every 7 epochs:
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer=optimizer, step_size=7, gamma=0.1)
 
-    # Data loaders:
-    data_loaders, dataset_sizes, class_names = get_data_loaders()
+
 
     # resume from checkpoint if present and valid path:
     if args.resume:
@@ -618,25 +687,13 @@ def main():
         model = train_model(data_loaders=data_loaders, dataset_sizes=dataset_sizes, model=model, criterion=criterion,
                             optimizer=optimizer, scheduler=exp_lr_scheduler, num_epochs=25, tensor_board=False)
 
-    print('==' * 15 + 'Test Classifier' + '==' * 15)
+    print('==' * 15 + 'Test Classifier After Training' + '==' * 15)
     # Get a batch of training data:
     if 'test' in data_loaders:
         test_classifier(model, data_loaders['test'], class_names=class_names)
     else:
         test_classifier(model, data_loaders['val'], class_names=class_names)
         # inputs, classes = next(iter(data_loaders['val']))
-
-    # inputs, classes = next(iter(data_loaders['test']))
-    # Make a grid from batch:
-    # out = torchvision.utils.make_grid(inputs)
-    # Display several training images:
-    # imshow_tensor(input=out, title=[class_names[x] for x in classes])
-
-    # # Test images and predictions on the trained classifier:
-    # if has_test_set:
-    #     test_classifier(net=model, testloader=test_loader, classes=class_names)
-    # else:
-    #     test_classifier(net=model, testloader=val_loader, classes=class_names)
 
 
 if __name__ == '__main__':
@@ -645,3 +702,4 @@ if __name__ == '__main__':
     warnings.simplefilter(action='ignore', category=FutureWarning)
     warnings.resetwarnings()
     main()
+# --resume ../../data/PTCheckpoints/model_best.pth.tar
