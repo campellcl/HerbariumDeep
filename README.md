@@ -25,6 +25,12 @@ Required External Data:
 * [LRNs Dimensionality](http://caffe.berkeleyvision.org/tutorial/layers/lrn.html)
 * [What is Local Response Normalization?](https://www.quora.com/What-is-Local-Response-Normalization-and-why-does-AlexNet-utilize-that-instead-of-any-other-type-of-normalization)
 
+### Transfer Learning:
+* [Types of Transfer Learning](http://cs231n.github.io/transfer-learning/)
+* [How Transferable are Features in Deep Neural Networks?](https://arxiv.org/abs/1411.1792)
+* [CNN Features Off-the-Shelf: An Astounding Baseline for Recognition](https://arxiv.org/abs/1403.6382)
+
+
 ## URL Dump:
 * [1](https://towardsdatascience.com/an-overview-of-resnet-and-its-variants-5281e2f56035)
 * [2](http://pytorch.org/docs/master/torchvision/models.html)
