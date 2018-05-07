@@ -401,7 +401,8 @@ def train_model(data_loaders, dataset_sizes, model, criterion, optimizer, schedu
 
     axes[1].set_ylabel('Accuracy', fontsize=14)
     axes[1].set_xlabel('Epoch', fontsize=14)
-    # axes.set_xlim(0, num_epochs)
+    # axes[1].set_xticks([i for i in range(num_epochs)])
+    axes[1].set_xlim(0, num_epochs)
     axes[1].plot(accuracies)
     plt.show()
 
