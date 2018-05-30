@@ -32,7 +32,7 @@ def init_storage_dir(inst, code):
         is also used to assemble web URL's during web scraping.
     :return:
     """
-    inst_store_dir_path = args.STORE + '\\' + str(code).strip()
+    inst_store_dir_path = args.STORE + '\\' + code
     # Check to see if storage directory exists:
     if not os.path.isdir(inst_store_dir_path):
         if verbose:
@@ -49,21 +49,23 @@ def init_storage_dir(inst, code):
     if not os.path.isfile(inst_store_dir_path + '/metadata.csv'):
         if verbose:
             print('No existing metadata found for institution: %s with code: %s. Creating a new metadata file.' % (inst, code))
-        with open(inst_store_dir_path + '/metadata.csv', 'r') as fp:
-            fp.write('institution, code\n%s,%s\n' % (inst, code))
+        with open(inst_store_dir_path + '/metadata.csv', 'w') as fp:
+            fp.write('institution,code\n"%s",%s\n' % (inst, code))
 
 
 def main():
     # Open a csv of SERNEC institutions and institution codes:
     with open('../../../data/SERNEC/InstitutionCodes/InstitutionCodes.csv', 'r') as fp:
-        institution_codes = pd.read_csv(fp, header=0)
+        institution_codes = pd.read_csv(fp, header=0, dtype={'institution': str, 'code': str})
+        # Remove any trailing or starting white spaces in the institution codes:
+        institution_codes['code'] = institution_codes['code'].str.strip()
     # Go through every institution:
     for index, row in institution_codes.iterrows():
         inst = row[0]
         code = row[1]
-        # Setup directory for institution if not already present:
+        # Setup directory and metadata for institution if not already present:
         init_storage_dir(inst, code)
-    # Get the index in the dataframe that represents the institution in the source URL:
+    # ?
 
 
     # http = urllib3.PoolManager(
