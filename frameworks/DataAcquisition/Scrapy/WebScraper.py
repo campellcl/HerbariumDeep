@@ -16,6 +16,7 @@ import lxml
 import pandas as pd
 import numpy as np
 import json
+import zipfile, io
 
 '''
 Command line argument parsers:
@@ -122,6 +123,41 @@ def main():
     return df_collids
 
 
+def download_and_extract_zip_files(df_collids):
+    """
+    download_and_extract_zip_files: Goes through every collection in df_collids and downloads the DwC-A zip file for the
+        collection extracting all files to the respective directory.
+    :param df_collids: The global metadata dataframe containing SERNEC collections.
+    :return None: Upon completion, local directories will be created for each collection which will house said
+        collection's extracted DwC-A zip files.
+    """
+    # Download the DwC-A zip file for every collection:
+    for index, row in df_collids.iterrows():
+        # Create a storage directory for this collection if it doesn't already exist:
+        write_dir = args.STORE + '/' + row['inst']
+        if not os.path.isdir(write_dir):
+            os.mkdir(write_dir)
+            # Download the DwC-A zip file:
+            zip_response = requests.get(row['dwca'])
+            if zip_response.status_code == 200:
+                if args.verbose:
+                    print('Downloaded DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response 200 (OK)'
+                          % (row['collid'], row['inst']))
+                # Convert raw byte response to zip file:
+                dwca_zip = zipfile.ZipFile(io.BytesIO(zip_response.content))
+                # Extract all the zip files to the specified directory.
+                if args.verbose:
+                    print('Extracting zip files to relative directory: %s' % write_dir)
+                    dwca_zip.printdir()
+                dwca_zip.extractall(path=write_dir)
+            else:
+                if args.verbose:
+                    print('Data Lost! Failed to download DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response: %s'
+                          % (row['collid'], row['inst'], zip_response.status_code))
+                    print('Removing empty directory: %s' % write_dir)
+                    os.rmdir(write_dir)
+
+
 if __name__ == '__main__':
     # Declare global vars:
     global args, verbose
@@ -145,7 +181,7 @@ if __name__ == '__main__':
         if args.verbose:
             print('Global metadata dataframe \'df_collids\' already exists. Will not re-scrape unless deleted.')
         df_collids = pd.read_pickle('../../../data/SERNEC/df_collids.pkl')
-    for index, row in df_collids.iterrows():
-        print(row)
+    ''' Uncomment the following method call to attempt a re-download of DwC-A's for empty collection directories '''
+    # download_and_extract_zip_files(df_collids)
 
     pass
