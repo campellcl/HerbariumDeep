@@ -72,6 +72,8 @@ def main():
     """
     # Scrapes the collection identifiers for every SERNEC collection.
     df_collids = pd.DataFrame(columns={'collid', 'inst', 'desc', 'emllink', 'dwca'})
+    num_added = 0
+    num_rejected = 0
     # Instantiate http object per urllib3:
     http = urllib3.PoolManager(
         cert_reqs = 'CERT_REQUIRED',
@@ -107,53 +109,17 @@ def main():
                 coll_series = pd.Series(
                     {'collid': collid, 'inst': title, 'desc': description, 'emllink': emllink, 'dwca': link}
                 )
+                df_collids = df_collids.append(coll_series, ignore_index=True)
+                num_added += 1
             else:
                 # NOTE: Tried web scraping for DwC-A, but if it isn't present under 'link' than the data is a EML File.
                 if args.verbose:
                     print('\tThis collection: %s, INST: %s has no publicly available DwC-A. '
-                          'This collection will be omitted from global data frame.')
-                # if args.verbose:
-                #     print('\tIssuing GET request to DwC-A source URL: %s' % link)
-                #     print('\tAttempting to parse HTML for DwC-A source URL')
-                # dwca_response = requests.get(link)
-                # Selector(response=dwca_response).xpath('//body').extract()
-                # Convert html byte repsonse to string type and then to a dict for json encoding:
-                # json_res = json.loads(dwca_response.text)
-
-            df_collids = df_collids.append(coll_series, ignore_index=True)
-    pass
-    # # Open a csv of SERNEC institutions and institution codes:
-    # with open('../../../data/SERNEC/InstitutionCodes/InstitutionCodes.csv', 'r') as fp:
-    #     institution_codes = pd.read_csv(fp, header=0, dtype={'institution': str, 'code': str})
-    #     # Remove any trailing or starting white spaces in the institution codes:
-    #     institution_codes['code'] = institution_codes['code'].str.strip()
-    # # Go through every institution:
-    # for index, row in institution_codes.iterrows():
-    #     inst = row[0]
-    #     code = row[1]
-    #     # Setup directory and metadata for institution if not already present:
-    #     init_storage_dir(inst, code)
-    # # ?
-
-
-    # http = urllib3.PoolManager(
-    #     cert_reqs = 'CERT_REQUIRED',
-    #     ca_certs=certifi.where()
-    # )
-    # if args.verbose:
-    #     print('Issuing GET request to source URL: %s' % args.source_url)
-    # r = http.request('GET', args.source_url)
-    # if args.verbose:
-    #     print('Received HTTP response code: %d' % r.status)
-    #     print(r.data)
-    #     # TODO: Need a way to retrieve all the herbaria 'instcode' that bisque is using. Try my institutionCodes.csv
-    #     # InstitutionCodes.csv created using: http://sernecportal.org/portal/collections/index.php
-    # if r.status != 200:
-    #     print('Recieved HTTP response code: %d. Now terminating.' % r.status)
-    #     exit(-1)
-
-
-
+                          'This collection will be omitted from the global data frame.' % (collid, title))
+                num_rejected += 1
+    print('Metadata Scraping Completed. Obtained %d collections with accessible DwC-A\'s. '
+          'Discarded %d collections without accessible DwC-A\'s.' % (num_added, num_rejected))
+    return df_collids
 
 
 if __name__ == '__main__':
@@ -169,4 +135,7 @@ if __name__ == '__main__':
         if not os.access(args.STORE, os.W_OK):
             print('This script does not have write permission for the supplied directory %s. Terminating.' % args.STORE)
             exit(-1)
-    main()
+    # Perform first pass of global metadata scrape. Obtain collection codes and DwC-A URLs for all collections:
+    df_collids = main()
+    # Save the dataframe to the hard drive.
+    pass
