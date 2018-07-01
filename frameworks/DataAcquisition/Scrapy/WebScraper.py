@@ -135,7 +135,17 @@ if __name__ == '__main__':
         if not os.access(args.STORE, os.W_OK):
             print('This script does not have write permission for the supplied directory %s. Terminating.' % args.STORE)
             exit(-1)
-    # Perform first pass of global metadata scrape. Obtain collection codes and DwC-A URLs for all collections:
-    df_collids = main()
-    # Save the dataframe to the hard drive.
+    # Check existence of global metadata data frame:
+    if not os.path.isfile('../../../data/SERNEC/df_collids.pkl'):
+        # Perform first pass of global metadata scrape. Obtain collection codes and DwC-A URLs for all collections:
+        df_collids = main()
+        # Save the dataframe to the hard drive.
+        df_collids.to_pickle(path='../../../data/SERNEC/df_collids.pkl')
+    else:
+        if args.verbose:
+            print('Global metadata dataframe \'df_collids\' already exists. Will not re-scrape unless deleted.')
+        df_collids = pd.read_pickle('../../../data/SERNEC/df_collids.pkl')
+    for index, row in df_collids.iterrows():
+        print(row)
+
     pass
