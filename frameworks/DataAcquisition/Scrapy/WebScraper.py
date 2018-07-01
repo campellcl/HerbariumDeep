@@ -158,6 +158,27 @@ def download_and_extract_zip_files(df_collids):
                     os.rmdir(write_dir)
 
 
+def aggregate_occurrences_and_images():
+    """
+    aggregate_occurrences_and_images: Aggregates data found in images.csv and occurrences.csv into a single data frame
+        for each subdirectory of args.STORE.
+    :return:
+    """
+    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
+        # print(subdir)
+        print(i, subdir)
+        if i != 0:
+            # Ignore zero (the root directory \SERNEC).
+            with open(subdir + '/occurrences.csv', 'r') as fp:
+                df_occurr = pd.read_csv(fp)
+            with open(subdir + '/images.csv', 'r') as fp:
+                df_imgs = pd.read_csv(fp)
+            # TODO: Concat df_occurr and df_imgs into a single metadata dataframe. Discard unwanted columns.
+            # df_meta = pd.concat(...)
+            pass
+
+
+
 if __name__ == '__main__':
     # Declare global vars:
     global args, verbose
@@ -183,5 +204,6 @@ if __name__ == '__main__':
         df_collids = pd.read_pickle('../../../data/SERNEC/df_collids.pkl')
     ''' Uncomment the following method call to attempt a re-download of DwC-A's for empty collection directories '''
     # download_and_extract_zip_files(df_collids)
-
+    ''' Uncomment the following method call to re-aggregate csv data for each collection's local directory '''
+    aggregate_occurrences_and_images()
     pass
