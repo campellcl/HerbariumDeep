@@ -157,14 +157,13 @@ def download_and_extract_zip_files(df_collids):
                     print('\tRemoving empty directory: %s and proceeding without this collection' % write_dir)
                     os.rmdir(write_dir)
 
-def unicode_decode_error_data_recovery():
-    pass
-
 
 def aggregate_occurrences_and_images():
     """
     aggregate_occurrences_and_images: Aggregates data found in images.csv and occurrences.csv into a single data frame
-        for each subdirectory of args.STORE.
+        for each subdirectory of args.STORE. If unreadable unicode errors are encountered they are replaced with the
+        unicode character for unknown '?'. Revisit this method if instead unicode errors should result in an omitted
+        field or record.
     :return:
     """
     for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
@@ -214,6 +213,12 @@ def aggregate_occurrences_and_images():
                 df_meta.to_csv(subdir + '\df_meta.csv')
 
 
+def download_high_res_images():
+    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
+        # Skip i==0 which is the root directory.
+        if i != 0:
+            pass
+
 if __name__ == '__main__':
     # Declare global vars:
     global args, verbose
@@ -238,15 +243,19 @@ if __name__ == '__main__':
             print('Now loading global metadataframe \'df_collids\'. To recreate file, delete from local hard drive...')
             # print('Global metadata dataframe \'df_collids\' already exists. Will not re-scrape unless deleted.')
         df_collids = pd.read_pickle('../../../data/SERNEC/df_collids.pkl')
+
     ''' Uncomment the following method call to attempt a re-download of DwC-A's for empty collection directories '''
     if args.verbose:
         print('Now creating local subdirectories for each collection, downloading and extracting zipped DwC-A files...')
     download_and_extract_zip_files(df_collids)
+
     ''' Uncomment the following method call to re-aggregate csv data for each collection's local directory '''
     if args.verbose:
         print('Now aggregating occurrence.csv and image.csv for every collection. Standby...')
     aggregate_occurrences_and_images()
-    ''' Uncomment the following method call to '''
+
+    ''' Uncomment the following method call to re-download images for every collection. '''
     if args.verbose:
-        print()
+        print('Now downloading high resolution images for every collection. This will take a while.......')
+    download_high_res_images()
     pass
