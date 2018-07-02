@@ -152,10 +152,13 @@ def download_and_extract_zip_files(df_collids):
                 dwca_zip.extractall(path=write_dir)
             else:
                 if args.verbose:
-                    print('Data Lost! Failed to download DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response: %s'
+                    print('\tData Lost! Failed to download DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response: %s'
                           % (row['collid'], row['inst'], zip_response.status_code))
-                    print('Removing empty directory: %s' % write_dir)
+                    print('\tRemoving empty directory: %s and proceeding without this collection' % write_dir)
                     os.rmdir(write_dir)
+
+def unicode_decode_error_data_recovery():
+    pass
 
 
 def aggregate_occurrences_and_images():
@@ -166,17 +169,49 @@ def aggregate_occurrences_and_images():
     """
     for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
         # print(subdir)
-        print(i, subdir)
         if i != 0:
-            # Ignore zero (the root directory \SERNEC).
-            with open(subdir + '/occurrences.csv', 'r') as fp:
-                df_occurr = pd.read_csv(fp)
-            with open(subdir + '/images.csv', 'r') as fp:
-                df_imgs = pd.read_csv(fp)
-            # TODO: Concat df_occurr and df_imgs into a single metadata dataframe. Discard unwanted columns.
-            # df_meta = pd.concat(...)
-            pass
-
+            # If already merged don't re-merge:
+            if not os.path.isfile(subdir + '\df_meta.csv'):
+                # Ignore zero (the root directory \SERNEC).
+                print('\tPerforming Aggregation: %d %s' % (i, subdir))
+                # Attempt to load the occurrences.csv file but prepare to encounter unrecognized unicode characters:
+                try:
+                    with open(subdir + '/occurrences.csv', 'r') as fp:
+                        df_occurr = pd.read_csv(fp, encoding='utf8')
+                except UnicodeDecodeError:
+                    # Unicode encoding errors during load, try to resolve them by replacing unknown chars w/ ?
+                    print('\t\tWarning: Detected UnicodeEncodingError(s) during load of occurrences.csv. '
+                          'Attempting automated resolution by replacing unknown characters with ? replacement character...')
+                    try:
+                        # First pass just detects the corrupted lines for more advanced error handling later:
+                        with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
+                            raw = fp.read()
+                            lines = raw.splitlines()
+                            error_lines = {}
+                            for i, line in enumerate(lines):
+                                if '\ufffd' in line:
+                                    # print("\t\t\tUnicode encoding error with record %d: %s" % (i+1, line))
+                                    error_lines[line.split(',')[0]] = line
+                        print('\t\tWarning: Analysis reports %d corrupted records which may be omitted.' % len(error_lines))
+                    except UnicodeDecodeError:
+                        # If this executes, for some reason replacing unknown unicode chars with ? didn't work.
+                        print('\t\tError: Replacement unable to resolve UnicodeEncodingError. '
+                              'PLEASE SPECIFY RESOLUTION STRATEGY')
+                    print('\t\tWarning: Attempting final read of corrupted occurrences.csv with ? replacement chars...')
+                    try:
+                        with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
+                            df_occurr = pd.read_csv(fp, header=0, error_bad_lines=True)
+                    except UnicodeDecodeError:
+                        print('\t\tError: Replacement characters insufficient fix. PLEASE SPECIFY RESOLUTION STRATEGY')
+                    print('\t\tSuccess: occurrences.csv read with replacement chars. Up to %d records are now corrupted.'
+                          % len(error_lines))
+                # Rename id column to coreid for inner merge:
+                df_occurr = df_occurr.rename(index=str, columns={'id': 'coreid'})
+                with open(subdir + '/images.csv', 'r') as fp:
+                    df_imgs = pd.read_csv(fp)
+                # Perform inner mrege on coreid
+                df_meta = pd.merge(df_occurr, df_imgs, how='inner', on=['coreid'])
+                df_meta.to_csv(subdir + '\df_meta.csv')
 
 
 if __name__ == '__main__':
@@ -200,10 +235,18 @@ if __name__ == '__main__':
         df_collids.to_pickle(path='../../../data/SERNEC/df_collids.pkl')
     else:
         if args.verbose:
-            print('Global metadata dataframe \'df_collids\' already exists. Will not re-scrape unless deleted.')
+            print('Now loading global metadataframe \'df_collids\'. To recreate file, delete from local hard drive...')
+            # print('Global metadata dataframe \'df_collids\' already exists. Will not re-scrape unless deleted.')
         df_collids = pd.read_pickle('../../../data/SERNEC/df_collids.pkl')
     ''' Uncomment the following method call to attempt a re-download of DwC-A's for empty collection directories '''
-    # download_and_extract_zip_files(df_collids)
+    if args.verbose:
+        print('Now creating local subdirectories for each collection, downloading and extracting zipped DwC-A files...')
+    download_and_extract_zip_files(df_collids)
     ''' Uncomment the following method call to re-aggregate csv data for each collection's local directory '''
+    if args.verbose:
+        print('Now aggregating occurrence.csv and image.csv for every collection. Standby...')
     aggregate_occurrences_and_images()
+    ''' Uncomment the following method call to '''
+    if args.verbose:
+        print()
     pass
