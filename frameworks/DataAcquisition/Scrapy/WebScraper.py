@@ -27,37 +27,8 @@ parser.add_argument('STORE', metavar='DIR', help='Data storage directory.')
 parser.add_argument('-s', '--source-url', dest='source_url', metavar='URL',
                     default='https://bisque.cyverse.org/data_service/image?value=*/iplant/home/shared/sernec/*',
                     help='Source URL for web scraper.')
-parser.add_argument('-v', '--verbose', dest='verbose', default=False, action='store_true', help='Enable verbose print statements (yes, no)?')
-
-
-def init_storage_dir(inst, code):
-    """
-    init_storage_dir: Initializes a storage directory and metadata skeletons for the provided institution. Scraped web content
-        regarding the provided institution will be stored here.
-    :param inst: The institution to create a directory for (the name of the herbarium).
-    :param code: The unique identifier for the provided institution (the code associated with the herbarium). This value
-        is also used to assemble web URL's during web scraping.
-    :return:
-    """
-    inst_store_dir_path = args.STORE + '\\' + code
-    # Check to see if storage directory exists:
-    if not os.path.isdir(inst_store_dir_path):
-        if verbose:
-            print('Storage directory at: %s for institution: %s with code: %s does not currently exist. Creating.' % (inst_store_dir_path, inst, code))
-        # Create a new directory to store this institution's metadata in:
-        os.mkdir(inst_store_dir_path)
-    if verbose:
-        print('Storage directory: %s for institution: %s with code: %s already exists. No need to create new one.' % (inst_store_dir_path, inst, code))
-    # Ensure the storage directory is writeable:
-    if not os.access(inst_store_dir_path, os.W_OK):
-        print('This script does not have write permissions for institution code: %s\'s supplied directory: %s. Terminating.' % (code, inst_store_dir_path))
-        exit(-1)
-    # Check to see if metadata file is present:
-    if not os.path.isfile(inst_store_dir_path + '/metadata.csv'):
-        if verbose:
-            print('No existing metadata found for institution: %s with code: %s. Creating a new metadata file.' % (inst, code))
-        with open(inst_store_dir_path + '/metadata.csv', 'w') as fp:
-            fp.write('institution,code\n"%s",%s\n' % (inst, code))
+parser.add_argument('-v', '--verbose', dest='verbose', default=False, action='store_true',
+                    help='Enable verbose print statements (yes, no)?')
 
 
 def main():
@@ -137,27 +108,27 @@ def download_and_extract_zip_files(df_collids):
     # Download the DwC-A zip file for every collection:
     for index, row in df_collids.iterrows():
         # Create a storage directory for this collection if it doesn't already exist:
-        write_dir = args.STORE + '/collections/' + row['inst']
+        write_dir = args.STORE + '\collections\\' + row['inst']
         if not os.path.isdir(write_dir):
             os.mkdir(write_dir)
             # Download the DwC-A zip file:
             zip_response = requests.get(row['dwca'])
             if zip_response.status_code == 200:
                 if args.verbose:
-                    print('Downloaded DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response 200 (OK)'
+                    print('\tDownloaded DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response 200 (OK)'
                           % (row['collid'], row['inst']))
                 # Convert raw byte response to zip file:
                 dwca_zip = zipfile.ZipFile(io.BytesIO(zip_response.content))
                 # Extract all the zip files to the specified directory.
                 if args.verbose:
-                    print('Extracting zip files to relative directory: %s' % write_dir)
+                    print('\tExtracting zip files to relative directory: %s' % write_dir)
                     dwca_zip.printdir()
                 dwca_zip.extractall(path=write_dir)
             else:
                 if args.verbose:
-                    print('\tData Lost! Failed to download DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response: %s'
+                    print('\t\tData Lost! Failed to download DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response: %s'
                           % (row['collid'], row['inst'], zip_response.status_code))
-                    print('\tRemoving empty directory: %s and proceeding without this collection' % write_dir)
+                    print('\t\tRemoving empty directory: %s and proceeding without this collection' % write_dir)
                     os.rmdir(write_dir)
 
 
@@ -285,7 +256,7 @@ if __name__ == '__main__':
                   % args.STORE)
             exit(-1)
     # Check existence of global metadata data frame:
-    if not os.path.isfile(args.STORE + '/collections/df_collids.pkl'):
+    if not os.path.isfile(args.STORE + '\collections\df_collids.pkl'):
         print('STAGE_ONE: Failed to detect an existing df_collids.pkl. I will have to create a new one.')
         os.mkdir(args.STORE + '/collections')
         # Perform first pass of global metadata scrape. Obtain collection codes and DwC-A URLs for all collections:
@@ -297,18 +268,21 @@ if __name__ == '__main__':
             print('STAGE_ONE: Now loading collections dataframe \'df_collids.pkl\'. '
                   'To update this file, remove it from the HDD and run this script again...')
             # print('Global metadata dataframe \'df_collids\' already exists. Will not re-scrape unless deleted.')
-        df_collids = pd.read_pickle('../../../data/SERNEC/df_collids.pkl')
+        df_collids = pd.read_pickle(args.STORE + '\collections\df_collids.pkl')
         print('STAGE_ONE: Loaded collections dataframe. No need to re-download. Pipeline STAGE_ONE complete.')
         print('=' * 100)
 
     ''' Uncomment the following method call to attempt a re-download of DwC-A's for empty collection directories '''
     if args.verbose:
-        print('Now creating local subdirectories for each collection, downloading and extracting zipped DwC-A files...')
+        print('STAGE_TWO: Downloading and extracting zipped DwC-A files for each collection. '
+              'Creating collection subdirectories for storage...')
     download_and_extract_zip_files(df_collids)
+    print('STAGE_TWO: Pipeline STAGE_TWO complete. Zipped DwC-A files downloaded and extracted for all collections.')
+    print('=' * 100)
 
     ''' Uncomment the following method call to re-aggregate csv data for each collection's local directory '''
     if args.verbose:
-        print('Now aggregating occurrence.csv and image.csv for every collection. Standby...')
+        print('STAGE_THREE: Stepping through every collection aggregating occurrence.csv and image.csv files. Standby...')
     aggregate_occurrences_and_images()
 
     ''' Uncomment the following call to '''
