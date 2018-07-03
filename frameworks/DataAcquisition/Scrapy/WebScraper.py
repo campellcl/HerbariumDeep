@@ -82,10 +82,11 @@ def main():
     )
     # Obtain list of SERNEC collection identifiers (collids):
     if args.verbose:
-        print('Issuing GET request to global source URL: %s' % args.source_url)
+        print('\tIssuing GET request to SERNEC collections source URL: %s. Please be patient...'
+              % args.source_url)
     collids_response = http.request('GET', 'http://sernecportal.org/portal/collections/datasets/rsshandler.php')
     if args.verbose:
-        print('Received HTTP response code: %d' % collids_response.status)
+        print('\tReceived HTTP response code: %d. Now parsing xml data...' % collids_response.status)
         # print(collids_response.data)
     rss_root = ET.fromstring(collids_response.data)
     root = rss_root.getchildren()[0]
@@ -93,7 +94,7 @@ def main():
         if child.tag == 'item':
             collid = int(child.attrib['collid'])
             if args.verbose:
-                print('Parsing XML response for child %s' % collid)
+                print('\tParsing XML response for child %s' % collid)
             for property in child.getchildren():
                 if property.tag == 'title':
                     title = property.text
@@ -106,7 +107,7 @@ def main():
             # Get the DWCA link for this collection:
             if '.zip' in link:
                 if args.verbose:
-                    print('\tLocated DwC-A link for COLLID: %s, INST: %s, at: %s' % (collid, title, link))
+                    print('\t\tLocated DwC-A link for COLLID: %s, INST: %s, at: %s' % (collid, title, link))
                 coll_series = pd.Series(
                     {'collid': collid, 'inst': title, 'desc': description, 'emllink': emllink, 'dwca': link}
                 )
@@ -115,11 +116,13 @@ def main():
             else:
                 # NOTE: Tried web scraping for DwC-A, but if it isn't present under 'link' than the data is a EML File.
                 if args.verbose:
-                    print('\tThis collection: %s, INST: %s has no publicly available DwC-A. '
+                    print('\t\tThis collection: %s, INST: %s has no publicly available DwC-A. '
                           'This collection will be omitted from the global data frame.' % (collid, title))
                 num_rejected += 1
-    print('Metadata Scraping Completed. Obtained %d collections with accessible DwC-A\'s. '
+    print('STAGE_ONE: Pipeline STAGE_ONE complete. Collection metadata downloaded and parsed successfully.'
+          '\nSTAGE_ONE: Obtained %d collections with accessible DwC-A\'s. '
           'Discarded %d collections without accessible DwC-A\'s.' % (num_added, num_rejected))
+    print('=' * 100)
     return df_collids
 
 
@@ -134,7 +137,7 @@ def download_and_extract_zip_files(df_collids):
     # Download the DwC-A zip file for every collection:
     for index, row in df_collids.iterrows():
         # Create a storage directory for this collection if it doesn't already exist:
-        write_dir = args.STORE + '/' + row['inst']
+        write_dir = args.STORE + '/collections/' + row['inst']
         if not os.path.isdir(write_dir):
             os.mkdir(write_dir)
             # Download the DwC-A zip file:
@@ -166,7 +169,7 @@ def aggregate_occurrences_and_images():
         field or record.
     :return:
     """
-    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
+    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
         # print(subdir)
         if i != 0:
             # If already merged don't re-merge:
@@ -259,6 +262,13 @@ def aggregate_institution_metadata_by_species():
             if args.verbose:
                  print('\tTargeting: %d %s' % (i, subdir))
 
+def aggregate_institution_metadata():
+    """
+    aggregate_institution_metadata: Combines all institution df_meta files into one
+    :return:
+    """
+    pass
+
 
 if __name__ == '__main__':
     # Declare global vars:
@@ -271,19 +281,25 @@ if __name__ == '__main__':
         exit(-1)
         # Ensure storage directory is writeable:
         if not os.access(args.STORE, os.W_OK):
-            print('This script does not have write permission for the supplied directory %s. Terminating.' % args.STORE)
+            print('This script does not have write permission for the supplied write directory %s. Terminating.'
+                  % args.STORE)
             exit(-1)
     # Check existence of global metadata data frame:
-    if not os.path.isfile('../../../data/SERNEC/df_collids.pkl'):
+    if not os.path.isfile(args.STORE + '/collections/df_collids.pkl'):
+        print('STAGE_ONE: Failed to detect an existing df_collids.pkl. I will have to create a new one.')
+        os.mkdir(args.STORE + '/collections')
         # Perform first pass of global metadata scrape. Obtain collection codes and DwC-A URLs for all collections:
         df_collids = main()
         # Save the dataframe to the hard drive.
-        df_collids.to_pickle(path='../../../data/SERNEC/df_collids.pkl')
+        df_collids.to_pickle(path=args.STORE + '\collections\df_collids.pkl')
     else:
         if args.verbose:
-            print('Now loading global metadataframe \'df_collids\'. To recreate file, delete from local hard drive...')
+            print('STAGE_ONE: Now loading collections dataframe \'df_collids.pkl\'. '
+                  'To update this file, remove it from the HDD and run this script again...')
             # print('Global metadata dataframe \'df_collids\' already exists. Will not re-scrape unless deleted.')
         df_collids = pd.read_pickle('../../../data/SERNEC/df_collids.pkl')
+        print('STAGE_ONE: Loaded collections dataframe. No need to re-download. Pipeline STAGE_ONE complete.')
+        print('=' * 100)
 
     ''' Uncomment the following method call to attempt a re-download of DwC-A's for empty collection directories '''
     if args.verbose:
@@ -294,6 +310,10 @@ if __name__ == '__main__':
     if args.verbose:
         print('Now aggregating occurrence.csv and image.csv for every collection. Standby...')
     aggregate_occurrences_and_images()
+
+    ''' Uncomment the following call to '''
+    df_global = aggregate_institution_metadata()
+
 
     ''' Uncomment the following method call to re-create metadata-to-hdd links and hdd class subdirectory instantiation'''
     df_classes = aggregate_institution_metadata_by_species()
