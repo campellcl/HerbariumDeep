@@ -187,6 +187,33 @@ def aggregate_occurrences_and_images():
                 df_meta.to_csv(subdir + '\df_meta.csv')
 
 
+def aggregate_collection_metadata():
+    """
+    aggregate_institution_metadata: Combines all collection df_meta files into one global df_meta file which contains
+        the information of every collection.
+    :return df_meta: A global metadata dataframe containing the meatadata of every SERNEC collection.
+    """
+    # Don't re-aggregate if the file already exists.
+    if not os.path.isfile(args.STORE + '\collections\df_meta.pkl'):
+        df_meta = pd.DataFrame()
+        for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '\collections')):
+            # Skip i==0 which is the root directory.
+            if i != 0:
+                if args.verbose:
+                    print('\tTargeting: %d %s' % (i, subdir))
+                with open(subdir + '\df_meta.csv', 'r', errors='replace') as fp:
+                    df_coll_meta = pd.read_csv(fp)
+                df_meta.append(df_coll_meta)
+                if args.verbose:
+                    print('\tAppended metadata successfully.')
+        df_meta.to_pickle(path=args.STORE + '\collections\df_meta.pkl')
+    else:
+        print('\tMetadata already aggregated as %s exists. Delete file from hard drive to re-aggregate. '
+              'Loading global metadata file...' % (args.STORE + '\collections\df_meta.pkl'))
+        df_meta = pd.read_pickle(path=args.STORE + '\collections\df_meta.pkl')
+    return df_meta
+
+
 def download_high_res_images():
     """
     download_high_res_images: Goes through
@@ -221,26 +248,6 @@ def download_high_res_images():
                     return NotImplementedError
 
 
-def aggregate_institution_metadata_by_species():
-    """
-    aggregate_institution_metadata_by_species: Aggregates all institution metadata into one dataframe characterized by
-        species.
-    :return df_species:
-    """
-    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
-        # Skip i==0 which is the root directory.
-        if i != 0:
-            if args.verbose:
-                 print('\tTargeting: %d %s' % (i, subdir))
-
-def aggregate_institution_metadata():
-    """
-    aggregate_institution_metadata: Combines all institution df_meta files into one
-    :return:
-    """
-    pass
-
-
 if __name__ == '__main__':
     # Declare global vars:
     global args, verbose
@@ -255,6 +262,7 @@ if __name__ == '__main__':
             print('This script does not have write permission for the supplied write directory %s. Terminating.'
                   % args.STORE)
             exit(-1)
+    ''' Data Pipeline STAGE_ONE: Download unique collection Id's and their associated DwC-A links '''
     # Check existence of global metadata data frame:
     if not os.path.isfile(args.STORE + '\collections\df_collids.pkl'):
         print('STAGE_ONE: Failed to detect an existing df_collids.pkl. I will have to create a new one.')
@@ -272,7 +280,7 @@ if __name__ == '__main__':
         print('STAGE_ONE: Loaded collections dataframe. No need to re-download. Pipeline STAGE_ONE complete.')
         print('=' * 100)
 
-    ''' Uncomment the following method call to attempt a re-download of DwC-A's for empty collection directories '''
+    ''' Data Pipeline STAGE_TWO: Download and extract zipped DwC-A files for each collection '''
     if args.verbose:
         print('STAGE_TWO: Downloading and extracting zipped DwC-A files for each collection. '
               'Creating collection subdirectories for storage...')
@@ -280,20 +288,24 @@ if __name__ == '__main__':
     print('STAGE_TWO: Pipeline STAGE_TWO complete. Zipped DwC-A files downloaded and extracted for all collections.')
     print('=' * 100)
 
-    ''' Uncomment the following method call to re-aggregate csv data for each collection's local directory '''
+    ''' Data Pipeline STAGE_THREE: Aggregate the occurrences.csv and images.csv files for every collection '''
     if args.verbose:
         print('STAGE_THREE: Stepping through every collection aggregating occurrence.csv and image.csv files. Standby...')
     aggregate_occurrences_and_images()
+    print('STAGE_THREE: Pipeline STAGE_THREE complete. Aggregated every collection\'s occurrence and image data.')
+    print('=' * 100)
 
-    ''' Uncomment the following call to '''
-    df_global = aggregate_institution_metadata()
-
+    ''' Data Pipeline STAGE_FOUR: Aggregate every collection's data into one dataframe 'df_meta' '''
+    print('STAGE_FOUR: Stepping through every collection aggregating into one global metadata dataframe. Patience...')
+    df_meta = aggregate_collection_metadata()
+    print('STAGE_FOUR: Pipeline STAGE_FOUR complete. Aggregated every collection\'s metadata into one global dataframe.')
+    print('=' * 100)
 
     ''' Uncomment the following method call to re-create metadata-to-hdd links and hdd class subdirectory instantiation'''
-    df_classes = aggregate_institution_metadata_by_species()
+    # df_classes = aggregate_institution_metadata_by_species()
 
     ''' Uncomment the following method call to re-download images for every collection. '''
     if args.verbose:
         print('Now downloading high resolution images for every sample in every collection. This will take quite a while.......')
-    download_high_res_images()
+    # download_high_res_images()
     pass
