@@ -214,10 +214,51 @@ def aggregate_occurrences_and_images():
 
 
 def download_high_res_images():
+    """
+    download_high_res_images: Goes through
+    :return:
+    """
+    # metadata_dtypes = [np.int64, np.int64, np.object]
     for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
         # Skip i==0 which is the root directory.
         if i != 0:
-            pass
+            if args.verbose:
+                 print('\tTargeting: %d %s' % (i, subdir))
+            with open(subdir + '\df_meta.csv', 'r') as fp:
+                df_meta = pd.read_csv(fp, header=0)
+            # Correct dtypes for mixed data columns:
+            # Discard all columns but the following:
+            df_meta = df_meta[[
+                'coreid', 'institutionCode', 'occurrenceID', 'catalogNumber',
+                'kingdom', 'phylum', 'class', 'order', 'family', 'scientificName',
+                'genus', 'specificEpithet', 'country', 'stateProvince', 'county',
+                'locality', 'recordId', 'references', 'identifier', 'accessURI',
+                'thumbnailAccessURI', 'goodQualityAccessURI', 'format', 'associatedSpecimenReference',
+                'type', 'subtype'
+            ]]
+            # Everything should really have dtype object or be OneHotEncoded.
+            # df_meta['coreid'] = df_meta['coreid'].astype('int')
+            # df_meta['institutionCode'] = df_meta['institutionCode'].astype('str')
+            # df_meta['occurrenceID'] = df_meta['occurrenceID'].astype('str')
+            for i, row in df_meta.iterrows():
+                img_response = requests.get(row['goodQualityAccessURI'])
+                if img_response.status_code == 200:
+                    # Create class directory:
+                    return NotImplementedError
+
+
+def aggregate_institution_metadata_by_species():
+    """
+    aggregate_institution_metadata_by_species: Aggregates all institution metadata into one dataframe characterized by
+        species.
+    :return df_species:
+    """
+    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
+        # Skip i==0 which is the root directory.
+        if i != 0:
+            if args.verbose:
+                 print('\tTargeting: %d %s' % (i, subdir))
+
 
 if __name__ == '__main__':
     # Declare global vars:
@@ -254,8 +295,11 @@ if __name__ == '__main__':
         print('Now aggregating occurrence.csv and image.csv for every collection. Standby...')
     aggregate_occurrences_and_images()
 
+    ''' Uncomment the following method call to re-create metadata-to-hdd links and hdd class subdirectory instantiation'''
+    df_classes = aggregate_institution_metadata_by_species()
+
     ''' Uncomment the following method call to re-download images for every collection. '''
     if args.verbose:
-        print('Now downloading high resolution images for every collection. This will take a while.......')
+        print('Now downloading high resolution images for every sample in every collection. This will take quite a while.......')
     download_high_res_images()
     pass
