@@ -17,7 +17,7 @@ import pandas as pd
 import numpy as np
 import json
 import zipfile, io
-
+import shutil
 '''
 Command line argument parsers:
 '''
@@ -147,44 +147,82 @@ def aggregate_occurrences_and_images():
             if not os.path.isfile(subdir + '\df_meta.csv'):
                 # Ignore zero (the root directory \SERNEC).
                 print('\tPerforming Aggregation: %d %s' % (i, subdir))
-                # Attempt to load the occurrences.csv file but prepare to encounter unrecognized unicode characters:
-                try:
-                    with open(subdir + '/occurrences.csv', 'r') as fp:
-                        df_occurr = pd.read_csv(fp, encoding='utf8')
-                except UnicodeDecodeError:
-                    # Unicode encoding errors during load, try to resolve them by replacing unknown chars w/ ?
-                    print('\t\tWarning: Detected UnicodeEncodingError(s) during load of occurrences.csv. '
-                          'Attempting automated resolution by replacing unknown characters with ? replacement character...')
-                    try:
-                        # First pass just detects the corrupted lines for more advanced error handling later:
-                        with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
-                            raw = fp.read()
-                            lines = raw.splitlines()
-                            error_lines = {}
-                            for i, line in enumerate(lines):
-                                if '\ufffd' in line:
-                                    # print("\t\t\tUnicode encoding error with record %d: %s" % (i+1, line))
-                                    error_lines[line.split(',')[0]] = line
-                        print('\t\tWarning: Analysis reports %d corrupted records which may be omitted.' % len(error_lines))
-                    except UnicodeDecodeError:
-                        # If this executes, for some reason replacing unknown unicode chars with ? didn't work.
-                        print('\t\tError: Replacement unable to resolve UnicodeEncodingError. '
-                              'PLEASE SPECIFY RESOLUTION STRATEGY')
-                    print('\t\tWarning: Attempting final read of corrupted occurrences.csv with ? replacement chars...')
-                    try:
-                        with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
-                            df_occurr = pd.read_csv(fp, header=0, error_bad_lines=True)
-                    except UnicodeDecodeError:
-                        print('\t\tError: Replacement characters insufficient fix. PLEASE SPECIFY RESOLUTION STRATEGY')
-                    print('\t\tSuccess: occurrences.csv read with replacement chars. Up to %d records are now corrupted.'
-                          % len(error_lines))
-                # Rename id column to coreid for inner merge:
-                df_occurr = df_occurr.rename(index=str, columns={'id': 'coreid'})
                 with open(subdir + '/images.csv', 'r') as fp:
                     df_imgs = pd.read_csv(fp)
-                # Perform inner mrege on coreid
-                df_meta = pd.merge(df_occurr, df_imgs, how='inner', on=['coreid'])
-                df_meta.to_csv(subdir + '\df_meta.csv')
+                # Check to ensure this collection has image data:
+                if df_imgs.empty:
+                    print('\t\tError: %s\images.csv contains no data. This collection is hence irrelevant. '
+                          'Removing from hard drive...' % subdir)
+                    shutil.rmtree(subdir)
+                    print('\t\tError: Data Lost! Removed %s from hard drive' % subdir)
+                else:
+                    # Attempt to load the occurrences.csv file but prepare to encounter unrecognized unicode characters:
+                    try:
+                        with open(subdir + '/occurrences.csv', 'r') as fp:
+                            df_occurr = pd.read_csv(fp, encoding='utf8')
+                    except UnicodeDecodeError:
+                        # Unicode encoding errors during load, try to resolve them by replacing unknown chars w/ ?
+                        print('\t\tWarning: Detected UnicodeEncodingError(s) during load of occurrences.csv. '
+                              'Attempting automated resolution by replacing unknown characters with ? replacement character...')
+                        try:
+                            # First pass just detects the corrupted lines for more advanced error handling later:
+                            with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
+                                raw = fp.read()
+                                lines = raw.splitlines()
+                                error_lines = {}
+                                for i, line in enumerate(lines):
+                                    if '\ufffd' in line:
+                                        # print("\t\t\tUnicode encoding error with record %d: %s" % (i+1, line))
+                                        error_lines[line.split(',')[0]] = line
+                            print('\t\tWarning: Analysis reports %d corrupted records which may be omitted.' % len(error_lines))
+                        except UnicodeDecodeError:
+                            # If this executes, for some reason replacing unknown unicode chars with ? didn't work.
+                            print('\t\tError: Replacement unable to resolve UnicodeEncodingError. '
+                                  'PLEASE SPECIFY RESOLUTION STRATEGY')
+                        print('\t\tWarning: Attempting final read of corrupted occurrences.csv with ? replacement chars...')
+                        try:
+                            with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
+                                df_occurr = pd.read_csv(fp, header=0, error_bad_lines=True)
+                        except UnicodeDecodeError:
+                            print('\t\tError: Replacement characters insufficient fix. PLEASE SPECIFY RESOLUTION STRATEGY')
+                        print('\t\tSuccess: occurrences.csv read with replacement chars. Up to %d records are now corrupted.'
+                              % len(error_lines))
+                    # Rename id column to coreid for inner merge:
+                    df_occurr = df_occurr.rename(index=str, columns={'id': 'coreid'})
+                    # Perform inner mrege on coreid
+                    df_meta = pd.merge(df_occurr, df_imgs, how='inner', on=['coreid'])
+                    ''' Data Reduction Techniques to reduce memory footprint '''
+                    # Drop columns of all NaN values:
+                    df_meta = df_meta.dropna(axis=1, how='all')
+
+                    # Columns that were desired but not all datasets contained:
+                    # intraspecificEpithet
+                    # class
+                    # catalogNumber
+
+                    # Keep only these columns:
+                    df_meta = df_meta[[
+                        'institutionCode', 'collectionID', 'occurrenceID',
+                        'kingdom', 'phylum', 'order', 'family', 'scientificName',
+                        'scientificNameAuthorship', 'genus', 'specificEpithet',
+                        'recordId', 'references', 'identifier', 'accessURI', 'thumbnailAccessURI',
+                        'goodQualityAccessURI', 'format', 'associatedSpecimenReference', 'type', 'subtype'
+                    ]]
+                    # Convert object dtype to categorical where appropriate:
+                    df_meta.kingdom = df_meta.kingdom.astype('category')
+                    df_meta.phylum = df_meta.phylum.astype('category')
+                    # df_meta['class'] = df_meta['class'].astype('category')
+                    df_meta.order = df_meta.order.astype('category')
+                    df_meta.family = df_meta.family.astype('category')
+                    df_meta.scientificName = df_meta.scientificName.astype('category')
+                    df_meta.genus = df_meta.genus.astype('category')
+                    df_meta.specificEpithet = df_meta.specificEpithet.astype('category')
+                    # df_meta.infraspecificEpithet = df_meta.infraspecificEpithet.astype('category')
+                    df_meta.format = df_meta.format.astype('category')
+                    df_meta.type = df_meta.type.astype('category')
+                    df_meta.subtype = df_meta.subtype.astype('category')
+                    # Reduce integer 64 bit and float 64 bit representations to 32 bit representations where appropriate.
+                    df_meta.to_csv(subdir + '\df_meta.csv')
 
 
 def aggregate_collection_metadata():
@@ -297,10 +335,20 @@ if __name__ == '__main__':
     aggregate_occurrences_and_images()
     print('STAGE_THREE: Pipeline STAGE_THREE complete. Aggregated every collection\'s occurrence and image data.')
     print('=' * 100)
+    print('DEV-OP: Removing Stage Three programmatically...')
+    # Undo stage three:
+    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
+        # print(subdir)
+        if i != 0:
+            # If already merged don't re-merge:
+            if os.path.isfile(subdir + '\df_meta.csv'):
+                os.remove(subdir + '\df_meta.csv')
+
+
 
     ''' Data Pipeline STAGE_FOUR: Aggregate every collection's data into one dataframe 'df_meta' '''
     print('STAGE_FOUR: Stepping through every collection aggregating into one global metadata dataframe. Patience...')
-    df_meta = aggregate_collection_metadata()
+    # df_meta = aggregate_collection_metadata()
     print('STAGE_FOUR: Pipeline STAGE_FOUR complete. Aggregated every collection\'s metadata into one global dataframe.')
     print('=' * 100)
 
