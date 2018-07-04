@@ -203,9 +203,12 @@ def aggregate_collection_metadata():
                     print('\tTargeting: %d %s' % (i, subdir))
                 with open(subdir + '\df_meta.csv', 'r', errors='replace') as fp:
                     df_coll_meta = pd.read_csv(fp)
-                df_meta.append(df_coll_meta)
+                df_meta = df_meta.append(df_coll_meta)
+                # TODO: Data size reduction techniques:
+
                 if args.verbose:
-                    print('\tAppended metadata successfully.')
+                    print('\t\tAppended metadata successfully. New size of df_meta: (%d, %d).'
+                          % (df_meta.size[0], df_meta.size[1]))
         df_meta.to_pickle(path=args.STORE + '\collections\df_meta.pkl')
     else:
         print('\tMetadata already aggregated as %s exists. Delete file from hard drive to re-aggregate. '
@@ -300,6 +303,9 @@ if __name__ == '__main__':
     df_meta = aggregate_collection_metadata()
     print('STAGE_FOUR: Pipeline STAGE_FOUR complete. Aggregated every collection\'s metadata into one global dataframe.')
     print('=' * 100)
+
+
+
 
     ''' Uncomment the following method call to re-create metadata-to-hdd links and hdd class subdirectory instantiation'''
     # df_classes = aggregate_institution_metadata_by_species()
