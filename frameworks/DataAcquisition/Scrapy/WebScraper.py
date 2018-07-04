@@ -100,37 +100,68 @@ def main():
 def download_and_extract_zip_files(df_collids):
     """
     download_and_extract_zip_files: Goes through every collection in df_collids and downloads the DwC-A zip file for the
-        collection extracting all files to the respective directory.
+        collection extracting all files to the respective directory. Checks the extracted images.csv file for data
+        besides the csv header. If no data is found the parent directory for the collection is removed and the
+        collection is dropped from the returned df_collids.
     :param df_collids: The global metadata dataframe containing SERNEC collections.
-    :return None: Upon completion, local directories will be created for each collection which will house said
-        collection's extracted DwC-A zip files.
+    :return df_collids: The updated collids dataframe with collections containing no image data removed.
+    :return num_dl_requested: The number of DwC-A zip files that the script attempted to download.
+    :return num_dl_recieved: The number of DwC-A zip files that the script downloaded successfully.
+    :return num_new_collections_added: The number of new collections that were added. These collections:
+        * Have DwC-A's that downloaded and extracted with no errors.
+        * Have an images.csv file that contained data other than the header.
     """
+    flagged_for_removal = {}
+    num_dl_requested = 0
+    num_dl_recieved = 0
+    num_dl_rejected = 0
     # Download the DwC-A zip file for every collection:
     for index, row in df_collids.iterrows():
         # Create a storage directory for this collection if it doesn't already exist:
         write_dir = args.STORE + '\collections\\' + row['inst']
         if not os.path.isdir(write_dir):
+            num_dl_requested += 1
             os.mkdir(write_dir)
             # Download the DwC-A zip file:
             zip_response = requests.get(row['dwca'])
             if zip_response.status_code == 200:
+                num_dl_recieved += 1
                 if args.verbose:
                     print('\tDownloaded DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response 200 (OK)'
                           % (row['collid'], row['inst']))
                 # Convert raw byte response to zip file:
                 dwca_zip = zipfile.ZipFile(io.BytesIO(zip_response.content))
+                dwca_zip.printdir()
                 # Extract all the zip files to the specified directory.
                 if args.verbose:
-                    print('\tExtracting zip files to relative directory: %s' % write_dir)
-                    dwca_zip.printdir()
-                dwca_zip.extractall(path=write_dir)
+                    print('\t\tExamining the obtained zip file for image data prior to extraction...')
+                    for zip_info in dwca_zip.infolist():
+                        f_name = zip_info.filename
+                        if f_name == 'images.csv':
+                            if zip_info.file_size == 218:
+                                num_dl_rejected += 1
+                                print('\t\tData Lost! Although \'images.csv\' does exist, it has no data other '
+                                      'than the header. The subdirectory: %s will now be removed.' % write_dir)
+                                shutil.rmtree(write_dir)
+                                flagged_for_removal[row['collid']] = row['inst']
+                                print('\t\tThe rest of the pipeline will proceed without collection %s. '
+                                      'Flagged this collection for removal from \'df_collids\'.' % (row['inst']))
+                            else:
+                                print('\t\tDetected an \'images.csv\' file with data. Proceeding to extraction...')
+                                print('\t\tExtracting zip files to relative directory: %s' % write_dir)
+                                dwca_zip.extractall(path=write_dir)
             else:
                 if args.verbose:
                     print('\t\tData Lost! Failed to download DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response: %s'
                           % (row['collid'], row['inst'], zip_response.status_code))
                     print('\t\tRemoving empty directory: %s and proceeding without this collection' % write_dir)
-                    os.rmdir(write_dir)
-
+                os.rmdir(write_dir)
+    print('\tFinished analysis. Notifying \'df_collids\' to remove the collections with no image data: %s'
+          % list(flagged_for_removal.values()))
+    for collid, inst in flagged_for_removal.items():
+        df_collids = df_collids[df_collids.collid != collid]
+    num_new_collections_added = (num_dl_recieved - num_dl_rejected)
+    return df_collids, num_dl_requested, num_dl_recieved, num_dl_rejected, num_new_collections_added
 
 def aggregate_occurrences_and_images():
     """
@@ -170,7 +201,7 @@ def aggregate_occurrences_and_images():
                                 raw = fp.read()
                                 lines = raw.splitlines()
                                 error_lines = {}
-                                for i, line in enumerate(lines):
+                                for i_l, line in enumerate(lines):
                                     if '\ufffd' in line:
                                         # print("\t\t\tUnicode encoding error with record %d: %s" % (i+1, line))
                                         error_lines[line.split(',')[0]] = line
@@ -307,7 +338,8 @@ if __name__ == '__main__':
     # Check existence of global metadata data frame:
     if not os.path.isfile(args.STORE + '\collections\df_collids.pkl'):
         print('STAGE_ONE: Failed to detect an existing df_collids.pkl. I will have to create a new one.')
-        os.mkdir(args.STORE + '/collections')
+        if not os.path.isdir(args.STORE + '/collections'):
+            os.mkdir(args.STORE + '/collections')
         # Perform first pass of global metadata scrape. Obtain collection codes and DwC-A URLs for all collections:
         df_collids = main()
         # Save the dataframe to the hard drive.
@@ -323,26 +355,33 @@ if __name__ == '__main__':
 
     ''' Data Pipeline STAGE_TWO: Download and extract zipped DwC-A files for each collection '''
     if args.verbose:
-        print('STAGE_TWO: Downloading and extracting zipped DwC-A files for each collection. '
-              'Creating collection subdirectories for storage...')
-    download_and_extract_zip_files(df_collids)
-    print('STAGE_TWO: Pipeline STAGE_TWO complete. Zipped DwC-A files downloaded and extracted for all collections.')
+        print('STAGE_TWO: Downloading and extracting zipped DwC-A files for each collection. Checking contents for '
+              'actual image data. Removing collections with no image data. Creating collection subdirectories otherwise'
+              '...')
+    df_collids, num_dl_requested, num_dl_recieved, num_dl_rejected, num_collections_added = download_and_extract_zip_files(df_collids)
+    print('STAGE_TWO: Requested %d new DwC-A downloads. Received %d new DwC-A downloads successfully. Rejected %d '
+          'new downloads with no real image data. Final relevant collections added: %d. '
+          'Now updating saved version of \'df_collid\' with omitted data...'
+          % (num_dl_requested, num_dl_recieved, num_dl_rejected, num_collections_added))
+    df_collids.to_pickle(args.STORE + '\collections\df_collids.pkl')
+    print('STAGE_TWO: Pipeline STAGE_TWO complete. Updated saved df_collids. Removed collections with no real image '
+          'data. Created directories and extracted zip files for all relevant collections.')
     print('=' * 100)
 
     ''' Data Pipeline STAGE_THREE: Aggregate the occurrences.csv and images.csv files for every collection '''
     if args.verbose:
         print('STAGE_THREE: Stepping through every collection aggregating occurrence.csv and image.csv files. Standby...')
-    aggregate_occurrences_and_images()
+    # aggregate_occurrences_and_images()
     print('STAGE_THREE: Pipeline STAGE_THREE complete. Aggregated every collection\'s occurrence and image data.')
     print('=' * 100)
     print('DEV-OP: Removing Stage Three programmatically...')
     # Undo stage three:
-    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
-        # print(subdir)
-        if i != 0:
-            # If already merged don't re-merge:
-            if os.path.isfile(subdir + '\df_meta.csv'):
-                os.remove(subdir + '\df_meta.csv')
+    # for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
+    #     # print(subdir)
+    #     if i != 0:
+    #         # If already merged don't re-merge:
+    #         if os.path.isfile(subdir + '\df_meta.csv'):
+    #             os.remove(subdir + '\df_meta.csv')
 
 
 
