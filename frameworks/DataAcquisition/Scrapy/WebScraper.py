@@ -117,8 +117,8 @@ def download_and_extract_zip_files(df_collids):
     num_dl_rejected = 0
     # Download the DwC-A zip file for every collection:
     for index, row in df_collids.iterrows():
-        # Create a storage directory for this collection if it doesn't already exist:
         write_dir = args.STORE + '\collections\\' + row['inst']
+        # Create a storage directory for this collection if it doesn't already exist:
         if not os.path.isdir(write_dir):
             num_dl_requested += 1
             os.mkdir(write_dir)
@@ -135,21 +135,21 @@ def download_and_extract_zip_files(df_collids):
                 # Extract all the zip files to the specified directory.
                 if args.verbose:
                     print('\t\tExamining the obtained zip file for image data prior to extraction...')
-                    for zip_info in dwca_zip.infolist():
-                        f_name = zip_info.filename
-                        if f_name == 'images.csv':
-                            if zip_info.file_size == 218:
-                                num_dl_rejected += 1
-                                print('\t\tData Lost! Although \'images.csv\' does exist, it has no data other '
-                                      'than the header. The subdirectory: %s will now be removed.' % write_dir)
-                                shutil.rmtree(write_dir)
-                                flagged_for_removal[row['collid']] = row['inst']
-                                print('\t\tThe rest of the pipeline will proceed without collection %s. '
-                                      'Flagged this collection for removal from \'df_collids\'.' % (row['inst']))
-                            else:
-                                print('\t\tDetected an \'images.csv\' file with data. Proceeding to extraction...')
-                                print('\t\tExtracting zip files to relative directory: %s' % write_dir)
-                                dwca_zip.extractall(path=write_dir)
+                for zip_info in dwca_zip.infolist():
+                    f_name = zip_info.filename
+                    if f_name == 'images.csv':
+                        if zip_info.file_size == 218:
+                            num_dl_rejected += 1
+                            print('\t\tData Lost! Although \'images.csv\' does exist, it has no data other '
+                                  'than the header. The subdirectory: %s will now be removed.' % write_dir)
+                            shutil.rmtree(write_dir)
+                            flagged_for_removal[row['collid']] = row['inst']
+                            print('\t\tThe rest of the pipeline will proceed without collection %s. '
+                                  'Flagged this collection for removal from \'df_collids\'.' % (row['inst']))
+                        else:
+                            print('\t\tDetected an \'images.csv\' file with data. Proceeding to extraction...')
+                            print('\t\tExtracting zip files to relative directory: %s' % write_dir)
+                            dwca_zip.extractall(path=write_dir)
             else:
                 if args.verbose:
                     print('\t\tData Lost! Failed to download DwC-A zipfile for COLLID: %s, INST: %s, with HTTP response: %s'
@@ -162,6 +162,7 @@ def download_and_extract_zip_files(df_collids):
         df_collids = df_collids[df_collids.collid != collid]
     num_new_collections_added = (num_dl_recieved - num_dl_rejected)
     return df_collids, num_dl_requested, num_dl_recieved, num_dl_rejected, num_new_collections_added
+
 
 def aggregate_occurrences_and_images():
     """
@@ -182,10 +183,9 @@ def aggregate_occurrences_and_images():
                     df_imgs = pd.read_csv(fp)
                 # Check to ensure this collection has image data:
                 if df_imgs.empty:
-                    print('\t\tError: %s\images.csv contains no data. This collection is hence irrelevant. '
-                          'Removing from hard drive...' % subdir)
-                    shutil.rmtree(subdir)
-                    print('\t\tError: Data Lost! Removed %s from hard drive' % subdir)
+                    print('\t\tError: %s\images.csv was read improperly with no errors!!!!! EXAMINE!' % subdir)
+                    # shutil.rmtree(subdir)
+                    # print('\t\tError: Data Lost! Removed %s from hard drive' % subdir)
                 else:
                     # Attempt to load the occurrences.csv file but prepare to encounter unrecognized unicode characters:
                     try:
@@ -273,14 +273,12 @@ def aggregate_collection_metadata():
                 with open(subdir + '\df_meta.csv', 'r', errors='replace') as fp:
                     df_coll_meta = pd.read_csv(fp)
                 df_meta = df_meta.append(df_coll_meta)
-                # TODO: Data size reduction techniques:
-
                 if args.verbose:
                     print('\t\tAppended metadata successfully. New size of df_meta: (%d, %d).'
-                          % (df_meta.size[0], df_meta.size[1]))
+                          % (df_meta.shape[0], df_meta.shape[1]))
         df_meta.to_pickle(path=args.STORE + '\collections\df_meta.pkl')
     else:
-        print('\tMetadata already aggregated as %s exists. Delete file from hard drive to re-aggregate. '
+        print('\tMetadata already aggregated as %s exists. Delete file from hard drive to re-aggregate.\n'
               'Loading global metadata file...' % (args.STORE + '\collections\df_meta.pkl'))
         df_meta = pd.read_pickle(path=args.STORE + '\collections\df_meta.pkl')
     return df_meta
@@ -371,10 +369,10 @@ if __name__ == '__main__':
     ''' Data Pipeline STAGE_THREE: Aggregate the occurrences.csv and images.csv files for every collection '''
     if args.verbose:
         print('STAGE_THREE: Stepping through every collection aggregating occurrence.csv and image.csv files. Standby...')
-    # aggregate_occurrences_and_images()
+    aggregate_occurrences_and_images()
     print('STAGE_THREE: Pipeline STAGE_THREE complete. Aggregated every collection\'s occurrence and image data.')
     print('=' * 100)
-    print('DEV-OP: Removing Stage Three programmatically...')
+    # print('DEV-OP: Removing Stage Three programmatically...')
     # Undo stage three:
     # for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
     #     # print(subdir)
@@ -383,16 +381,11 @@ if __name__ == '__main__':
     #         if os.path.isfile(subdir + '\df_meta.csv'):
     #             os.remove(subdir + '\df_meta.csv')
 
-
-
     ''' Data Pipeline STAGE_FOUR: Aggregate every collection's data into one dataframe 'df_meta' '''
     print('STAGE_FOUR: Stepping through every collection aggregating into one global metadata dataframe. Patience...')
-    # df_meta = aggregate_collection_metadata()
+    df_meta = aggregate_collection_metadata()
     print('STAGE_FOUR: Pipeline STAGE_FOUR complete. Aggregated every collection\'s metadata into one global dataframe.')
     print('=' * 100)
-
-
-
 
     ''' Uncomment the following method call to re-create metadata-to-hdd links and hdd class subdirectory instantiation'''
     # df_classes = aggregate_institution_metadata_by_species()
