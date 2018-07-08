@@ -276,6 +276,7 @@ def aggregate_collection_metadata():
                 if args.verbose:
                     print('\t\tAppended metadata successfully. New size of df_meta: (%d, %d).'
                           % (df_meta.shape[0], df_meta.shape[1]))
+
         df_meta.to_pickle(path=args.STORE + '\collections\df_meta.pkl')
     else:
         print('\tMetadata already aggregated as %s exists. Delete file from hard drive to re-aggregate.\n'
@@ -384,14 +385,33 @@ if __name__ == '__main__':
     ''' Data Pipeline STAGE_FOUR: Aggregate every collection's data into one dataframe 'df_meta' '''
     print('STAGE_FOUR: Stepping through every collection aggregating into one global metadata dataframe. Patience...')
     df_meta = aggregate_collection_metadata()
+
+    # Drop rows that have scientificName of NaN:
+    num_samples_pre_drop = df_meta.shape[0]
+    df_meta = df_meta.dropna(axis=0, how='any', subset=['scientificName'])
+    if args.verbose:
+        print('Warning: Data Lost! Dropped %d records from df_meta that had no discernible scientificName.'
+              % (num_samples_pre_drop - df_meta.shape[0]))
+
+    # Drop rows that have no image URLS in either goodQualityAccessURI, accessURI, associatedSpecimenReference, or thumbnailAccessURI:
+    num_samples_pre_drop = df_meta.shape[0]
+    df_meta = df_meta.dropna(axis=0, how='all',
+                             subset=['accessURI', 'goodQualityAccessURI', 'identifier', 'associatedSpecimenReference'])
+    if args.verbose:
+        if (num_samples_pre_drop - df_meta.shape[0]) > 0:
+            print('Warning: Data Lost! Dropped %d records from df_meta that had no associated image URL.'
+                  % (num_samples_pre_drop - df_meta.shape[0]))
+    # for i, row in df_meta.iterrows():
+    #     target = row['scientificName']
+    #     url = None
+    #     if row['goodQualityAccessURI']:
+    #         url = row['goodQualityAccessURI']
+    #     elif row['accessURI']:
+    #         url = row['accessURI']
+    #     elif row['associatedSpecimenReference']:
+    #         url = row['associatedSpecimenReference']
+    #     else:
+    #         print('ERROR: Data Lost! Record %d does not possess a valid image URL' % i)
+    #     targets_and_urls.append((target, url))
     print('STAGE_FOUR: Pipeline STAGE_FOUR complete. Aggregated every collection\'s metadata into one global dataframe.')
     print('=' * 100)
-
-    ''' Uncomment the following method call to re-create metadata-to-hdd links and hdd class subdirectory instantiation'''
-    # df_classes = aggregate_institution_metadata_by_species()
-
-    ''' Uncomment the following method call to re-download images for every collection. '''
-    if args.verbose:
-        print('Now downloading high resolution images for every sample in every collection. This will take quite a while.......')
-    # download_high_res_images()
-    pass
