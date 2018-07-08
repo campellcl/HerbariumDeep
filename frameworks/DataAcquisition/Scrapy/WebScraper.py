@@ -271,7 +271,8 @@ def aggregate_collection_metadata():
                 if args.verbose:
                     print('\tTargeting: %d %s' % (i, subdir))
                 with open(subdir + '\df_meta.csv', 'r', errors='replace') as fp:
-                    df_coll_meta = pd.read_csv(fp)
+                    df_coll_meta = pd.read_csv(fp, index_col=0)
+
                 df_meta = df_meta.append(df_coll_meta)
                 if args.verbose:
                     print('\t\tAppended metadata successfully. New size of df_meta: (%d, %d).'
@@ -397,6 +398,9 @@ if __name__ == '__main__':
     num_samples_pre_drop = df_meta.shape[0]
     df_meta = df_meta.dropna(axis=0, how='all',
                              subset=['accessURI', 'goodQualityAccessURI', 'identifier', 'associatedSpecimenReference'])
+    # Update dataframe:
+    df_meta.to_pickle(path=args.STORE + '\collections\df_meta.pkl')
+
     if args.verbose:
         if (num_samples_pre_drop - df_meta.shape[0]) > 0:
             print('Warning: Data Lost! Dropped %d records from df_meta that had no associated image URL.'
