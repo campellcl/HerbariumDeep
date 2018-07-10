@@ -8,6 +8,8 @@ import signal
 from pandas.api.types import CategoricalDtype
 import concurrent.futures
 from functools import partial
+import numpy as np
+from collections import OrderedDict
 
 
 parser = argparse.ArgumentParser(description='SERNEC web scraper command line interface.')
@@ -112,18 +114,39 @@ def download_images(df_meta):
                 print('\t\tDownloaded record %d (%s) successfully and saved to: %s' % (i, row['dwc:scientificName'], f_name))
 
 
-def download_image(accessURI):
+def download_image(metadata_record):
+    '''
+    :param metadata_record:
+    :return:
+    '''
+    # Make a copy of the dataframe record to update flags with download result:
+    '''
+    NOTE: df.copy is not thread-safe so this must rely on numpy copy methods:
+        * see: https://stackoverflow.com/questions/13592618/python-pandas-dataframe-thread-safe
+        * see: https://stackoverflow.com/questions/25782912/pandas-and-numpy-thread-safety
+    '''
     # Instantiate http object per urllib3:
     http = urllib3.PoolManager(
         cert_reqs='CERT_REQUIRED',
         ca_certs=certifi.where()
     )
-    dl_response = http.request('GET', accessURI)
+    access_uri = metadata_record['ac:accessURI']
+    dl_response = http.request('GET', access_uri)
     if dl_response.status == 200:
         return dl_response.data
     else:
-        print('Error downloading accessURI %s. Received http response %d' % (accessURI, dl_response.data))
+        print('Error downloading accessURI %s. Received http response %d' % (access_uri, dl_response.data))
 
+
+def future_handler(future):
+    """
+    future_handler: Called upon the completion of a Future thread object.
+    :param future: Encapsulates the asynchronous execution of a callable. Future instances are created by
+        Executor.submit() and should not be created directly except for testing.
+    :return:
+    """
+    print('Callback fired.')
+    pass
 
 
 def signal_handler(signum, frame):
@@ -168,25 +191,39 @@ if __name__ == '__main__':
     # download_images(df_meta)
     ''' MultiThreading (see: https://docs.python.org/3/library/concurrent.futures.html) '''
     max_workers = 6
-    urls = df_meta['ac:accessURI'].tolist()
-    # Separate URLs into batches the size of the maximum number of threads:
-    urls = [urls[i:i + max_workers] for i in range(0, len(urls), max_workers)]
-    # Iterate over every batch of URLS:
-    for i in range(len(urls)):
-        # Create an executor to manage the threads that will download this batch of URLS:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Create a dictionary of future objects and their assigned url's:
-            future_to_url = {executor.submit(download_image, url): url for url in urls[i]}
-            # This will loop over the Future object's (threads) after they complete:
-            for future in concurrent.futures.as_completed(future_to_url):
-                url = future_to_url[future]
-                print('url: %s' % url)
-                try:
-                    data = future.result()
-                except Exception as exc:
-                    print('%r generated an exception: %s' % (url, exc))
-                else:
-                    print('%r page is %d bytes' % (url, len(data)))
+    # Iterate over the dataframe in chunks the size of max_workers:
+    for k, group in df_meta.groupby(np.arange(len(df_meta))//max_workers):
+        # i = k % max_workers
+        for g_i, row in group.iterrows():
+            # Create an executor to manage the threads that will download this batch of URLS:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Iterate over every url and create async execution Future objects. Attach callback handler:
+                futures = {executor.submit(download_image, url).add_done_callback(future_handler): url for url in urls}
+
+
+        print(group)
+        pass
+
+
+    # urls = df_meta['ac:accessURI'].tolist()
+    # # Separate URLs into batches the size of the maximum number of threads:
+    # urls = [urls[i:i + max_workers] for i in range(0, len(urls), max_workers)]
+    # # Iterate over every batch of URLS:
+    # for i in range(len(urls)):
+    #     # Create an executor to manage the threads that will download this batch of URLS:
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+    #         # Create a dictionary of future objects and their assigned url's:
+    #         future_to_url = {executor.submit(download_image, url): url for url in urls[i]}
+    #         # This will loop over the Future object's (threads) after they complete:
+    #         for future in concurrent.futures.as_completed(future_to_url):
+    #             url = future_to_url[future]
+    #             print('url: %s' % url)
+    #             try:
+    #                 data = future.result()
+    #             except Exception as exc:
+    #                 print('%r generated an exception: %s' % (url, exc))
+    #             else:
+    #                 print('%r page is %d bytes' % (url, len(data)))
 
 
     pass
