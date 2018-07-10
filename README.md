@@ -30,6 +30,12 @@ Required External Data:
 * [How Transferable are Features in Deep Neural Networks?](https://arxiv.org/abs/1411.1792)
 * [CNN Features Off-the-Shelf: An Astounding Baseline for Recognition](https://arxiv.org/abs/1403.6382)
 
+## SERNEC Data Acquisition:
+### Web Scraper Process:
+1. Target each herbarium in the order they appear [here](http://sernecportal.org/portal/collections/index.php).
+2. Initialize storage directory for the herbarium's data on the local machine.
+3. Initalize a container for the herbarium's metadata in the herbarium's local storage directory.
+
 
 ## URL Dump:
 * [1](https://towardsdatascience.com/an-overview-of-resnet-and-its-variants-5281e2f56035)
