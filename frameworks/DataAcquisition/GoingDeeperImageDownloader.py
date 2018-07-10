@@ -6,6 +6,9 @@ import urllib3, certifi, requests
 import time
 import signal
 from pandas.api.types import CategoricalDtype
+import concurrent.futures
+from functools import partial
+
 
 parser = argparse.ArgumentParser(description='SERNEC web scraper command line interface.')
 parser.add_argument('STORE', metavar='DIR', help='Data storage directory.')
@@ -109,6 +112,20 @@ def download_images(df_meta):
                 print('\t\tDownloaded record %d (%s) successfully and saved to: %s' % (i, row['dwc:scientificName'], f_name))
 
 
+def download_image(accessURI):
+    # Instantiate http object per urllib3:
+    http = urllib3.PoolManager(
+        cert_reqs='CERT_REQUIRED',
+        ca_certs=certifi.where()
+    )
+    dl_response = http.request('GET', accessURI)
+    if dl_response.status == 200:
+        return dl_response.data
+    else:
+        print('Error downloading accessURI %s. Received http response %d' % (accessURI, dl_response.data))
+
+
+
 def signal_handler(signum, frame):
     # print('TERMINAL: Signal handler called with signal %d.' % signum)
     if signum == 2:
@@ -148,6 +165,25 @@ if __name__ == '__main__':
         df_meta.to_pickle(args.STORE + '\images\df_meta.pkl')
     df_meta_updated = df_meta.copy(deep=True)
     print('Downloading Images...')
-    download_images(df_meta)
+    # download_images(df_meta)
+    ''' MultiThreading (see: https://docs.python.org/3/library/concurrent.futures.html) '''
+    max_workers = 6
+    urls = df_meta['ac:accessURI'].tolist()
+    urls = [urls[i:i + max_workers] for i in range(0, len(urls), max_workers)]
+    batch_number = 0
+    for i in range(len(urls)):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {executor.submit(download_image, url): url for url in urls[i]}
+            for future in concurrent.futures.as_completed(future_to_url):
+                url = future_to_url[future]
+                print('url: %s' % url)
+                try:
+                    data = future.result()
+                except Exception as exc:
+                    print('%r generated an exception: %s' % (url, exc))
+                else:
+                    print('%r page is %d bytes' % (url, len(data)))
+
+
     pass
 
