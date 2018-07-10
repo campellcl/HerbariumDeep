@@ -169,11 +169,15 @@ if __name__ == '__main__':
     ''' MultiThreading (see: https://docs.python.org/3/library/concurrent.futures.html) '''
     max_workers = 6
     urls = df_meta['ac:accessURI'].tolist()
+    # Separate URLs into batches the size of the maximum number of threads:
     urls = [urls[i:i + max_workers] for i in range(0, len(urls), max_workers)]
-    batch_number = 0
+    # Iterate over every batch of URLS:
     for i in range(len(urls)):
+        # Create an executor to manage the threads that will download this batch of URLS:
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Create a dictionary of future objects and their assigned url's:
             future_to_url = {executor.submit(download_image, url): url for url in urls[i]}
+            # This will loop over the Future object's (threads) after they complete:
             for future in concurrent.futures.as_completed(future_to_url):
                 url = future_to_url[future]
                 print('url: %s' % url)
