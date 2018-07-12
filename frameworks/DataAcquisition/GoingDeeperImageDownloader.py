@@ -10,6 +10,8 @@ import concurrent.futures
 from functools import partial
 import numpy as np
 from collections import OrderedDict
+import threading
+from queue import Queue
 
 
 parser = argparse.ArgumentParser(description='SERNEC web scraper command line interface.')
@@ -158,6 +160,37 @@ def signal_handler(signum, frame):
         exit(1)
 
 
+class ImageDownloaderThread(threading.Thread):
+    # NOTE: Only override the __init__() and run() methods of this class.
+
+    def __init__(self, df_series, group=None, target=None, name=None, daemon=None, *args, **kwargs):
+        """
+        __init__: Constructor for threads of type ImageDownloaderThread.
+        :param group: should be None; reserved for future extension when a ThreadGroup class is implemented.
+        :param target: the callable object to be invoked by the run() method. Defaults to None,
+            meaning nothing is called.
+        :param name: the thread name. By default, a unique name is constructed of the form “Thread-N”,
+            where N is a small decimal number.
+        :param daemon: A boolean flag indicating if this thread is a daemon thread. For more information,
+            see: https://docs.python.org/3/library/threading.html#thread-objects
+        :param args: the argument tuple for the target invocation. Defaults to ().
+        :param kwargs: a dictionary of keyword arguments for the target invocation. Defaults to {}.
+        """
+        threading.Thread.__init__(self, group=group, target=target, name=name, daemon=daemon, args=args, kwargs=kwargs)
+        self.df_series = df_series
+
+    def run(self):
+        """
+        run: Method representing the thread’s activity. Invokes the callable object passed to the object’s constructor
+            as the target argument, if any, with sequential and keyword arguments taken from the args and kwargs
+            arguments, respectively.
+        :return:
+        """
+        img_data = download_image(metadata_record=self.df_series)
+
+
+
+
 if __name__ == '__main__':
     global args, verbose
     args = parser.parse_args()
@@ -186,11 +219,22 @@ if __name__ == '__main__':
         df_meta['has_error'] = df_meta['has_error'].astype(cat_type)
         df_meta['filename'] = pd.Series(['' for i in range(df_meta.shape[0])])
         df_meta.to_pickle(args.STORE + '\images\df_meta.pkl')
+    # Dataframe copy holds changes to boolean flags during iteration of primary dataframe:
     df_meta_updated = df_meta.copy(deep=True)
+    # Create a lock for the shared resource 'df_meta_updated':
+    df_meta_updated_lock = threading.Lock()
+    # Lock the dataframe (will block if lock is already held):
+    df_meta_updated_lock.acquire()
     print('Downloading Images...')
     # download_images(df_meta)
     ''' MultiThreading (see: https://docs.python.org/3/library/concurrent.futures.html) '''
     max_workers = 6
+
+
+
+
+
+
     # Iterate over the dataframe in chunks the size of max_workers:
     for k, group in df_meta.groupby(np.arange(len(df_meta))//max_workers):
         # i = k % max_workers
