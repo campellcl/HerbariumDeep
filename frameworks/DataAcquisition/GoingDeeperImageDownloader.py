@@ -14,6 +14,7 @@ from collections import OrderedDict
 import threading
 from queue import Queue
 import json
+import shutil
 
 
 parser = argparse.ArgumentParser(description='SERNEC web scraper command line interface.')
@@ -118,24 +119,33 @@ def main():
 #                 print('\t\tDownloaded record %d (%s) successfully and saved to: %s' % (i, row['dwc:scientificName'], f_name))
 
 
-def download_image(url, label, file_lock):
+def download_image(url, write_path, lock_path):
     """
     download_image: Returns the raw data of an image downloaded from the provided url.
     :param url: The image URL which is to be downloaded.
-    :param label: The name of the target class label associated with this url.
-    :param file_lock: A FileLock instance that controls access to the file this url will produce when downloaded.
+    :param write_path: The path indicating where the downloaded image is to be stored.
+    :param lock_path: The path indicating where the .lock file for the corresponding image is to be located.
     :return dl_response.data: The raw data of the http response.
     """
     # Get the name of the file we are attempting to download:
     dl_file_name = os.path.basename(url)
     # Build the write path where the downloaded image is to be stored:
-    write_path = args.STORE + '\\images\\%s\\%s' % (label, dl_file_name)
-    lock_path = write_path + '.lock'
+    # write_path = args.STORE + '\\images\\%s\\%s' % (label, dl_file_name)
+    # lock_path = write_path + '.lock'
     # Does the file already exist?
     if not os.path.isfile(write_path):
+        # Does the lock file already exist?
+        if not os.path.isfile(lock_path):
+            # Create an empty lockfile:
+            open(lock_path, 'a').close()
+            # Lock the lockfile:
+            file_lock = FileLock(lock_path, timeout=0.1)
+            print('Just created lockfile: %s The file is locked: %s' % (lock_path, file_lock.is_locked))
         # Try and acquire the file lock to see if another thread is already working on this url:
         try:
+            print('Attempting to acquire lockfile: %s. The file is locked: %s' % (lock_path, file_lock.is_locked))
             with file_lock.acquire(timeout=0.1):
+                print('Acquired lockfile %s.' % lock_path)
                 # File lock acquired, proceed to URL download:
                 # Instantiate http object per urllib3:
                 http = urllib3.PoolManager(
@@ -151,7 +161,8 @@ def download_image(url, label, file_lock):
                 else:
                     print('Error downloading accessURI %s. Received http response %d' % (url, dl_response.status))
         except Timeout:
-            print('Another instance of this application currently holds the lock: %s' % lock_path)
+            print('Attempt to acquire the file lock timed out. Perhaps another instance of this application '
+                  'currently holds the lock: %s' % lock_path)
         finally:
             file_lock.release()
     else:
@@ -178,6 +189,27 @@ def create_image_storage_dirs(df_meta):
         if not os.path.isdir(write_path):
             os.mkdir(write_path)
             print('\tCreated new target directory: %s' % write_path)
+
+
+def purge_lock_files():
+    """
+    purge_lock_files: Removes all lock files from the
+    :param write_dir: The directory for which lock files are to be recursively removed.
+    :return:
+    """
+    root_folder = args.STORE + '\\images\\'
+    for item in os.listdir(root_folder):
+        if os.path.isdir(os.path.join(root_folder, item)):
+            for the_file in os.listdir(os.path.join(root_folder, item)):
+                if the_file.endswith('.lock'):
+                    file_path = os.path.join(root_folder, item)
+                    file_path = os.path.join(file_path, the_file)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                            # os.unlink(file_path)
+                    except OSError as exception:
+                        print(exception)
 
 
 if __name__ == '__main__':
@@ -234,15 +266,21 @@ if __name__ == '__main__':
     urls_and_lock_files = [(url, write_path + '.lock') for url, write_path in urls_and_write_paths]
     # max_workers is initially the number of processor cores:
     max_workers = 6
+    # FileLock timeouts:
+    lock_timeout = 0.1
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_url = {executor.submit(download_image, url, write_path, lock_path): url for (url, write_path), (_, lock_path) in zip(urls_and_write_paths, urls_and_lock_files)}
+
+
     # Separate URLs into batches the size of the maximum number of threads:
-    urls_and_labels = [urls_and_labels[i:i + max_workers] for i in range(0, len(urls_and_labels), max_workers)]
-    urls_and_write_paths = [urls_and_write_paths[i:i + max_workers] for i in range(0, len(urls_and_write_paths))]
-    urls_and_lock_files = [urls_and_lock_files[i:i + max_workers] for i in range(0, len(urls_and_lock_files))]
+    # urls_and_labels = [urls_and_labels[i:i + max_workers] for i in range(0, len(urls_and_labels), max_workers)]
+    # urls_and_write_paths = [urls_and_write_paths[i:i + max_workers] for i in range(0, len(urls_and_write_paths))]
+    # urls_and_lock_files = [urls_and_lock_files[i:i + max_workers] for i in range(0, len(urls_and_lock_files))]
     # Iterate over every batch of URLS:
-    for i in range(len(urls_and_labels)):
+    # for i in range(len(urls_and_labels)):
         # TODO: Modify this code to be tied to the number of workers instead of hard-coded:
         # Instantiate file locks:
-        lock_timeout = 0.1
+        # lock_timeout = 0.1
         # lock_one = FileLock(urls_and_lock_files[i][0][1], timeout=lock_timeout)
         # lock_two = FileLock(urls_and_lock_files[i][1][1], timeout=lock_timeout)
         # lock_three = FileLock(urls_and_lock_files[i][2][1], timeout=lock_timeout)
@@ -250,9 +288,9 @@ if __name__ == '__main__':
         # lock_five = FileLock(urls_and_lock_files[i][4][1], timeout=lock_timeout)
         # lock_six = FileLock(urls_and_lock_files[i][5][1], timeout=lock_timeout)
         # Create an executor to manage the threads that will download this batch of URLS:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Create a dictionary of future objects and their assigned url's:
-            future_to_url = {executor.submit(download_image, url, label, FileLock(lock, timeout=lock_timeout)): url for (url, label),(_, lock) in zip(urls_and_labels[i], urls_and_lock_files[i])}
+            # future_to_url = {executor.submit(download_image, url, label, FileLock(lock, timeout=lock_timeout)): url for (url, label),(_, lock) in zip(urls_and_labels[i], urls_and_lock_files[i])}
             # This will loop over the Future object's (threads) after they complete:
             # for future in concurrent.futures.as_completed(future_to_url):
             #     url = future_to_url[future]
