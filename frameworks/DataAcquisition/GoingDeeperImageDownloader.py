@@ -127,7 +127,6 @@ def download_image(url, write_path, lock_path):
     :param lock_path: The path indicating where the .lock file for the corresponding image is to be located.
     :return dl_response.data: The raw data of the http response.
     """
-    print('Working on URL: %r' % url)
     # Get the name of the file we are attempting to download:
     dl_file_name = os.path.basename(url)
     # Build the write path where the downloaded image is to be stored:
@@ -135,6 +134,7 @@ def download_image(url, write_path, lock_path):
     # lock_path = write_path + '.lock'
     # Does the file already exist?
     if not os.path.isfile(write_path):
+        print('Working on URL: %r' % url)
         # Does the lock file already exist?
         if not os.path.isfile(lock_path):
             # Create an empty lockfile:
@@ -146,7 +146,7 @@ def download_image(url, write_path, lock_path):
         try:
             print('Attempting to acquire lockfile: %s. The file is locked: %s' % (lock_path, file_lock.is_locked))
             with file_lock.acquire(timeout=0.1):
-                print('Acquired lockfile %s.' % lock_path)
+                print('Acquired lockfile %s. The file is locked: %s' % (lock_path, file_lock.is_locked))
                 # File lock acquired, proceed to URL download:
                 # Instantiate http object per urllib3:
                 http = urllib3.PoolManager(
@@ -155,7 +155,7 @@ def download_image(url, write_path, lock_path):
                 )
                 dl_response = http.request('GET', url)
                 if dl_response.status == 200:
-                    with open(write_path, 'w') as fp:
+                    with open(write_path, 'wb') as fp:
                         fp.write(dl_response.data)
                     print('Downloaded file: %s to %s.' % (dl_file_name, write_path))
                     return url
@@ -227,6 +227,7 @@ if __name__ == '__main__':
     # signal.signal(signal.SIGTERM, handler=signal_handler)
     # Create the images storage directory if it doesn't exist already:
     if not os.path.isdir(args.STORE + '\images'):
+        print('INIT: It appears the global storage directory was removed. Recreating storage directories...')
         os.mkdir(args.STORE + '\images')
     # Load the df_meta dataframe if it exists, otherwise create it:
     if os.path.isfile(args.STORE + '\images\df_meta.pkl'):
@@ -266,7 +267,7 @@ if __name__ == '__main__':
     urls_and_write_paths = []
     for url, label in urls_and_labels:
         f_name = os.path.basename(url)
-        if f_name.endswith('.jpg'):
+        if str.lower(f_name).endswith('.jpg'):
             urls_and_write_paths.append((url, args.STORE + '\\images\\%s\\%s' % (label, f_name)))
         else:
             urls_and_write_paths.append((url, args.STORE + '\\images\\%s\\%s.jpg' % (label, f_name)))
