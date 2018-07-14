@@ -127,6 +127,7 @@ def download_image(url, write_path, lock_path):
     :param lock_path: The path indicating where the .lock file for the corresponding image is to be located.
     :return dl_response.data: The raw data of the http response.
     """
+    print('Working on URL: %r' % url)
     # Get the name of the file we are attempting to download:
     dl_file_name = os.path.basename(url)
     # Build the write path where the downloaded image is to be stored:
@@ -256,12 +257,20 @@ if __name__ == '__main__':
     #         urls[i] = row['ac:accessURI']
     #     with open(args.STORE + '\\images\\URLS.json', 'w') as fp:
     #         json.dump(urls, fp)
-
+    # print('Purging lock files...')
+    # purge_lock_files()
     print('Downloading Images...')
     # get list of urls and their associated labels:
     urls_and_labels = list(zip(df_meta['ac:accessURI'].tolist(), df_meta['dwc:scientificName'].tolist()))
     # get a list of urls and their associated file paths:
-    urls_and_write_paths = [(url, label + '\\images\\%s\\%s.jpg' % (label, os.path.basename(url))) for url, label in urls_and_labels]
+    urls_and_write_paths = []
+    for url, label in urls_and_labels:
+        f_name = os.path.basename(url)
+        if f_name.endswith('.jpg'):
+            urls_and_write_paths.append((url, args.STORE + '\\images\\%s\\%s' % (label, f_name)))
+        else:
+            urls_and_write_paths.append((url, args.STORE + '\\images\\%s\\%s.jpg' % (label, f_name)))
+    # urls_and_write_paths = [(url, args.STORE + '\\images\\%s\\%s' % (label, os.path.basename(url))) for url, label in urls_and_labels]
     # get list of lock files:
     urls_and_lock_files = [(url, write_path + '.lock') for url, write_path in urls_and_write_paths]
     # max_workers is initially the number of processor cores:
