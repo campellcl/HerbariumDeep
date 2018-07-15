@@ -4,17 +4,9 @@ import pandas as pd
 import logging
 import urllib3, certifi, requests
 import time
-import signal
 from pandas.api.types import CategoricalDtype
 import concurrent.futures
 from filelock import Timeout, FileLock
-from functools import partial
-import numpy as np
-from collections import OrderedDict
-import threading
-from queue import Queue
-import json
-import shutil
 
 
 parser = argparse.ArgumentParser(description='SERNEC web scraper command line interface.')
@@ -24,10 +16,18 @@ parser.add_argument('-v', '--verbose', dest='verbose', default=False, action='st
 
 
 def main():
+    """
+    main: Returns the composite dataframe df_meta created by merging occurrence.csv with media.csv using an inner merge
+        on the 'coreid' attribute. This method also eliminates non-essential columns and performs dtype specifications
+        to reduce dataframe memory footprint. This method also removes records with no target class label (here deemed,
+        'dwc:scientificName') and no associated image data (here attribute 'ac:accessURI').
+    :return df_meta: A single dataframe representing the metadata of the entire image collection.
+    """
     if os.path.isdir(args.STORE):
         read_dir = args.STORE + '\Herbaria1K_iDIgBio_Pointers\Herbaria1K_iDIgBio_Pointers'
         with open(read_dir + '\occurrence.csv', 'r', errors='replace') as fp:
             df_occurr = pd.read_csv(fp)
+        # column_sizes = {column: len(df_occurr[column].unique()) for column in df_occurr.columns}
         with open(read_dir + '\multimedia.csv', 'r', errors='replace') as fp:
             df_imgs = pd.read_csv(fp)
         df_meta = pd.merge(df_occurr, df_imgs, how='inner', on=['coreid'])
@@ -72,66 +72,22 @@ def main():
     return df_meta
 
 
-# def download_images(df_meta):
-#     download_times = []
-#     # Instantiate http object per urllib3:
-#     http = urllib3.PoolManager(
-#         cert_reqs='CERT_REQUIRED',
-#         ca_certs=certifi.where()
-#     )
-#     for i, row in df_meta.iterrows():
-#         # Check to see if this file has been downloaded already:
-#         if not row['downloaded']:
-#             target = row['dwc:scientificName']
-#             write_path = args.STORE + '\images\%s' % target
-#             if not os.path.isdir(write_path):
-#                 os.mkdir(write_path)
-#             url = row['ac:accessURI']
-#             time_stamp = time.time()
-#             dl_response = http.request('GET', url)
-#             elapsed_time = time.time() - time_stamp
-#             print('\tResponse received in %s seconds.' % elapsed_time)
-#             download_times.append(elapsed_time)
-#             print('\tAverage download time %s seconds for %d records.'
-#                   % ((sum(download_times)/ len(download_times)), len(download_times)))
-#             # Check if the download was successful:
-#             if not dl_response.status == 200:
-#                 print('Error: Received http response %d while attempting to download record %d (%s).'
-#                       % (dl_response.status, i, row['dwc:scientificName']))
-#                 # has_err_flag_updates.append((i, True))
-#             else:
-#                 # Get the number of files in the target class directory to decide what the name of the image should be:
-#                 num_files_in_write_dir = len([name for name in os.listdir(write_path)])
-#                 f_name = write_path + '\%06d.jpg' % num_files_in_write_dir
-#                 with open(f_name, 'wb') as fp_out:
-#                     fp_out.write(dl_response.data)
-#                 # Update dataframe copy:
-#                 df_meta_updated.iloc[i, -2] = True
-#                 # Release connection:
-#                 dl_response.release_conn()
-#                 # Update flags:
-#                 df_meta_updated.iloc[i, -3] = True
-#                 # df_meta_updated.iloc[i]['downloaded'] = df_meta_updated.iloc[i]['downloaded'] = True
-#                 df_meta_updated.iloc[i, -1] = f_name
-#                 # df_meta_updated.iloc[i]['filename'] = f_name
-#                 # downloaded_flag_updates.append((i, True))
-#                 # file_name_updates.append((i, f_name))
-#                 print('\t\tDownloaded record %d (%s) successfully and saved to: %s' % (i, row['dwc:scientificName'], f_name))
-
-
 def download_image(url, write_path, lock_path):
     """
-    download_image: Returns the raw data of an image downloaded from the provided url.
+    download_image: This method is called asynchronously by executing threads. It performs several useful functions:
+        * Determines if the supplied url has already been downloaded.
+        * Determines if another thread is currently downloading the supplied URL.
+        * Handles the locking and unlocking of the shared resource: image-lock files.
+        * Prints HTTP errors received while attempting the download of an image.
+        * Stores the downloaded data at the provided write_path if successfully obtained.
     :param url: The image URL which is to be downloaded.
     :param write_path: The path indicating where the downloaded image is to be stored.
     :param lock_path: The path indicating where the .lock file for the corresponding image is to be located.
-    :return dl_response.data: The raw data of the http response.
+    :return url: The url that this method was tasked with downloading. Upon completion, this method will have performed
+        the tasks listed above or returned None: (indicating to the controlling ThreadPoolExecutor that this thread is
+        dead and should be re-allocated with a new URL to download).
     """
-    # Get the name of the file we are attempting to download:
-    dl_file_name = os.path.basename(url)
-    # Build the write path where the downloaded image is to be stored:
-    # write_path = args.STORE + '\\images\\%s\\%s' % (label, dl_file_name)
-    # lock_path = write_path + '.lock'
+    time_stamp = time.time()
     # Does the file already exist?
     if not os.path.isfile(write_path):
         print('Working on URL: %r' % url)
@@ -144,10 +100,10 @@ def download_image(url, write_path, lock_path):
             print('Just created lockfile: %s The file is locked: %s' % (lock_path, file_lock.is_locked))
         # Try and acquire the file lock to see if another thread is already working on this url:
         try:
-            print('Attempting to acquire lockfile: %s. The file is locked: %s' % (lock_path, file_lock.is_locked))
+            print('Attempting to acquire lockfile: %s. The file is now locked: %s' % (lock_path, file_lock.is_locked))
             with file_lock.acquire(timeout=0.1):
+                # If this code executes the lockfile has been acquired and is now locked by this process instance.
                 print('Acquired lockfile %s. The file is locked: %s' % (lock_path, file_lock.is_locked))
-                # File lock acquired, proceed to URL download:
                 # Instantiate http object per urllib3:
                 http = urllib3.PoolManager(
                     cert_reqs='CERT_REQUIRED',
@@ -157,26 +113,25 @@ def download_image(url, write_path, lock_path):
                 if dl_response.status == 200:
                     with open(write_path, 'wb') as fp:
                         fp.write(dl_response.data)
-                    print('Downloaded file: %s to %s.' % (dl_file_name, write_path))
-                    return url
+                    print('Downloaded file: %s' % write_path)
+                    return url, time_stamp
                 else:
                     print('Error downloading accessURI %s. Received http response %d' % (url, dl_response.status))
         except Timeout:
             print('Attempt to acquire the file lock timed out. Perhaps another instance of this application '
                   'currently holds the lock: %s' % lock_path)
         finally:
+            # NOTE: This code is guaranteed to run before any return statements are executed,
+            #   see: https://stackoverflow.com/questions/11164144/weird-try-except-else-finally-behavior-with-return-statements
+            '''
+            NOTE: Exiting from a 'with FileLock.acquire:' block will automatically release the lock. So uncomment the,
+                following lines of code only if you believe that the file lock should be released by all threads if a 
+                Timeout exception occurs as well as a success:
+            '''
             file_lock.release()
+            print('Released file lock: %s. The file is now locked: %s.' % (lock_path, file_lock.is_locked))
     else:
         print('The requested url: %r has already been downloaded!' % write_path)
-
-
-# def signal_handler(signum, frame):
-#     # print('TERMINAL: Signal handler called with signal %d.' % signum)
-#     if signum == 2:
-#         print('TERMINAL: Kill request SIGINT received. Saving state information. '
-#               'Updating metadata flags then exiting gracefully...')
-#         df_meta_updated.to_pickle(args.STORE + '\images\df_meta.pkl')
-#         exit(1)
 
 
 def create_image_storage_dirs(df_meta):
@@ -194,7 +149,7 @@ def create_image_storage_dirs(df_meta):
 
 def purge_lock_files():
     """
-    purge_lock_files: Removes all lock files from the
+    purge_lock_files: Removes all lock files from the storage directory.
     :param write_dir: The directory for which lock files are to be recursively removed.
     :return:
     """
@@ -217,14 +172,6 @@ if __name__ == '__main__':
     global args, verbose
     args = parser.parse_args()
     verbose = args.verbose
-    # Kill signal handler:
-    # print('Attaching SIGINT listener to process. Ensure this program is run with the option to \'emulate terminal '
-    #       'in output console\' in PyCharm.')
-    # print('IMPORTANT: DO NOT KILL THIS PROGRAM in any way other than using ctrl+C in the terminal. Otherwise the '
-    #       'program state will be corrupted.')
-    # signal.signal(signal.SIGINT, handler=signal_handler)
-    # signal.signal(signal.SIGKILL, handler=signal_handler)
-    # signal.signal(signal.SIGTERM, handler=signal_handler)
     # Create the images storage directory if it doesn't exist already:
     if not os.path.isdir(args.STORE + '\images'):
         print('INIT: It appears the global storage directory was removed. Recreating storage directories...')
@@ -245,21 +192,8 @@ if __name__ == '__main__':
         # Create image storage directories:
         print('Creating image storage directories...')
         create_image_storage_dirs(df_meta)
-    # Check existence of json URL document.
-    # if os.path.isfile(args.STORE + '\\images\\URLS.json'):
-    #     with open(args.STORE + '\\images\\URLS.json', 'r') as fp:
-    #         urls = json.load(fp=fp)
-    # else:
-    #     # Use dictionary instead of dataframe because it's atomic operations are thread safe,
-    #     #   see: http://effbot.org/pyfaq/what-kinds-of-global-value-mutation-are-thread-safe.htm
-    #     url_list = df_meta['ac:accessURI'].tolist()
-    #     urls = {}
-    #     for i, row in df_meta.iterrows():
-    #         urls[i] = row['ac:accessURI']
-    #     with open(args.STORE + '\\images\\URLS.json', 'w') as fp:
-    #         json.dump(urls, fp)
-    # print('Purging lock files...')
-    # purge_lock_files()
+    print('Purging left over lock files before spooling up threads...')
+    purge_lock_files()
     print('Downloading Images...')
     # get list of urls and their associated labels:
     urls_and_labels = list(zip(df_meta['ac:accessURI'].tolist(), df_meta['dwc:scientificName'].tolist()))
@@ -279,9 +213,11 @@ if __name__ == '__main__':
     # FileLock timeouts:
     lock_timeout = 0.1
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_url = {executor.submit(download_image, url, write_path, lock_path): url for (url, write_path), (_, lock_path) in zip(urls_and_write_paths, urls_and_lock_files)}
-
-
+        future_to_url = {executor.submit(download_image, url, write_path, lock_path): url for
+                         (url, write_path), (_, lock_path) in zip(urls_and_write_paths, urls_and_lock_files)}
+        for future in concurrent.futures.as_completed(concurrent.futures.FIRST_COMPLETED, future_to_url):
+            ts = time.time()
+            print('It took %s seconds to download URL: %r' % (future.result[1] - ts, future.result[0]))
     # Separate URLs into batches the size of the maximum number of threads:
     # urls_and_labels = [urls_and_labels[i:i + max_workers] for i in range(0, len(urls_and_labels), max_workers)]
     # urls_and_write_paths = [urls_and_write_paths[i:i + max_workers] for i in range(0, len(urls_and_write_paths))]
