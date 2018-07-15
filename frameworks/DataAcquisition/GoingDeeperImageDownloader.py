@@ -216,38 +216,6 @@ if __name__ == '__main__':
         future_to_url = {executor.submit(download_image, url, write_path, lock_path): url for
                          (url, write_path), (_, lock_path) in zip(urls_and_write_paths, urls_and_lock_files)}
         for future in concurrent.futures.as_completed(concurrent.futures.FIRST_COMPLETED, future_to_url):
+            url, start_time = future_to_url[future]
             ts = time.time()
-            print('It took %s seconds to download URL: %r' % (future.result[1] - ts, future.result[0]))
-    # Separate URLs into batches the size of the maximum number of threads:
-    # urls_and_labels = [urls_and_labels[i:i + max_workers] for i in range(0, len(urls_and_labels), max_workers)]
-    # urls_and_write_paths = [urls_and_write_paths[i:i + max_workers] for i in range(0, len(urls_and_write_paths))]
-    # urls_and_lock_files = [urls_and_lock_files[i:i + max_workers] for i in range(0, len(urls_and_lock_files))]
-    # Iterate over every batch of URLS:
-    # for i in range(len(urls_and_labels)):
-        # TODO: Modify this code to be tied to the number of workers instead of hard-coded:
-        # Instantiate file locks:
-        # lock_timeout = 0.1
-        # lock_one = FileLock(urls_and_lock_files[i][0][1], timeout=lock_timeout)
-        # lock_two = FileLock(urls_and_lock_files[i][1][1], timeout=lock_timeout)
-        # lock_three = FileLock(urls_and_lock_files[i][2][1], timeout=lock_timeout)
-        # lock_four = FileLock(urls_and_lock_files[i][3][1], timeout=lock_timeout)
-        # lock_five = FileLock(urls_and_lock_files[i][4][1], timeout=lock_timeout)
-        # lock_six = FileLock(urls_and_lock_files[i][5][1], timeout=lock_timeout)
-        # Create an executor to manage the threads that will download this batch of URLS:
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Create a dictionary of future objects and their assigned url's:
-            # future_to_url = {executor.submit(download_image, url, label, FileLock(lock, timeout=lock_timeout)): url for (url, label),(_, lock) in zip(urls_and_labels[i], urls_and_lock_files[i])}
-            # This will loop over the Future object's (threads) after they complete:
-            # for future in concurrent.futures.as_completed(future_to_url):
-            #     url = future_to_url[future]
-            #     print('downloaded url: %s' % url)
-            #     try:
-            #         data = future.result()
-            #     except Exception as exc:
-            #         print('%r generated an exception: %s' % (url, exc))
-            #     else:
-            #         print('%r page is %d bytes' % (url, len(data)))
-
-    # download_images(df_meta)
-    ''' MultiThreading (see: https://docs.python.org/3/library/concurrent.futures.html) '''
-    # max_workers = 6
+            print('It took %s seconds to download URL: %r.' % (start_time - ts, url))
