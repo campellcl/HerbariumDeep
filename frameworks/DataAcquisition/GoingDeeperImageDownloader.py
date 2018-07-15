@@ -215,7 +215,9 @@ if __name__ == '__main__':
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_url = {executor.submit(download_image, url, write_path, lock_path): url for
                          (url, write_path), (_, lock_path) in zip(urls_and_write_paths, urls_and_lock_files)}
+        # TODO: The following code is not being executed and I am unsure why:
         for future in concurrent.futures.as_completed(concurrent.futures.FIRST_COMPLETED, future_to_url):
+            print('DEBUG: I care about my future\'s! ;)')
             url, start_time = future_to_url[future]
             ts = time.time()
             print('It took %s seconds to download URL: %r.' % (start_time - ts, url))
