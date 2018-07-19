@@ -90,20 +90,20 @@ def download_image(url, write_path, lock_path):
     time_stamp = time.time()
     # Does the file already exist?
     if not os.path.isfile(write_path):
-        print('Working on URL: %r' % url)
+        # print('Working on URL: %r' % url)
         # Does the lock file already exist?
         if not os.path.isfile(lock_path):
             # Create an empty lockfile:
             open(lock_path, 'a').close()
             # Lock the lockfile:
             file_lock = FileLock(lock_path, timeout=0.1)
-            print('Just created lockfile: %s The file is locked: %s' % (lock_path, file_lock.is_locked))
+            # print('Just created lockfile: %s The file is locked: %s' % (lock_path, file_lock.is_locked))
         # Try and acquire the file lock to see if another thread is already working on this url:
         try:
-            print('Attempting to acquire lockfile: %s. The file is now locked: %s' % (lock_path, file_lock.is_locked))
+            # print('Attempting to acquire lockfile: %s. The file is now locked: %s' % (lock_path, file_lock.is_locked))
             with file_lock.acquire(timeout=0.1):
                 # If this code executes the lockfile has been acquired and is now locked by this process instance.
-                print('Acquired lockfile %s. The file is locked: %s' % (lock_path, file_lock.is_locked))
+                # print('Acquired lockfile %s. The file is locked: %s' % (lock_path, file_lock.is_locked))
                 # Instantiate http object per urllib3:
                 http = urllib3.PoolManager(
                     cert_reqs='CERT_REQUIRED',
@@ -113,7 +113,7 @@ def download_image(url, write_path, lock_path):
                 if dl_response.status == 200:
                     with open(write_path, 'wb') as fp:
                         fp.write(dl_response.data)
-                    print('Downloaded file: %s' % write_path)
+                    # print('Downloaded file: %s' % write_path)
                     return url, time_stamp
                 else:
                     print('Error downloading accessURI %s. Received http response %d' % (url, dl_response.status))
@@ -129,7 +129,7 @@ def download_image(url, write_path, lock_path):
                 Timeout exception occurs as well as a success:
             '''
             file_lock.release()
-            print('Released file lock: %s. The file is now locked: %s.' % (lock_path, file_lock.is_locked))
+            # print('Released file lock: %s. The file is now locked: %s.' % (lock_path, file_lock.is_locked))
     else:
         print('The requested url: %r has already been downloaded!' % write_path)
 
@@ -216,8 +216,8 @@ if __name__ == '__main__':
         future_to_url = {executor.submit(download_image, url, write_path, lock_path): url for
                          (url, write_path), (_, lock_path) in zip(urls_and_write_paths, urls_and_lock_files)}
         # TODO: The following code is not being executed and I am unsure why:
-        for future in concurrent.futures.as_completed(concurrent.futures.FIRST_COMPLETED, future_to_url):
-            print('DEBUG: I care about my future\'s! ;)')
-            url, start_time = future_to_url[future]
-            ts = time.time()
-            print('It took %s seconds to download URL: %r.' % (start_time - ts, url))
+        # for future in concurrent.futures.as_completed(concurrent.futures.FIRST_COMPLETED, future_to_url):
+        #     print('DEBUG: I care about my future\'s! ;)')
+        #     url, start_time = future_to_url[future]
+        #     ts = time.time()
+        #     print('It took %s seconds to download URL: %r.' % (start_time - ts, url))
