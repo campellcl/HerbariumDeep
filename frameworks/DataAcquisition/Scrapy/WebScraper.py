@@ -286,40 +286,6 @@ def aggregate_collection_metadata():
     return df_meta
 
 
-def download_high_res_images():
-    """
-    download_high_res_images: Goes through
-    :return:
-    """
-    # metadata_dtypes = [np.int64, np.int64, np.object]
-    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
-        # Skip i==0 which is the root directory.
-        if i != 0:
-            if args.verbose:
-                 print('\tTargeting: %d %s' % (i, subdir))
-            with open(subdir + '\df_meta.csv', 'r') as fp:
-                df_meta = pd.read_csv(fp, header=0)
-            # Correct dtypes for mixed data columns:
-            # Discard all columns but the following:
-            df_meta = df_meta[[
-                'coreid', 'institutionCode', 'occurrenceID', 'catalogNumber',
-                'kingdom', 'phylum', 'class', 'order', 'family', 'scientificName',
-                'genus', 'specificEpithet', 'country', 'stateProvince', 'county',
-                'locality', 'recordId', 'references', 'identifier', 'accessURI',
-                'thumbnailAccessURI', 'goodQualityAccessURI', 'format', 'associatedSpecimenReference',
-                'type', 'subtype'
-            ]]
-            # Everything should really have dtype object or be OneHotEncoded.
-            # df_meta['coreid'] = df_meta['coreid'].astype('int')
-            # df_meta['institutionCode'] = df_meta['institutionCode'].astype('str')
-            # df_meta['occurrenceID'] = df_meta['occurrenceID'].astype('str')
-            for i, row in df_meta.iterrows():
-                img_response = requests.get(row['goodQualityAccessURI'])
-                if img_response.status_code == 200:
-                    # Create class directory:
-                    return NotImplementedError
-
-
 if __name__ == '__main__':
     # Declare global vars:
     global args, verbose
