@@ -237,7 +237,8 @@ def aggregate_occurrences_and_images():
                         'kingdom', 'phylum', 'order', 'family', 'scientificName',
                         'scientificNameAuthorship', 'genus', 'specificEpithet',
                         'recordId', 'references', 'identifier', 'accessURI', 'thumbnailAccessURI',
-                        'goodQualityAccessURI', 'format', 'associatedSpecimenReference', 'type', 'subtype'
+                        'goodQualityAccessURI', 'format', 'associatedSpecimenReference', 'type', 'subtype',
+                        'recordedBy'
                     ]]
                     # Convert object dtype to categorical where appropriate:
                     df_meta.kingdom = df_meta.kingdom.astype('category')
@@ -252,6 +253,7 @@ def aggregate_occurrences_and_images():
                     df_meta.format = df_meta.format.astype('category')
                     df_meta.type = df_meta.type.astype('category')
                     df_meta.subtype = df_meta.subtype.astype('category')
+                    df_meta.recordedBy = df_meta.recordedBy.astype('category')
                     # Reduce integer 64 bit and float 64 bit representations to 32 bit representations where appropriate.
                     df_meta.to_csv(subdir + '\df_meta.csv')
 
@@ -340,14 +342,14 @@ if __name__ == '__main__':
     aggregate_occurrences_and_images()
     print('STAGE_THREE: Pipeline STAGE_THREE complete. Aggregated every collection\'s occurrence and image data.')
     print('=' * 100)
-    # print('DEV-OP: Removing Stage Three programmatically...')
+    print('DEV-OP: Removing Stage Three programmatically...')
     # Undo stage three:
-    # for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
-    #     # print(subdir)
-    #     if i != 0:
-    #         # If already merged don't re-merge:
-    #         if os.path.isfile(subdir + '\df_meta.csv'):
-    #             os.remove(subdir + '\df_meta.csv')
+    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
+        # print(subdir)
+        if i != 0:
+            # If already merged don't re-merge:
+            if os.path.isfile(subdir + '\df_meta.csv'):
+                os.remove(subdir + '\df_meta.csv')
 
     ''' Data Pipeline STAGE_FOUR: Aggregate every collection's data into one dataframe 'df_meta' '''
     print('STAGE_FOUR: Stepping through every collection aggregating into one global metadata dataframe. Patience...')
