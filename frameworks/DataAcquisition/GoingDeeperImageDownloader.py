@@ -38,7 +38,7 @@ def main():
             'dwc:institutionCode', 'dwc:institutionID', 'idigbio:institutionName', 'dwc:kingdom',
             'dwc:occurrenceID', 'dwc:order', 'dwc:phylum', 'dwc:recordNumber', 'dwc:specificEpithet',
             'dwc:taxonID', 'dwc:taxonomicStatus', 'dwc:taxonRank', 'dwc:typeStatus', 'ac:accessURI',
-            'dwc:scientificName'
+            'dwc:scientificName', 'dwc:recordedBy'
         ]]
         # Dtype conversion for memory footprint reduction:
         df_meta['dwc:family'] = df_meta['dwc:family'].astype('category')
@@ -52,6 +52,7 @@ def main():
         df_meta['dwc:order'] = df_meta['dwc:order'].astype('category')
         df_meta['dwc:phylum'] = df_meta['dwc:phylum'].astype('category')
         df_meta['dwc:specificEpithet'] = df_meta['dwc:specificEpithet'].astype('category')
+        df_meta['dwc:recordedBy'] = df_meta['dwc:recordedBy'].astype('category')
         ''' Clean the dataframe'''
         # Drop records with a scientificName of NaN:
         orig_num_samples = df_meta.shape[0]
