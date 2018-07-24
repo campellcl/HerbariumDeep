@@ -110,16 +110,17 @@ def partition_data(df_meta):
         if target_label is not np.nan:
             coll_counts = {}
             target_subset = df_meta[df_meta['dwc:scientificName'] == target_label]
+            # Drop entries with a collector of np.nan from the target label subset:
+            target_subset = target_subset.dropna(axis=0, how='any', subset=['dwc:recordedBy'])
             for collector in target_subset['dwc:recordedBy'].unique():
-                if collector is not np.nan:
-                    collector_samples = target_subset[target_subset['dwc:recordedBy'] == collector]
-                    coll_counts[collector] = collector_samples.shape[0]
+                collector_samples = target_subset[target_subset['dwc:recordedBy'] == collector]
+                coll_counts[collector] = collector_samples.shape[0]
             species_coll_counts[target_label] = coll_counts
             # print('collector counts for target label [%s]: %s' % (target_label, coll_counts))
             print('Finished partitioning samples by collector for target label <%d/%d>: [%s]'
                   % (i+1, total_num_target_labels, target_label))
-            print('\tThere are %d samples for this target label and %d have a non-NaN collector.'
-                  % (target_subset.shape[0], target_subset[target_subset['dwc:recordedBy'] is not np.nan].shape[0]))
+            print('\tThere are %d samples for this target label with a non-NaN collector.'
+                  % target_subset.shape[0])
             print('\tThere are %d collectors for this target label.' % len(coll_counts))
             collection_counts = list(coll_counts.values())
             if collection_counts:
