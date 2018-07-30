@@ -10,7 +10,8 @@ import os
 import pandas as pd
 import numpy as np
 from scipy.stats import mode
-
+from itertools import permutations, combinations
+from math import ceil
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -134,6 +135,28 @@ def partition_data(df_meta):
                       % np.median(collection_counts))
                 # print('\tThe mode number of samples recorded by an individual collector was: %d'
                 #       % mode(list(coll_counts.values())))
+                ''' partition collectors into training or testing based on number of samples '''
+                # Sort the target_subset by collector and number of observations:
+                coll_counts = target_subset['dwc:recordedBy'].value_counts(dropna=True)
+                coll_counts = coll_counts[coll_counts.values != 0]
+                total_num_samples = target_subset.shape[0]
+                percent_test = 20
+                ideal_num_test_samples = ceil((percent_test * total_num_samples)/100)
+                ideal_num_train_samples = total_num_samples - ideal_num_test_samples
+                RESUME HERE
+                NEED TO FIGURE OUT HOW TO PERMUTE THE DATA PROPERLY
+                OR IMPLEMENT THE GREEDY APPROACH AND OBTAIN 20 PERCENT AND STORE REST IN TRAIN
+                # Get every possible permutation of the collectors and their samples (order matters):
+                train_test_perms = permutations(coll_counts.items(), r=coll_counts.shape[0])
+                # train_test_perms = [dict(zip(coll_counts, v)) for v in permutations(coll_counts.values(), r=2)]
+                for p, perm in enumerate(train_test_perms):
+                    print('permutation: %s' % (perm, ))
+                #     ratio = coll_counts[perm[0]]/coll_counts[perm[1]]
+                #     pass
+                pass
+                # sorted_coll_counts = [(coll, coll_counts[coll]) for coll in sorted(coll_counts, key=coll_counts.get, reverse=)]
+    pass
+
 
             # TODO: how to divide the collector subsets to maintain 80/20 ratio?
     # Collect statistics on the number of viable class labels:
@@ -198,17 +221,22 @@ def main():
         # Data should be split so that no collector ends up in both the training and testing sets.
         # Load the metadata dataframe holding the collector of each sample:
         if os.path.isfile(args.STORE + '\\images\\df_meta.pkl'):
-            df_meta = pd.read_pickle(args.STORE + '\\images\\df_meta.pkl')
-            # Check to see if the metadata has been updated with the file path of its samples:
-            if 'file_path' not in df_meta.columns:
-                # Update the df_meta dataframe with the file paths of it's samples:
-                df_meta = update_metadata_with_file_paths(df_meta)
-                # Pickle the dataframe so this code isn't run again:
-                df_meta.to_pickle(path=args.STORE + '\\images\\df_meta.pkl')
-            # Drop rows with a file_path of None (hopefully b/c http 404 and not string matching errors during reconstruct):
-            df_meta = df_meta.mask(df_meta.eq('None')).dropna(axis=0, how='all', subset=['file_path'])
-            # Partition the data into training and testing datasets:
-            df_meta_train, df_meta_test, df_meta_val = partition_data(df_meta)
+            # Has the data already been partitioned?
+            if not os.path.isfile(args.STORE + '\\images\df_meta_train.pkl'):
+                df_meta = pd.read_pickle(args.STORE + '\\images\\df_meta.pkl')
+                # Check to see if the metadata has been updated with the file path of its samples:
+                if 'file_path' not in df_meta.columns:
+                    # Update the df_meta dataframe with the file paths of it's samples:
+                    df_meta = update_metadata_with_file_paths(df_meta)
+                    # Pickle the dataframe so this code isn't run again:
+                    df_meta.to_pickle(path=args.STORE + '\\images\\df_meta.pkl')
+                # Drop rows with a file_path of None (hopefully b/c http 404 and not string matching errors during reconstruct):
+                df_meta = df_meta.mask(df_meta.eq('None')).dropna(axis=0, how='all', subset=['file_path'])
+                # Partition the data into training and testing datasets:
+                df_meta_train, df_meta_test, df_meta_val = partition_data(df_meta)
+                # df_meta_train.to_pickle(path=args.STORE + '\\images\\df_meta_train.pkl')
+                # df_meta_test.to_pickle(path=args.STORE + '\\images\\df_meta_test.pkl')
+
         else:
             print('df_meta.pkl not present, run the GoingDeeperImageDownloader to re-aggregate data.')
             exit(-1)
