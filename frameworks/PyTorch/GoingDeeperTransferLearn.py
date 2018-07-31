@@ -285,6 +285,48 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
     train_img_pop_std_devs = []
     test_img_pop_std_devs = []
 
+    # Test images:
+    for item in os.listdir(test_img_folder):
+        if os.path.isdir(os.path.join(test_img_folder, item)):
+            for the_file in os.listdir(os.path.join(test_img_folder, item)):
+                # shape (width, height)
+                test_img = Image.open(os.path.join(test_img_folder, item, the_file))
+                # print('test_img [%s] (width, height): %s' % (the_file, test_img.size))
+                # Reshape:
+                test_img.thumbnail((1024, 1024))
+                # shape after conversion to numpy: (height, width, channels)
+                np_test_img = np.array(test_img, dtype="uint8")
+                # Refresher on numpy image methods: http://scikit-image.org/docs/dev/user_guide/numpy_images.html#color-images
+                # NOTE when using plt.imshow to verify: http://www.degeneratestate.org/posts/2016/Oct/23/image-processing-with-numpy/#Colours
+                # fig, axs = plt.subplots(nrows=1, ncols=4, figsize=(15, 5))
+                # plt.suptitle('Sample Image %s Channels and Composite' % the_file)
+                sample_means = np.zeros(shape=(3,), dtype="uint8")
+                sample_std_devs = np.zeros(shape=(3,), dtype="uint8")
+                # for c, ax in zip(range(4), axs):
+                for c in range(3):
+                    # if c == 3:
+                    #     ax.imshow(np_test_img)
+                    #     ax.set_axis_off()
+                    # else:
+                    #     tmp_im = np.zeros(np_test_img.shape, dtype="uint8")
+                    #     tmp_im[:, :, c] = np_test_img[:, :, c]
+                    #     ax.set_title('mean: %.4f std: %.4f'
+                    #                  % (np.mean(np_test_img[:, :, c]), np.std(np_test_img[:, :, c])))
+                    sample_means[c] = np.mean(np_test_img[:, :, c])
+                    sample_std_devs[c] = np.std(np_test_img[:, :, c])
+                        # ax.imshow(tmp_im)
+                        # ax.set_axis_off()
+                # update population mean's:
+                test_img_pop_means.append(sample_means)
+                test_img_pop_std_devs.append(sample_std_devs)
+                ''' Uncomment the following line to display the results of this code in matplotlib for each sample '''
+                # plt.show()
+            print('Finished calculating channel means and channel standard deviations for testing dir: %s' % item)
+    print('test_img_pop_means shape: %s' % (np.array(test_img_pop_means).shape,))
+    print('test_img_pop_mean (along first axis): %s' % np.mean(np.array(test_img_pop_means), axis=0))
+    print('test_img_pop_std (along first axis): %s' % np.std(np.array(test_img_pop_std_devs), axis=0))
+
+    # Train images:
     for item in os.listdir(train_img_folder):
         if os.path.isdir(os.path.join(train_img_folder, item)):
             for the_file in os.listdir(os.path.join(train_img_folder, item)):
@@ -297,27 +339,34 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
                 np_train_img = np.array(train_img, dtype="uint8")
                 # Refresher on numpy image methods: http://scikit-image.org/docs/dev/user_guide/numpy_images.html#color-images
                 # NOTE when using plt.imshow to verify: http://www.degeneratestate.org/posts/2016/Oct/23/image-processing-with-numpy/#Colours
-                fig, axs = plt.subplots(nrows=1, ncols=4, figsize=(15, 5))
-                plt.suptitle('Sample Image %s Channels and Composite' % the_file)
+                # fig, axs = plt.subplots(nrows=1, ncols=4, figsize=(15, 5))
+                # plt.suptitle('Sample Image %s Channels and Composite' % the_file)
                 sample_means = np.zeros(shape=(3,), dtype="uint8")
                 sample_std_devs = np.zeros(shape=(3,), dtype="uint8")
-                for c, ax in zip(range(4), axs):
-                    if c == 3:
-                        ax.imshow(np_train_img)
-                        ax.set_axis_off()
-                    else:
-                        tmp_im = np.zeros(np_train_img.shape, dtype="uint8")
-                        tmp_im[:, :, c] = np_train_img[:, :, c]
-                        ax.set_title('mean: %.4f std: %.4f'
-                                     % (np.mean(np_train_img[:, :, c]), np.std(np_train_img[:, :, c])))
-                        sample_means[c] = np.mean(np_train_img[:, :, c])
-                        sample_std_devs[c] = np.std(np_train_img[:, :, c])
-                        ax.imshow(tmp_im)
-                        ax.set_axis_off()
+                # for c, ax in zip(range(4), axs):
+                for c in range(3):
+                    # if c == 3:
+                    #     ax.imshow(np_train_img)
+                    #     ax.set_axis_off()
+                    # else:
+                    #     tmp_im = np.zeros(np_train_img.shape, dtype="uint8")
+                    #     tmp_im[:, :, c] = np_train_img[:, :, c]
+                    #     ax.set_title('mean: %.4f std: %.4f'
+                    #                  % (np.mean(np_train_img[:, :, c]), np.std(np_train_img[:, :, c])))
+                    sample_means[c] = np.mean(np_train_img[:, :, c])
+                    sample_std_devs[c] = np.std(np_train_img[:, :, c])
+                        # ax.imshow(tmp_im)
+                        # ax.set_axis_off()
                 # update population mean's:
                 train_img_pop_means.append(sample_means)
+                train_img_pop_std_devs.append(sample_std_devs)
                 ''' Uncomment the following line to display the results of this code in matplotlib for each sample '''
-                plt.show()
+                # plt.show()
+            print('Finished calculating channel means and channel standard deviations for training dir: %s' % item)
+    print('train_img_pop_means shape: %s' % (np.array(train_img_pop_means).shape,))
+    print('train_img_pop_means (along first axis): %s' % np.mean(np.array(train_img_pop_means), axis=0))
+    print('test_img_pop_std (along first axis): %s' % np.std(np.array(train_img_pop_std_devs), axis=0))
+
     return train_img_pop_means, test_img_pop_means, train_img_pop_std_devs, test_img_pop_std_devs
 
 
@@ -337,6 +386,7 @@ def get_data_loaders(df_train, df_test):
     '''
     train_pop_means, test_pop_means, train_pop_std_devs, test_pop_std_devs = \
         get_image_channel_means_and_std_deviations(df_train=df_train, df_test=df_test)
+    print('train_pop_mean shape: %s' % np.array(train_pop_means).shape)
     train_pop_mean = np.array(train_pop_means).mean(axis=2)
     # print('image_means [pop_mean, pop_std0]: [%s, %s]' % (pop_mean, pop_std))
     # data_transforms = {
