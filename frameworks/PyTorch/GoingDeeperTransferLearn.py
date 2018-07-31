@@ -16,6 +16,9 @@ from sklearn import model_selection
 import shutil
 import torch
 import torchvision
+from PIL import Image
+from imageio import imread
+import matplotlib.pyplot as plt
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -273,16 +276,53 @@ def get_image_means(df_train, df_test):
     :source url: http://forums.fast.ai/t/image-normalization-in-pytorch/7534/7
     :return:
     """
+
+    train_img_folder = args.STORE + '\\images\\train'
+    test_img_folder = args.STORE + '\\images\\test'
+
+    train_img_pop_means = []
+    test_img_pop_means = []
+
+    for item in os.listdir(train_img_folder):
+        if os.path.isdir(os.path.join(train_img_folder, item)):
+            for the_file in os.listdir(os.path.join(train_img_folder, item)):
+                # shape (width, height)
+                train_img = Image.open(os.path.join(train_img_folder, item, the_file))
+                # print('train_img [%s] (width, height): %s' % (the_file, train_img.size))
+                # Reshape:
+                train_img.thumbnail((1024, 1024))
+                # shape after conversion to numpy: (height, width, channels)
+                np_train_img = np.array(train_img, dtype="uint8")
+                # Refresher on numpy image methods: http://scikit-image.org/docs/dev/user_guide/numpy_images.html#color-images
+                # NOTE when using plt.imshow to verify: http://www.degeneratestate.org/posts/2016/Oct/23/image-processing-with-numpy/#Colours
+                fig, axs = plt.subplots(nrows=1, ncols=4, figsize=(15, 5))
+                plt.suptitle('Sample Image %s Channels and Composite' % the_file)
+                sample_means = np.zeros(shape=(3,), dtype="uint8")
+                for c, ax in zip(range(4), axs):
+                    if c == 3:
+                        # ax.set_title('mean: %s' % np.mean(np_train_img[:, :, c]))
+                        ax.imshow(np_train_img)
+                        ax.set_axis_off()
+                    else:
+                        tmp_im = np.zeros(np_train_img.shape, dtype="uint8")
+                        tmp_im[:, :, c] = np_train_img[:, :, c]
+                        ax.set_title('sample mean: %s' % np.mean(np_train_img[:, :, c]))
+                        sample_means[c] = np.mean(np_train_img[:, :, c])
+                        ax.imshow(tmp_im)
+                        ax.set_axis_off()
+                # update population mean's:
+                train_img_pop_means.append(sample_means)
+                plt.show()
+    # return train_img_pop_means, test_img_pop_means
+
+
+
     data_transforms = {
         'train': torchvision.transforms.Compose([
-            torchvision.transforms.ToPILImage(mode='RGB'),
-            torchvision.transforms.Resize(size=1024),
-            torchvision.transforms.ToTensor()
+            torchvision.transforms.Resize(size=1024)
         ]),
         'test': torchvision.transforms.Compose([
-            torchvision.transforms.ToPILImage(mode='RGB'),
-            torchvision.transforms.Resize(size=1024),
-            torchvision.transforms.ToTensor()
+            torchvision.transforms.Resize(size=1024)
         ])
     }
 
