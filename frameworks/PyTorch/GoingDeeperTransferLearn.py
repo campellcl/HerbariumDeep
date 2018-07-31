@@ -14,6 +14,8 @@ from itertools import permutations, combinations
 from math import ceil
 from sklearn import model_selection
 import shutil
+import torch
+import torchvision
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -27,28 +29,11 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='inception', choices
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: inception_v3)')
 
 
-def get_data_loaders(img_pxl_load_size=1024, receptive_field_pxl_size=256):
+def get_metadata_properties():
     """
-    get_data_loaders: Returns instances of torch.utils.data.DataLoader depending on the folder hierarchy of the input
-        data directory, args.STORE. If a train, test, and validation folder are present in the root args.STORE directory
-        than three corresponding DataLoader instances will be returned. If only train and testing directories are pres-
-        ent in args.STORE then only two DataLoader instances will be returned. If
-    :param img_pxl_load_size:
-    :param receptive_field_pxl_size:
-    :return:
-    """
-    '''
-    Training Data and Validation Data Input Pipeline:
-        Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
-    '''
-    return NotImplementedError
-
-
-def get_metadata():
-    """
-    get_metadata: Returns a dictionary containing various properties about the datasets relevant to the training of
-        machine learning models.
-    :returns metadata: A dictionary composed of the following metadata about datasets relevant to the training process:
+    get_metadata_properties: Returns a dictionary containing various properties about the datasets relevant to the
+        training of machine learning models.
+    :returns metadata_prop: A dictionary composed of the following metadata about datasets relevant to the training process:
         :return has_test_set: A boolean variable indicating if a test set folder is present (DataLoader context).
         :return has_train_set: A boolean variable indicating if a training set folder is present (DataLoader context).
         :return has_val_set: A boolean variable indicating if a validation set folder is present (DataLoader context).
@@ -282,6 +267,102 @@ def partition_data():
             exit(-1)
 
 
+def get_image_means(df_train, df_test):
+    """
+    get_image_means: Returns the means of each color channel for all images.
+    :source url: http://forums.fast.ai/t/image-normalization-in-pytorch/7534/7
+    :return:
+    """
+    data_transforms = {
+        'train': torchvision.transforms.Compose([
+            torchvision.transforms.ToPILImage(mode='RGB'),
+            torchvision.transforms.Resize(size=1024),
+            torchvision.transforms.ToTensor()
+        ]),
+        'test': torchvision.transforms.Compose([
+            torchvision.transforms.ToPILImage(mode='RGB'),
+            torchvision.transforms.Resize(size=1024),
+            torchvision.transforms.ToTensor()
+        ])
+    }
+
+    train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train', data_transforms['train'])
+    test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test', data_transforms['test'])
+
+    # Data Loader properties:
+    batch_size = 12
+    num_workers = 6
+
+    # Training set data loader:
+    train_loader = torch.utils.data.DataLoader(train_img_folder, batch_size=batch_size, shuffle=False,
+                                               num_workers=num_workers)
+    # Test set data loader:
+    test_loader = torch.utils.data.DataLoader(test_img_folder, batch_size=batch_size, shuffle=False,
+                                              num_workers=num_workers)
+    pop_mean = []
+    pop_std0 = []
+    # pop_std1 = []
+    for i, data in enumerate(train_loader, 0):
+        # shape (batch_size, 3, height, width)
+        numpy_img = data['image'].numpy()
+        # shape (3,)
+        batch_mean = np.mean(numpy_img, axis=(0, 2, 3))
+        batch_std0 = np.std(numpy_img, axis=(0, 2, 3))
+        # batch_std1 = np.std(numpy_img, axis=(0, 2, 3), ddof=1)
+
+        pop_mean.append(batch_mean)
+        pop_std0.append(batch_std0)
+        # pop_std1.append(batch_std1)
+
+    for i, data in enumerate(test_loader, 0):
+        # shape (batch_size, 3, height, width)
+        numpy_img = data['image'].numpy()
+        # shape (3,)
+        batch_mean = np.mean(numpy_img, axis=(0, 2, 3))
+        batch_std0 = np.std(numpy_img, axis=(0, 2, 3))
+        # batch_std1 = np.std(numpy_img, axis=(0, 2, 3), ddof=1)
+
+        pop_mean.append(batch_mean)
+        pop_std0.append(batch_std0)
+        # pop_std1.append(batch_std1)
+
+    # shape (num_iterations, 3) -> (mean across 0th axis) -> shape (3,)
+    pop_mean = np.array(pop_mean).mean(axis=0)
+    pop_std0 = np.array(pop_std0).mean(axis=0)
+    # pop_std1 = np.array(pop_std1).mean(axis=0)
+    return pop_mean, pop_std0
+
+
+def get_data_loaders(df_train, df_test):
+    """
+    get_data_loaders: Creates either two or three instances of torch.utils.data.DataLoader depending ont he datasets
+        present in the storage directory provided via command line argument 'args.STORE' at runtime. Instantiates and
+        returns a dataloader for the training dataset, test dataset, and validation dataset (if present).
+    :return data_loaders: A dictionary of torch.utils.DataLoader instances.
+    """
+    # Specified in the research paper:
+    img_pxl_load_size = 1024
+    receptive_field_pxl_size = 256
+    '''
+    Training Data and Validation Data Input Pipeline:
+        Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
+    '''
+    pop_mean, pop_std = get_image_means(df_train=df_train, df_test=df_test)
+    print('image_means [pop_mean, pop_std0]: [%s, %s]' % (pop_mean, pop_std))
+    # data_transforms = {
+    #     'train': torchvision.transforms.Compose([
+    #         # Pytorch is designed to work with PIL images:
+    #         torchvision.transforms.ToPILImage(),
+    #         # Rescales to (size * height / width, size):
+    #         torchvision.transforms.Resize(img_pxl_load_size),
+    #         torchvision.transforms.ToTensor(),
+    #         # If the means and standard deviation need to be recalculated call get_image_means.
+    #         torchvision.transforms.Normalize(mean=[], std=[])
+    #     ])
+    # }
+    return NotImplementedError
+
+
 def main():
     # Declare globals:
     global args, use_gpu, metadata
@@ -299,8 +380,9 @@ def main():
     if not df_train.empty and not df_test.empty:
         print('Loaded both training and testing metadata into memory. Images already physically partitioned on HDD.')
     else:
-        print('Couldn\'t load either df_train or df_test with data. Exiting...')
+        print('Could not load either df_train or df_test with data. Exiting...')
         exit(-1)
+    train_loader, test_loader = get_data_loaders(df_train, df_test)
     # Get classifier training setup metadata:
     # metadata = get_metadata(df_meta)
 
