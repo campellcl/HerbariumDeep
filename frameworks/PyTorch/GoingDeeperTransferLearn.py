@@ -270,7 +270,7 @@ def partition_data():
             exit(-1)
 
 
-def get_image_means(df_train, df_test):
+def get_image_channel_means_and_std_deviations(df_train, df_test):
     """
     get_image_means: Returns the means of each color channel for all images.
     :source url: http://forums.fast.ai/t/image-normalization-in-pytorch/7534/7
@@ -282,6 +282,8 @@ def get_image_means(df_train, df_test):
 
     train_img_pop_means = []
     test_img_pop_means = []
+    train_img_pop_std_devs = []
+    test_img_pop_std_devs = []
 
     for item in os.listdir(train_img_folder):
         if os.path.isdir(os.path.join(train_img_folder, item)):
@@ -298,79 +300,25 @@ def get_image_means(df_train, df_test):
                 fig, axs = plt.subplots(nrows=1, ncols=4, figsize=(15, 5))
                 plt.suptitle('Sample Image %s Channels and Composite' % the_file)
                 sample_means = np.zeros(shape=(3,), dtype="uint8")
+                sample_std_devs = np.zeros(shape=(3,), dtype="uint8")
                 for c, ax in zip(range(4), axs):
                     if c == 3:
-                        # ax.set_title('mean: %s' % np.mean(np_train_img[:, :, c]))
                         ax.imshow(np_train_img)
                         ax.set_axis_off()
                     else:
                         tmp_im = np.zeros(np_train_img.shape, dtype="uint8")
                         tmp_im[:, :, c] = np_train_img[:, :, c]
-                        ax.set_title('sample mean: %s' % np.mean(np_train_img[:, :, c]))
+                        ax.set_title('mean: %.4f std: %.4f'
+                                     % (np.mean(np_train_img[:, :, c]), np.std(np_train_img[:, :, c])))
                         sample_means[c] = np.mean(np_train_img[:, :, c])
+                        sample_std_devs[c] = np.std(np_train_img[:, :, c])
                         ax.imshow(tmp_im)
                         ax.set_axis_off()
                 # update population mean's:
                 train_img_pop_means.append(sample_means)
+                ''' Uncomment the following line to display the results of this code in matplotlib for each sample '''
                 plt.show()
-    # return train_img_pop_means, test_img_pop_means
-
-
-
-    data_transforms = {
-        'train': torchvision.transforms.Compose([
-            torchvision.transforms.Resize(size=1024)
-        ]),
-        'test': torchvision.transforms.Compose([
-            torchvision.transforms.Resize(size=1024)
-        ])
-    }
-
-    train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train', data_transforms['train'])
-    test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test', data_transforms['test'])
-
-    # Data Loader properties:
-    batch_size = 12
-    num_workers = 6
-
-    # Training set data loader:
-    train_loader = torch.utils.data.DataLoader(train_img_folder, batch_size=batch_size, shuffle=False,
-                                               num_workers=num_workers)
-    # Test set data loader:
-    test_loader = torch.utils.data.DataLoader(test_img_folder, batch_size=batch_size, shuffle=False,
-                                              num_workers=num_workers)
-    pop_mean = []
-    pop_std0 = []
-    # pop_std1 = []
-    for i, data in enumerate(train_loader, 0):
-        # shape (batch_size, 3, height, width)
-        numpy_img = data['image'].numpy()
-        # shape (3,)
-        batch_mean = np.mean(numpy_img, axis=(0, 2, 3))
-        batch_std0 = np.std(numpy_img, axis=(0, 2, 3))
-        # batch_std1 = np.std(numpy_img, axis=(0, 2, 3), ddof=1)
-
-        pop_mean.append(batch_mean)
-        pop_std0.append(batch_std0)
-        # pop_std1.append(batch_std1)
-
-    for i, data in enumerate(test_loader, 0):
-        # shape (batch_size, 3, height, width)
-        numpy_img = data['image'].numpy()
-        # shape (3,)
-        batch_mean = np.mean(numpy_img, axis=(0, 2, 3))
-        batch_std0 = np.std(numpy_img, axis=(0, 2, 3))
-        # batch_std1 = np.std(numpy_img, axis=(0, 2, 3), ddof=1)
-
-        pop_mean.append(batch_mean)
-        pop_std0.append(batch_std0)
-        # pop_std1.append(batch_std1)
-
-    # shape (num_iterations, 3) -> (mean across 0th axis) -> shape (3,)
-    pop_mean = np.array(pop_mean).mean(axis=0)
-    pop_std0 = np.array(pop_std0).mean(axis=0)
-    # pop_std1 = np.array(pop_std1).mean(axis=0)
-    return pop_mean, pop_std0
+    return train_img_pop_means, test_img_pop_means, train_img_pop_std_devs, test_img_pop_std_devs
 
 
 def get_data_loaders(df_train, df_test):
@@ -387,8 +335,10 @@ def get_data_loaders(df_train, df_test):
     Training Data and Validation Data Input Pipeline:
         Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
     '''
-    pop_mean, pop_std = get_image_means(df_train=df_train, df_test=df_test)
-    print('image_means [pop_mean, pop_std0]: [%s, %s]' % (pop_mean, pop_std))
+    train_pop_means, test_pop_means, train_pop_std_devs, test_pop_std_devs = \
+        get_image_channel_means_and_std_deviations(df_train=df_train, df_test=df_test)
+    train_pop_mean = np.array(train_pop_means).mean(axis=2)
+    # print('image_means [pop_mean, pop_std0]: [%s, %s]' % (pop_mean, pop_std))
     # data_transforms = {
     #     'train': torchvision.transforms.Compose([
     #         # Pytorch is designed to work with PIL images:
