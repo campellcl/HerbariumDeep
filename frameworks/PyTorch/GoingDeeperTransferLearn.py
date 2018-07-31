@@ -210,6 +210,13 @@ def update_metadata_with_file_paths(df_meta):
 
 
 def partition_data():
+    """
+    partition_data: Partitions df_meta into df_train and df_test using a 20% test split and 80% train. Shuffles the
+        samples in df_meta prior to partitioning. This method then attempts to move every sample to its respective
+        folder (either train or test). If the move was successful the sample's file_path attribute is updated
+        accordingly.
+    :return:
+    """
     # Data needs to be split into train, test, validate groups.
     # Data should be split so that no collector ends up in both the training and testing sets.
     # Load the metadata dataframe holding the collector of each sample:
@@ -284,10 +291,16 @@ def main():
         print('CUDA is enabled?: %s' % use_gpu)
     # Check if the data has already been partitioned into train, test, and validation datasets:
     if not os.path.isdir(args.STORE + '\\images\\train'):
+        # Partition the metadata and move the files if necessary.
         partition_data()
-        pass
-        # df_meta_train.to_pickle(path=args.STORE + '\\images\\df_meta_train.pkl')
-        # df_meta_test.to_pickle(path=args.STORE + '\\images\\df_meta_test.pkl')
+    # Load the dataframes into memory from the hard drive:
+    df_train = pd.read_pickle(args.STORE + '\\images\\df_train.pkl')
+    df_test = pd.read_pickle(args.STORE + '\\images\\df_test.pkl')
+    if not df_train.empty and not df_test.empty:
+        print('Loaded both training and testing metadata into memory. Images already physically partitioned on HDD.')
+    else:
+        print('Couldn\'t load either df_train or df_test with data. Exiting...')
+        exit(-1)
     # Get classifier training setup metadata:
     # metadata = get_metadata(df_meta)
 
