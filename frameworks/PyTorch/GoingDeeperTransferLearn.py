@@ -279,7 +279,8 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
 
     train_img_folder = args.STORE + '\\images\\train'
     test_img_folder = args.STORE + '\\images\\test'
-
+    img_pop_means = []
+    img_pop_std_devs = []
     train_img_pop_means = []
     test_img_pop_means = []
     train_img_pop_std_devs = []
@@ -319,6 +320,8 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
                 # update population mean's:
                 test_img_pop_means.append(sample_means)
                 test_img_pop_std_devs.append(sample_std_devs)
+                img_pop_means.append(sample_means)
+                img_pop_std_devs.append(sample_std_devs)
                 ''' Uncomment the following line to display the results of this code in matplotlib for each sample '''
                 # plt.show()
             print('Finished calculating channel means and channel standard deviations for testing dir: %s' % item)
@@ -360,6 +363,8 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
                 # update population mean's:
                 train_img_pop_means.append(sample_means)
                 train_img_pop_std_devs.append(sample_std_devs)
+                img_pop_means.append(sample_means)
+                img_pop_std_devs.append(sample_std_devs)
                 ''' Uncomment the following line to display the results of this code in matplotlib for each sample '''
                 # plt.show()
             print('Finished calculating channel means and channel standard deviations for training dir: %s' % item)
@@ -367,14 +372,17 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
     print('train_img_pop_means (along first axis): %s' % np.mean(np.array(train_img_pop_means), axis=0))
     print('test_img_pop_std (along first axis): %s' % np.std(np.array(train_img_pop_std_devs), axis=0))
 
+    print('img_pop_means shape: %s' % (np.array(img_pop_means).shape,))
+    print('img_pop_means (along first axis): %s' % np.mean(np.array(img_pop_means), axis=0))
+    print('img_pop_std_devs (along first axis): %s' % np.std(np.array(img_pop_std_devs), axis=0))
     return train_img_pop_means, test_img_pop_means, train_img_pop_std_devs, test_img_pop_std_devs
 
 
 def get_data_loaders(df_train, df_test):
     """
-    get_data_loaders: Creates either two or three instances of torch.utils.data.DataLoader depending ont he datasets
+    get_data_loaders: Creates either two or three instances of torch.utils.data.DataLoader depending on the datasets
         present in the storage directory provided via command line argument 'args.STORE' at runtime. Instantiates and
-        returns a dataloader for the training dataset, test dataset, and validation dataset (if present).
+        returns a DataLoader for the training dataset, test dataset, and validation dataset (if present).
     :return data_loaders: A dictionary of torch.utils.DataLoader instances.
     """
     # Specified in the research paper:
@@ -384,11 +392,13 @@ def get_data_loaders(df_train, df_test):
     Training Data and Validation Data Input Pipeline:
         Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
     '''
-    train_pop_means, test_pop_means, train_pop_std_devs, test_pop_std_devs = \
-        get_image_channel_means_and_std_deviations(df_train=df_train, df_test=df_test)
-    print('train_pop_mean shape: %s' % np.array(train_pop_means).shape)
-    train_pop_mean = np.array(train_pop_means).mean(axis=2)
-    # print('image_means [pop_mean, pop_std0]: [%s, %s]' % (pop_mean, pop_std))
+    # train_pop_means, test_pop_means, train_pop_std_devs, test_pop_std_devs = \
+    #     get_image_channel_means_and_std_deviations(df_train=df_train, df_test=df_test)
+    # print('train_pop_mean shape: %s' % np.array(train_pop_means).shape)
+    train_pop_means = np.array([189.92064532, 180.60167062, 156.87912538])
+    img_pop_std_devs = np.array([11.44745705, 11.95494989, 14.00533961])
+    train_pop_means = train_pop_means / 12211
+    img_pop_std_devs = img_pop_std_devs / 12211
     # data_transforms = {
     #     'train': torchvision.transforms.Compose([
     #         # Pytorch is designed to work with PIL images:
@@ -400,7 +410,7 @@ def get_data_loaders(df_train, df_test):
     #         torchvision.transforms.Normalize(mean=[], std=[])
     #     ])
     # }
-    return NotImplementedError
+    return
 
 
 def main():
