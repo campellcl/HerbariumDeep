@@ -4,6 +4,7 @@ Implementation of transfer learning for the Going Deeper dataset.
 """
 
 from torchvision import models
+from torch.autograd import Variable
 import argparse
 import torch as pt
 import torch.nn as nn
@@ -388,7 +389,7 @@ def get_data_loaders(df_train, df_test):
     """
     # Specified in the research paper:
     img_pxl_load_size = 1024
-    receptive_field_pxl_size = 256
+    receptive_field_pxl_size = 299
     '''
     Training Data and Validation Data Input Pipeline:
         Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
@@ -396,22 +397,23 @@ def get_data_loaders(df_train, df_test):
     # train_pop_means, test_pop_means, train_pop_std_devs, test_pop_std_devs = \
     #     get_image_channel_means_and_std_deviations(df_train=df_train, df_test=df_test)
     # print('train_pop_mean shape: %s' % np.array(train_pop_means).shape)
-    train_img_pop_means = [0.74535418, 0.70882273, 0.61583241]
-    train_img_pop_std_devs = [0.04480927, 0.04685673, 0.05492202]
+    # train_img_pop_means = [0.74535418, 0.70882273, 0.61583241]
+    # train_img_pop_std_devs = [0.04480927, 0.04685673, 0.05492202]
+    # See: https://pytorch.org/docs/stable/torchvision/models.html
+    train_img_pop_means_imgnet = [0.485, 0.456, 0.406]
+    train_img_pop_std_devs_imgnet = [0.229, 0.224, 0.225]
     data_transforms = {
         'train': torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.ToPILImage(),
             torchvision.transforms.Resize(img_pxl_load_size),
             torchvision.transforms.CenterCrop(receptive_field_pxl_size),
-            torchvision.transforms.Normalize(train_img_pop_means, train_img_pop_std_devs)
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(train_img_pop_means_imgnet, train_img_pop_std_devs_imgnet)
         ]),
         'test': torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.ToPILImage(),
             torchvision.transforms.Resize(img_pxl_load_size),
             torchvision.transforms.CenterCrop(receptive_field_pxl_size),
-            torchvision.transforms.Normalize(train_img_pop_means, train_img_pop_std_devs)
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(train_img_pop_means_imgnet, train_img_pop_std_devs_imgnet)
         ])
     }
     # Training set image folder:
@@ -424,7 +426,7 @@ def get_data_loaders(df_train, df_test):
     shuffle = True
     # How many images the DataLoader will grab during one call to next(iter(data_loader)):
     # TODO: Check the other research paper for a tested mini-batch size during transfer learning.
-    batch_sizes = {'train': 6, 'test': 6}
+    batch_sizes = {'train': 32, 'test': 32}
     data_loaders = {}
     # Instantiate the training dataset DataLoader:
     train_loader = pt.utils.data.DataLoader(train_img_folder, batch_size=batch_sizes['train'], shuffle=shuffle,
@@ -449,6 +451,44 @@ def get_data_loaders(df_train, df_test):
     return data_loaders
 
 
+def get_accuracy(model, data_loaders):
+    """
+    get_accuracy: Computes the overall accuracy of the provided pre-trained model. In this case the accuracy is the
+        number of times the network is correct in its prediction for all the test samples.
+    :param model: A classification model that has already been trained (or pre-trained).
+    :param data_loaders: The torch.utils.data.DataLoader instances which provide access to the training, testing, and
+        validation data sets.
+    :return accuracy: The overall accuracy of the provided model on the testing data set read by the provided DataLoader.
+    """
+    if 'test' in data_loaders:
+        data_loader = data_loaders['test']
+    elif 'val' in data_loaders:
+        data_loader = data_loaders['val']
+    else:
+        print('Error: No test or validation set provided. Can\'t compute the accuracy of the provided model.')
+        return NotImplementedError
+    # If the model wasn't finished training and the accuracy is being computed on the fly we need to know:
+    original_model_state_is_training = model.training
+    # If the model is currently in training mode in order to evaluate we need to switch this mode off:
+    if model.training:
+        model.train(False)
+    correct = 0
+    total = 0
+    for data in data_loader:
+        images, labels = data
+        if use_gpu:
+            outputs = model(Variable(images.cuda()))
+        else:
+            outputs = model(Variable(images))
+        _, predicted = pt.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels.cuda()).sum()
+    # Now that accuracy is computed if the model was originally in training mode, restore it to training mode:
+    if original_model_state_is_training:
+        model.train(True)
+    return 100 * correct / total
+
+
 def main():
     # Declare globals:
     global args, use_gpu, metadata
@@ -469,9 +509,16 @@ def main():
         print('Could not load either df_train or df_test with data. Exiting...')
         exit(-1)
     data_loaders = get_data_loaders(df_train, df_test)
-    print('Instantiated data_loaders.')
-    model = models.__dict__[args.arch](pretrained=False).cuda()
-    print('Loaded %s source model. Pre-trained: False' % args.arch)
+    print('Instantiated Lazy DataLoaders.')
+    pretrained_model = True
+    model = models.__dict__[args.arch](pretrained=pretrained_model)
+    if use_gpu:
+        model = model.cuda()
+    print('Loaded %s source model. CUDA suppport?: %s. Pre-trained?: %s.' % (args.arch, use_gpu, pretrained_model))
+    # Initial accuracy before training:
+    top_1_err_before_training = get_accuracy(model, data_loaders)
+    print('Overall Accuracy before training: %.2f' % top_1_err_before_training)
+
 
 
     # Get classifier training setup metadata:
