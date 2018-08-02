@@ -28,7 +28,7 @@ parser = argparse.ArgumentParser(description='PyTorch Transfer Learning Demo on 
 parser.add_argument('STORE', metavar='DIR', help='Data storage directory.')
 parser.add_argument('-v', '--verbose', dest='verbose', default=False, action='store_true',
                     help='Enable verbose print statements (yes, no)?')
-parser.add_argument('--arch', '-a', metavar='ARCH', default='inception', choices=model_names,
+parser.add_argument('--arch', '-a', metavar='ARCH', default='inception_v3', choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: inception_v3)')
 
 
@@ -470,73 +470,12 @@ def main():
         exit(-1)
     data_loaders = get_data_loaders(df_train, df_test)
     print('Instantiated data_loaders.')
+    model = models.__dict__[args.arch](pretrained=False).cuda()
+    print('Loaded %s source model. Pre-trained: False' % args.arch)
+
+
     # Get classifier training setup metadata:
     # metadata = get_metadata(df_meta)
-
-
-class Inception(nn.Module):
-    """
-    InceptionV1 (GoogLeNet) Inception Module implementation.
-    adapted from: https://github.com/kuangliu/pytorch-cifar/blob/master/models/googlenet.py
-    """
-
-    def __init__(self, input_channels, n1x1, n3x3reduce, n3x3, n5x5reduce, n5x5):
-        """
-        __init__: Constructor for Modules of type Inception. Specifies the Inception Module architecture as specified
-            in Figure 2(a) of the Going Deeper With Convolutions research paper.
-        """
-        super(Inception, self).__init__()
-
-        # 1x1 convolution branch:
-        self.b1 = nn.Sequential(
-            nn.Conv2d(in_channels=input_channels, out_channels=n1x1, kernel_size=1, stride=1, padding=0),
-            # nn.BatchNorm2d(n1x1)
-            nn.ReLU(inplace=True)
-        )
-
-        # 1x1 convolution -> 3x3 convolution branch
-        self.b2 = nn.Sequential(
-            nn.Conv2d(in_channels=input_channels, out_channels=n3x3reduce, kernel_size=1, stride=1, padding=0),
-            # nn.BatchNorm2d(n3x3reduce)
-            nn.ReLU(inplace=True),
-            # TODO: Should the padding really be one here, not seeing that in the paper.
-            nn.Conv2d(in_channels=n3x3reduce, out_channels=n3x3, kernel_size=3, stride=1, padding=1),
-            # nn.BatchNorm2d(n3x3),
-            nn.ReLU(inplace=True)
-        )
-
-        # 1x1 convolution -> 5x5 convolution branch
-        self.b3 = nn.Sequential(
-            nn.Conv2d(in_channels=input_channels, out_channels=n5x5reduce, kernel_size=1, stride=1, padding=0),
-            # nn.BatchNorm2d(n5x5reduce),
-            nn.ReLU(inplace=True),
-            # TODO: The kuangliu implementation has a kernel of 3 instead of five here.
-            nn.Conv2d(in_channels=n5x5reduce, out_channels=n5x5, kernel_size=5, stride=1, padding=0)
-        )
-
-    def forward(self, x):
-        y1 = self.b1(x)
-        y2 = self.b2(x)
-        y3 = self.b3(x)
-        y4 = self.b4(x)
-        return NotImplementedError
-
-
-
-
-class GoogleNetBatchNorm(nn.Module):
-    """
-    GoogleNet architecture modified with Batch Normalization from the research paper:
-    """
-
-    def __init__(self):
-        super(GoogleNetBatchNorm, self).__init__()
-        self.pre_layers = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=112, kernel_size=2, padding=3, stride=2),
-            # nn.BatchNorm2d(112),
-            nn.ReLU(True),
-            nn.Conv2d(in_channels=64, )
-        )
 
 
 
