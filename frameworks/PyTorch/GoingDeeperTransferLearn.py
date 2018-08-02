@@ -6,6 +6,7 @@ Implementation of transfer learning for the Going Deeper dataset.
 from torchvision import models
 import argparse
 import torch as pt
+import torch.nn as nn
 import os
 import pandas as pd
 import numpy as np
@@ -14,7 +15,6 @@ from itertools import permutations, combinations
 from math import ceil
 from sklearn import model_selection
 import shutil
-import torch
 import torchvision
 from PIL import Image
 from imageio import imread
@@ -272,7 +272,8 @@ def partition_data():
 
 def get_image_channel_means_and_std_deviations(df_train, df_test):
     """
-    get_image_means: Returns the means of each color channel for all images.
+    get_image_means: Returns the means of each color channel for all images, as well as the standard deviations of each
+        color channel across all images.
     :source url: http://forums.fast.ai/t/image-normalization-in-pytorch/7534/7
     :return:
     """
@@ -395,22 +396,57 @@ def get_data_loaders(df_train, df_test):
     # train_pop_means, test_pop_means, train_pop_std_devs, test_pop_std_devs = \
     #     get_image_channel_means_and_std_deviations(df_train=df_train, df_test=df_test)
     # print('train_pop_mean shape: %s' % np.array(train_pop_means).shape)
-    train_pop_means = np.array([189.92064532, 180.60167062, 156.87912538])
-    img_pop_std_devs = np.array([11.44745705, 11.95494989, 14.00533961])
-    train_pop_means = train_pop_means / 12211
-    img_pop_std_devs = img_pop_std_devs / 12211
-    # data_transforms = {
-    #     'train': torchvision.transforms.Compose([
-    #         # Pytorch is designed to work with PIL images:
-    #         torchvision.transforms.ToPILImage(),
-    #         # Rescales to (size * height / width, size):
-    #         torchvision.transforms.Resize(img_pxl_load_size),
-    #         torchvision.transforms.ToTensor(),
-    #         # If the means and standard deviation need to be recalculated call get_image_means.
-    #         torchvision.transforms.Normalize(mean=[], std=[])
-    #     ])
-    # }
-    return
+    train_img_pop_means = [0.74535418, 0.70882273, 0.61583241]
+    train_img_pop_std_devs = [0.04480927, 0.04685673, 0.05492202]
+    data_transforms = {
+        'train': torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.ToPILImage(),
+            torchvision.transforms.Resize(img_pxl_load_size),
+            torchvision.transforms.CenterCrop(receptive_field_pxl_size),
+            torchvision.transforms.Normalize(train_img_pop_means, train_img_pop_std_devs)
+        ]),
+        'test': torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.ToPILImage(),
+            torchvision.transforms.Resize(img_pxl_load_size),
+            torchvision.transforms.CenterCrop(receptive_field_pxl_size),
+            torchvision.transforms.Normalize(train_img_pop_means, train_img_pop_std_devs)
+        ])
+    }
+    # Training set image folder:
+    train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train',
+                                                        transform=data_transforms['train'])
+    test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test',
+                                                       transform=data_transforms['test'])
+    # Declare number of asynchronous threads per data loader (I chose number of CPU cores):
+    num_workers = 6
+    shuffle = True
+    # How many images the DataLoader will grab during one call to next(iter(data_loader)):
+    # TODO: Check the other research paper for a tested mini-batch size during transfer learning.
+    batch_sizes = {'train': 6, 'test': 6}
+    data_loaders = {}
+    # Instantiate the training dataset DataLoader:
+    train_loader = pt.utils.data.DataLoader(train_img_folder, batch_size=batch_sizes['train'], shuffle=shuffle,
+                                            num_workers=num_workers)
+    data_loaders['train'] = train_loader
+    if args.verbose:
+        print('Training data loader instantiated with:'
+              '\n\tshuffle data: %s'
+              '\n\tnumber of workers (async threads): %d'
+              '\n\tbatch size (during iteration):%d'
+              % (shuffle, num_workers, batch_sizes['train']))
+    # Instantiate the testing dataset DataLoader:
+    test_loader = pt.utils.data.DataLoader(test_img_folder, batch_size=batch_sizes['test'], shuffle=shuffle,
+                                           num_workers=num_workers)
+    data_loaders['test'] = test_loader
+    if args.verbose:
+        print('Testing data loader instantiated with:'
+                  '\n\tshuffle data: %s'
+                  '\n\tnumber of workers (async threads): %d'
+                  '\n\tbatch size (during iteration):%d'
+                  % (shuffle, num_workers, batch_sizes['test']))
+    return data_loaders
 
 
 def main():
@@ -432,9 +468,76 @@ def main():
     else:
         print('Could not load either df_train or df_test with data. Exiting...')
         exit(-1)
-    train_loader, test_loader = get_data_loaders(df_train, df_test)
+    data_loaders = get_data_loaders(df_train, df_test)
+    print('Instantiated data_loaders.')
     # Get classifier training setup metadata:
     # metadata = get_metadata(df_meta)
+
+
+class Inception(nn.Module):
+    """
+    InceptionV1 (GoogLeNet) Inception Module implementation.
+    adapted from: https://github.com/kuangliu/pytorch-cifar/blob/master/models/googlenet.py
+    """
+
+    def __init__(self, input_channels, n1x1, n3x3reduce, n3x3, n5x5reduce, n5x5):
+        """
+        __init__: Constructor for Modules of type Inception. Specifies the Inception Module architecture as specified
+            in Figure 2(a) of the Going Deeper With Convolutions research paper.
+        """
+        super(Inception, self).__init__()
+
+        # 1x1 convolution branch:
+        self.b1 = nn.Sequential(
+            nn.Conv2d(in_channels=input_channels, out_channels=n1x1, kernel_size=1, stride=1, padding=0),
+            # nn.BatchNorm2d(n1x1)
+            nn.ReLU(inplace=True)
+        )
+
+        # 1x1 convolution -> 3x3 convolution branch
+        self.b2 = nn.Sequential(
+            nn.Conv2d(in_channels=input_channels, out_channels=n3x3reduce, kernel_size=1, stride=1, padding=0),
+            # nn.BatchNorm2d(n3x3reduce)
+            nn.ReLU(inplace=True),
+            # TODO: Should the padding really be one here, not seeing that in the paper.
+            nn.Conv2d(in_channels=n3x3reduce, out_channels=n3x3, kernel_size=3, stride=1, padding=1),
+            # nn.BatchNorm2d(n3x3),
+            nn.ReLU(inplace=True)
+        )
+
+        # 1x1 convolution -> 5x5 convolution branch
+        self.b3 = nn.Sequential(
+            nn.Conv2d(in_channels=input_channels, out_channels=n5x5reduce, kernel_size=1, stride=1, padding=0),
+            # nn.BatchNorm2d(n5x5reduce),
+            nn.ReLU(inplace=True),
+            # TODO: The kuangliu implementation has a kernel of 3 instead of five here.
+            nn.Conv2d(in_channels=n5x5reduce, out_channels=n5x5, kernel_size=5, stride=1, padding=0)
+        )
+
+    def forward(self, x):
+        y1 = self.b1(x)
+        y2 = self.b2(x)
+        y3 = self.b3(x)
+        y4 = self.b4(x)
+        return NotImplementedError
+
+
+
+
+class GoogleNetBatchNorm(nn.Module):
+    """
+    GoogleNet architecture modified with Batch Normalization from the research paper:
+    """
+
+    def __init__(self):
+        super(GoogleNetBatchNorm, self).__init__()
+        self.pre_layers = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=112, kernel_size=2, padding=3, stride=2),
+            # nn.BatchNorm2d(112),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=64, )
+        )
+
 
 
 if __name__ == '__main__':
