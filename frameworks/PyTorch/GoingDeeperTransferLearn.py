@@ -508,6 +508,7 @@ def visualize_model(data_loaders, class_names, model, num_images=6):
     :return:
     """
     was_training = model.training
+    model.train(False)
     model.eval()
     images_so_far = 0
     fig = plt.figure()
@@ -515,10 +516,11 @@ def visualize_model(data_loaders, class_names, model, num_images=6):
         inputs, labels = data
         if use_gpu:
             inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
+            outputs = model(inputs)
         else:
             inputs, labels = Variable(inputs), Variable(labels)
+            outputs = model(inputs)
 
-        outputs = model(inputs)
         _, preds = pt.max(outputs.data, 1)
 
         for j in range(inputs.size()[0]):
@@ -560,7 +562,7 @@ def get_accuracy(model, data_loaders):
     for data in data_loader:
         images, labels = data
         if use_gpu:
-            outputs = model(Variable(images.cuda(), volatile=False))
+            outputs = model(Variable(images.cuda(), volatile=False)).cuda()
         else:
             outputs = model(Variable(images), volatile=False)
         _, predicted = pt.max(outputs.data, 1)
@@ -598,8 +600,17 @@ def main():
     if use_gpu:
         model = model.cuda()
     print('Loaded %s source model. CUDA suppport?: %s. Pre-trained?: %s.' % (args.arch, use_gpu, pretrained_model))
+    # Freeze the entire network except for the final two layers (as detailed in Going Deeper in Automated Id.)
+    # Parameters of newly constructed modules have requires_grad=True by default:
+    for param in model.parameters():
+        param.requires_grad = False
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(in_features=num_ftrs, out_features=len(class_names), bias=True)
+    if use_gpu:
+        model = model.cuda()
     # Visualize model predictions:
     visualize_model(data_loaders=data_loaders, class_names=class_names['train'], model=model, num_images=6)
+
     # Initial accuracy before training:
     # top_1_err_before_training = get_accuracy(model, data_loaders)
     # print('Overall Accuracy before training: %.2f' % top_1_err_before_training)
