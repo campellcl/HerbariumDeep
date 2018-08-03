@@ -380,7 +380,7 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
     return train_img_pop_means, test_img_pop_means, train_img_pop_std_devs, test_img_pop_std_devs
 
 
-def get_data_loaders(df_train, df_test):
+def get_data_loaders_and_class_names(df_train, df_test):
     """
     get_data_loaders: Creates either two or three instances of torch.utils.data.DataLoader depending on the datasets
         present in the storage directory provided via command line argument 'args.STORE' at runtime. Instantiates and
@@ -416,11 +416,19 @@ def get_data_loaders(df_train, df_test):
             torchvision.transforms.Normalize(train_img_pop_means_imgnet, train_img_pop_std_devs_imgnet)
         ])
     }
+    class_names = {}
     # Training set image folder:
     train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train',
                                                         transform=data_transforms['train'])
+    # Classes present in the training image set:
+    class_names['train'] = train_img_folder.classes
+
+    # Testing set image folder:
     test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test',
                                                        transform=data_transforms['test'])
+    # Classes present in the testing image set:
+    class_names['test'] = test_img_folder.classes
+
     # Declare number of asynchronous threads per data loader (I chose number of CPU cores):
     num_workers = 6
     shuffle = True
@@ -448,7 +456,82 @@ def get_data_loaders(df_train, df_test):
                   '\n\tnumber of workers (async threads): %d'
                   '\n\tbatch size (during iteration):%d'
                   % (shuffle, num_workers, batch_sizes['test']))
-    return data_loaders
+    return data_loaders, class_names
+
+
+def imshow_tensor(input, title=None):
+    """
+    imshow_tensor: Matplotlib imshow function for PyTorch Tensor Objects.
+    :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
+    :param input: The input image as a Tensor.
+    :param title: The title for the image.
+    :return:
+    """
+    # Note: not sure what the point of this transposition is:
+    input = input.numpy().transpose((1, 2, 0))
+    # Normalize the input Tensor:
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    input = std * input + mean
+    # Restrict to [0, 1] interval:
+    input = np.clip(input, a_min=0, a_max=1)
+    fig = plt.figure()
+    has_title = title is not None
+    # fig.add_suplot(Rows,Cols,Pos)
+    # Below code does not work because we are dealing with a tensor object.
+    # for position in range(num_image):
+    #     sub_plt = fig.add_subplot(1, num_image, position+1)
+    #     if has_title:
+    #         sub_plt.set_title(title[position])
+    #         plt.imshow(input)
+    # fig.show()
+    # a = fig.add_subplot(1, num_image, 0)
+    # if has_title:
+    #     a.set_title(title[0])
+    # b = fig.add_subplot(1, num_image, 1)
+    # if has_title:
+    #     b.set_title(title[1])
+    plt.imshow(input)
+    if title is not None:
+        plt.title(title)
+    # plt.pause(0.001)    # pause a second so that plots are updated?
+    # plt.figure(num='Training Data and Ground Truth Labels')
+    plt.show()
+
+
+def visualize_model(data_loaders, class_names, model, num_images=6):
+    """
+    visualize_model: Generic function to display the models predictions for a few images.
+    :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
+    :param model:
+    :param num_images:
+    :return:
+    """
+    was_training = model.training
+    model.eval()
+    images_so_far = 0
+    fig = plt.figure()
+    for i, data in enumerate(data_loaders['train']):
+        inputs, labels = data
+        if use_gpu:
+            inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
+        else:
+            inputs, labels = Variable(inputs), Variable(labels)
+
+        outputs = model(inputs)
+        _, preds = pt.max(outputs.data, 1)
+
+        for j in range(inputs.size()[0]):
+            images_so_far += 1
+            ax = plt.subplot(num_images//2, 2, images_so_far)
+            ax.axis('off')
+            ax.set_title('predicted: {}'.format(class_names[preds[j]]))
+            imshow_tensor(inputs.cpu().data[j])
+
+            if images_so_far == num_images:
+                model.train(mode=was_training)
+                return
+    model.train(mode=was_training)
 
 
 def get_accuracy(model, data_loaders):
@@ -477,9 +560,9 @@ def get_accuracy(model, data_loaders):
     for data in data_loader:
         images, labels = data
         if use_gpu:
-            outputs = model(Variable(images.cuda()))
+            outputs = model(Variable(images.cuda(), volatile=False))
         else:
-            outputs = model(Variable(images))
+            outputs = model(Variable(images), volatile=False)
         _, predicted = pt.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels.cuda()).sum()
@@ -508,22 +591,18 @@ def main():
     else:
         print('Could not load either df_train or df_test with data. Exiting...')
         exit(-1)
-    data_loaders = get_data_loaders(df_train, df_test)
+    data_loaders, class_names = get_data_loaders_and_class_names(df_train, df_test)
     print('Instantiated Lazy DataLoaders.')
     pretrained_model = True
     model = models.__dict__[args.arch](pretrained=pretrained_model)
     if use_gpu:
         model = model.cuda()
     print('Loaded %s source model. CUDA suppport?: %s. Pre-trained?: %s.' % (args.arch, use_gpu, pretrained_model))
+    # Visualize model predictions:
+    visualize_model(data_loaders=data_loaders, class_names=class_names['train'], model=model, num_images=6)
     # Initial accuracy before training:
-    top_1_err_before_training = get_accuracy(model, data_loaders)
-    print('Overall Accuracy before training: %.2f' % top_1_err_before_training)
-
-
-
-    # Get classifier training setup metadata:
-    # metadata = get_metadata(df_meta)
-
+    # top_1_err_before_training = get_accuracy(model, data_loaders)
+    # print('Overall Accuracy before training: %.2f' % top_1_err_before_training)
 
 
 if __name__ == '__main__':
