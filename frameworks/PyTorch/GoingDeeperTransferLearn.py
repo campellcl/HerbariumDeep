@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import time
 import copy
 import sys
+import math
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -690,6 +691,11 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
             # Iterate over the data in minibatches:
             i = 0
             for data in data_loaders[phase]:
+                # print('\t\tMaximum memory allocated by the GPU (GB) %.2f' % (float(pt.cuda.max_memory_allocated())/1000000000))
+                # print('\t\tMaximum memory cached by the caching allocator (GB) %.2f' % (float(pt.cuda.max_memory_cached())/1000000000))
+                # print('\t\tGPU memory allocated (MB) %.2f' % (float(pt.cuda.memory_allocated())/1000000))
+                # print('\t\tGPU memory allocated (GB) %.2f' % (float(pt.cuda.memory_allocated())/1000000000))
+                # print('\t\tGPU memory cached (GB) %.2f' % (float(pt.cuda.memory_cached())/1000000000))
                 inputs, labels = data
                 print('\tmini-batch: %d' % i)
                 if use_gpu:
@@ -759,6 +765,7 @@ def main():
     use_gpu = pt.cuda.is_available()
     if args.verbose:
         print('CUDA is enabled?: %s' % use_gpu)
+
     # Check if the data has already been partitioned into train, test, and validation datasets:
     if not os.path.isdir(args.STORE + '\\images\\train'):
         # Partition the metadata and move the files if necessary.
