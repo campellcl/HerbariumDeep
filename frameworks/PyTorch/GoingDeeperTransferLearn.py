@@ -37,6 +37,8 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
 
 IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif']
 
@@ -475,22 +477,22 @@ def get_data_loaders_and_properties(df_train, df_test):
         ])
     }
     data_loaders = {}
-    data_props = {'class_names': {}, 'num_classes': {}, 'dataset_sizes': {}}
+    data_props = {'class_names': {}, 'num_classes': {}, 'num_samples': {}}
 
     # Training set image folder:
     if os.path.isdir(args.STORE + '\\images\\train'):
         data_props['has_train_set'] = True
-        # train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train',
-        #                                                     transform=data_transforms['train'])
-        train_img_dataset = HerbariumDataset(data_dir=args.STORE + '\\images\\train', transform=data_transforms['train'], extensions=IMG_EXTENSIONS)
+        train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train',
+                                                            transform=data_transforms['train'])
+        # train_img_dataset = HerbariumDataset(data_dir=args.STORE + '\\images\\train', transform=data_transforms['train'], extensions=IMG_EXTENSIONS)
         # Classes present in the training image set:
-        data_props['class_names']['train'] = train_img_dataset.classes
+        data_props['class_names']['train'] = train_img_folder.classes
         # Number of classes present in the training image set:
-        data_props['num_classes']['train'] = len(train_img_dataset.classes)
+        data_props['num_classes']['train'] = len(train_img_folder.classes)
         # Number of samples present in the training image set:
-        data_props['dataset_sizes']['train'] = len(train_img_dataset)
+        data_props['num_samples']['train'] = len(train_img_folder)
         # Instantiate the training dataset DataLoader:
-        train_loader = pt.utils.data.DataLoader(train_img_dataset, batch_size=batch_sizes['train'], shuffle=shuffle,
+        train_loader = pt.utils.data.DataLoader(train_img_folder, batch_size=batch_sizes['train'], shuffle=shuffle,
                                             num_workers=num_workers)
         data_loaders['train'] = train_loader
         if args.verbose:
@@ -505,17 +507,17 @@ def get_data_loaders_and_properties(df_train, df_test):
     # Testing set image folder:
     if os.path.isdir(args.STORE + '\\images\\test'):
         data_props['has_test_set'] = True
-        # test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test',
-        #                                                    transform=data_transforms['test'])
-        test_img_dataset = HerbariumDataset(data_dir=args.STORE + '\\images\\test', transform=data_transforms['test'], extensions=IMG_EXTENSIONS)
+        test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test',
+                                                           transform=data_transforms['test'])
+        # test_img_dataset = HerbariumDataset(data_dir=args.STORE + '\\images\\test', transform=data_transforms['test'], extensions=IMG_EXTENSIONS)
         # Classes present in the testing image set:
-        data_props['class_names']['test'] = test_img_dataset.classes
+        data_props['class_names']['test'] = test_img_folder.classes
         # Number of classes present in the testing image set:
-        data_props['num_classes']['test'] = len(test_img_dataset.classes)
+        data_props['num_classes']['test'] = len(test_img_folder.classes)
         # Number of samples present in the testing image set:
-        data_props['dataset_sizes']['test'] = len(test_img_dataset)
+        data_props['num_samples']['test'] = len(test_img_folder)
         # Instantiate the testing dataset DataLoader:
-        test_loader = pt.utils.data.DataLoader(test_img_dataset, batch_size=batch_sizes['test'], shuffle=shuffle,
+        test_loader = pt.utils.data.DataLoader(test_img_folder, batch_size=batch_sizes['test'], shuffle=shuffle,
                                                num_workers=num_workers)
         data_loaders['test'] = test_loader
         if args.verbose:
@@ -646,6 +648,27 @@ def get_accuracy(model, data_loaders):
     return 100 * correct / total
 
 
+def save_checkpoint(state, is_best, file_path='../../data/PTCheckpoints/checkpoint.pth.tar'):
+    """
+    save_checkpoint: Saves a checkpoint representing the model's process during training, which can be loaded resuming
+        the training process at a later time.
+    :param state: A dictionary that contains state information crucial to resuming the training process.
+        state['epoch']: The current epoch during training.
+        state['arch']: The architecture of the model (inception_v3, resnet18, etc...).
+        state['state_dict]: A deepcopy of the model's state dictionary (model.state_dict()). For more information see:
+            https://pytorch.org/docs/stable/nn.html#torch.nn.Module.state_dict
+        state['best_acc']: The best top-1-accuracy at this point in the model's training.
+        state['optimizer']: A deep copy of the optimizer's state dictionary.
+    :param is_best: A boolean flag indicating if this particular checkpoint is the best performing in the model's
+        history.
+    :param file_path: The path to which the saved checkpoint is to be written.
+    :return:
+    """
+    pt.save(state, file_path)
+    if is_best:
+        shutil.copyfile(file_path, 'model_best.pth.tar')
+
+
 def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs=25):
     """
     train_model: TODO: method header
@@ -689,15 +712,14 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
             running_num_correct = 0
 
             # Iterate over the data in minibatches:
-            i = 0
-            for data in data_loaders[phase]:
+            for i, data in enumerate(data_loaders[phase]):
                 # print('\t\tMaximum memory allocated by the GPU (GB) %.2f' % (float(pt.cuda.max_memory_allocated())/1000000000))
                 # print('\t\tMaximum memory cached by the caching allocator (GB) %.2f' % (float(pt.cuda.max_memory_cached())/1000000000))
                 # print('\t\tGPU memory allocated (MB) %.2f' % (float(pt.cuda.memory_allocated())/1000000))
                 # print('\t\tGPU memory allocated (GB) %.2f' % (float(pt.cuda.memory_allocated())/1000000000))
                 # print('\t\tGPU memory cached (GB) %.2f' % (float(pt.cuda.memory_cached())/1000000000))
                 inputs, labels = data
-                print('\tmini-batch: %d' % i)
+                # print('\tmini-batch: %d' % i)
                 if use_gpu:
                     inputs = Variable(inputs.cuda(), volatile=False)
                     labels = Variable(labels.cuda(), volatile=False)
@@ -723,7 +745,6 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
                 # Update loss and accuracy statistics:
                 running_loss += loss.data[0] * inputs.size(0)
                 running_num_correct += pt.sum(preds == labels.data)
-                i += 1
 
             epoch_loss = running_loss / data_props['num_samples'][phase]
             losses.append(epoch_loss)
@@ -737,16 +758,15 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
-                print('Checkpoint: This epoch had the best accuracy. The model weights SHOULD be saved.')
+                print('Checkpoint: This epoch had the best accuracy. Saving the model weights.')
                 # create checkpoint:
-                # TODO: Implement checkpoints
-                # save_checkpoint({
-                #     'epoch': epoch + 1,
-                #     'arch': args.arch,
-                #     'state_dict': copy.deepcopy(model.state_dict()),
-                #     'best_prec_1': best_acc,
-                #     'optimizer': optimizer.state_dict()
-                # }, is_best=True, filename='../../data/PTCheckpoints/model_best.pth.tar')
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'arch': args.arch,
+                    'state_dict': copy.deepcopy(model.state_dict()),
+                    'best_acc': best_acc,
+                    'optimizer': optimizer.state_dict()
+                }, is_best=True, file_path='../../data/PTCheckpoints/model_best.pth.tar')
         print('Accuracy (Top-1 Error or Precision at 1) of the network on %d %s images: %.2f%%\n'
               % (data_props['num_samples'][phase], phase, epoch_acc * 100))
     time_elapsed = time.time() - since
@@ -807,8 +827,29 @@ def main():
     # Decay the learning rate by a factor of 0.1 every 7 epochs:
     exp_lr_scheduler = pt.optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=7, gamma=0.1)
 
-    print('=> Checkpoints are not currently supported.')
-    print('==' * 15 + 'Begin Training' + '==' *15)
+    # Check to see if the checkpoint flag is enabled:
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> Attempting to load checkpoint '{}'".format(args.resume))
+            checkpoint = pt.load(args.resume)
+            if checkpoint['arch'] != args.arch:
+                print("=> Invalid checkpoint found at '{}'".format(args.resume))
+                print('\tERROR: The designated checkpoint is for model %s. It is not for the '
+                      'desired architecture provided at runtime: %s.'
+                      % (checkpoint['arch'], args.arch))
+                new_file_name = args.resume.replace('model_best', "model_best_{}".format(args.arch))
+                print('\tNOTE: As a result, this model\'s progress will instead be saved as: %s' % new_file_name)
+                print('==' * 15 + 'Begin Training' + '==' * 15)
+            else:
+                args.start_epoch = checkpoint['epoch']
+                best_acc = checkpoint['best_acc']
+                model.load_state_dict(checkpoint['state_dict'])
+                optimizer.load_state_dict(checkpoint['optimizer'])
+                print('=> loaded checkpoint {%s} (epoch {%d})' % (args.resume, checkpoint['epoch']))
+                print('==' * 15 + 'Begin Training' + '==' * 15)
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+            print('==' * 15 + 'Begin Training' + '==' * 15)
 
     # Accuracy after a single backprop:
     model = train_model(data_loaders=data_loaders, model=model, criterion=criterion, optimizer=optimizer,
