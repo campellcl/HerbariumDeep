@@ -445,7 +445,7 @@ def get_data_loaders_and_properties(df_train, df_test):
     img_pxl_load_size = 1024
     receptive_field_pxl_size = 299
     # How many images the DataLoader will grab during one call to next(iter(data_loader)):
-    batch_sizes = {'train': 16, 'test': 16}
+    batch_sizes = {'train': 64, 'test': 64}
     ''' Hyperparameters specified by me: '''
     # Declare number of asynchronous threads per data loader (I chose number of CPU cores):
     num_workers = 6
@@ -669,7 +669,7 @@ def save_checkpoint(state, is_best, file_path='../../data/PTCheckpoints/checkpoi
         shutil.copyfile(file_path, 'model_best.pth.tar')
 
 
-def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(data_loaders, model, criterion, optimizer, scheduler, checkpoint_write_path, num_epochs=25):
     """
     train_model: TODO: method header
     :param data_loaders:
@@ -686,12 +686,14 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
     losses = []
     accuracies = []
 
+
     for epoch in range(num_epochs):
         print('Epoch {%d}/{%d}' % (epoch, num_epochs - 1))
         print('-' * 10)
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'test']:
+            num_samples = data_props['num_samples'][phase]
             if phase == 'train':
                 # Modify learning rate according to schedule:
                 scheduler.step()
@@ -711,15 +713,17 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
             running_loss = 0.0
             running_num_correct = 0
 
+            print('Number of samples for phase [%s]: %d' % (phase, num_samples))
             # Iterate over the data in minibatches:
             for i, data in enumerate(data_loaders[phase]):
+
                 # print('\t\tMaximum memory allocated by the GPU (GB) %.2f' % (float(pt.cuda.max_memory_allocated())/1000000000))
                 # print('\t\tMaximum memory cached by the caching allocator (GB) %.2f' % (float(pt.cuda.max_memory_cached())/1000000000))
                 # print('\t\tGPU memory allocated (MB) %.2f' % (float(pt.cuda.memory_allocated())/1000000))
                 # print('\t\tGPU memory allocated (GB) %.2f' % (float(pt.cuda.memory_allocated())/1000000000))
                 # print('\t\tGPU memory cached (GB) %.2f' % (float(pt.cuda.memory_cached())/1000000000))
                 inputs, labels = data
-                # print('\tmini-batch: %d' % i)
+                print('\tmini-batch: [%d/%d]' % (i, (data_props['num_samples'][phase]/data_loaders[phase].batch_size)))
                 if use_gpu:
                     inputs = Variable(inputs.cuda(), volatile=False)
                     labels = Variable(labels.cuda(), volatile=False)
@@ -743,8 +747,8 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
                     optimizer.step()
 
                 # Update loss and accuracy statistics:
-                running_loss += loss.data[0] * inputs.size(0)
-                running_num_correct += pt.sum(preds == labels.data)
+                running_loss += loss.item() * inputs.size(0)
+                running_num_correct += pt.sum(preds == labels.data).item()
 
             epoch_loss = running_loss / data_props['num_samples'][phase]
             losses.append(epoch_loss)
@@ -755,7 +759,7 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
                 phase, epoch_loss, epoch_acc))
 
             # deep copy the model's weights if this epoch was the best performing:
-            if phase == 'val' and epoch_acc > best_acc:
+            if phase == 'train' and epoch_acc >= best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
                 print('Checkpoint: This epoch had the best accuracy. Saving the model weights.')
@@ -766,7 +770,7 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, num_epochs
                     'state_dict': copy.deepcopy(model.state_dict()),
                     'best_acc': best_acc,
                     'optimizer': optimizer.state_dict()
-                }, is_best=True, file_path='../../data/PTCheckpoints/model_best.pth.tar')
+                }, is_best=True, file_path=checkpoint_write_path)
         print('Accuracy (Top-1 Error or Precision at 1) of the network on %d %s images: %.2f%%\n'
               % (data_props['num_samples'][phase], phase, epoch_acc * 100))
     time_elapsed = time.time() - since
@@ -837,8 +841,9 @@ def main():
                 print('\tERROR: The designated checkpoint is for model %s. It is not for the '
                       'desired architecture provided at runtime: %s.'
                       % (checkpoint['arch'], args.arch))
-                new_file_name = args.resume.replace('model_best', "model_best_{}".format(args.arch))
-                print('\tNOTE: As a result, this model\'s progress will instead be saved as: %s' % new_file_name)
+                new_checkpoint_path = args.resume.replace('model_best', "model_best_{}".format(args.arch))
+                print('\tNOTE: As a result, this model\'s progress will instead be saved as: %s' % new_checkpoint_path)
+                args.resume = new_checkpoint_path
                 print('==' * 15 + 'Begin Training' + '==' * 15)
             else:
                 args.start_epoch = checkpoint['epoch']
@@ -849,11 +854,12 @@ def main():
                 print('==' * 15 + 'Begin Training' + '==' * 15)
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
+            print("NOTE: Since the --resume flag was enabled checkpoints will be saved during execution.")
             print('==' * 15 + 'Begin Training' + '==' * 15)
 
     # Accuracy after a single backprop:
     model = train_model(data_loaders=data_loaders, model=model, criterion=criterion, optimizer=optimizer,
-                        scheduler=exp_lr_scheduler, num_epochs=25)
+                        scheduler=exp_lr_scheduler, checkpoint_write_path=args.resume, num_epochs=25)
 
     print('==' * 15 + 'Finished Training' + '==' * 15)
     # Visualize model predictions:
