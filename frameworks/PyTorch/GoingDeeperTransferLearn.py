@@ -715,38 +715,41 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, checkpoint
             print('Number of samples for phase [%s]: %d' % (phase, num_samples))
             # Iterate over the data in minibatches:
             for i, data in enumerate(data_loaders[phase]):
-                # print('\t\tMaximum memory allocated by the GPU (GB) %.2f' % (float(pt.cuda.max_memory_allocated())/1000000000))
-                # print('\t\tMaximum memory cached by the caching allocator (GB) %.2f' % (float(pt.cuda.max_memory_cached())/1000000000))
-                # print('\t\tGPU memory allocated (MB) %.2f' % (float(pt.cuda.memory_allocated())/1000000))
-                # print('\t\tGPU memory allocated (GB) %.2f' % (float(pt.cuda.memory_allocated())/1000000000))
-                # print('\t\tGPU memory cached (GB) %.2f' % (float(pt.cuda.memory_cached())/1000000000))
-                inputs, labels = data
-                print('\tmini-batch: [%d/%d]' % (i, (data_props['num_samples'][phase]/data_loaders[phase].batch_size)))
-                if use_gpu:
-                    inputs = Variable(inputs.cuda(), volatile=False)
-                    labels = Variable(labels.cuda(), volatile=False)
+                if i < 6:
+                    # print('\t\tMaximum memory allocated by the GPU (GB) %.2f' % (float(pt.cuda.max_memory_allocated())/1000000000))
+                    # print('\t\tMaximum memory cached by the caching allocator (GB) %.2f' % (float(pt.cuda.max_memory_cached())/1000000000))
+                    # print('\t\tGPU memory allocated (MB) %.2f' % (float(pt.cuda.memory_allocated())/1000000))
+                    # print('\t\tGPU memory allocated (GB) %.2f' % (float(pt.cuda.memory_allocated())/1000000000))
+                    # print('\t\tGPU memory cached (GB) %.2f' % (float(pt.cuda.memory_cached())/1000000000))
+                    inputs, labels = data
+                    print('\tmini-batch: [%d/%d]' % (i, (data_props['num_samples'][phase]/data_loaders[phase].batch_size)))
+                    if use_gpu:
+                        inputs = Variable(inputs.cuda(), volatile=False)
+                        labels = Variable(labels.cuda(), volatile=False)
+                    else:
+                        inputs = Variable(inputs)
+                        labels = Variable(labels)
+
+                    # Zero paramater gradients:
+                    optimizer.zero_grad()
+
+                    # Compute Forward pass:
+                    outputs = model(inputs)
+                    _, preds = pt.max(outputs[0].data, 1)
+                    loss = criterion(outputs[0], labels)
+
+                    # If in the training phase then backprop and optimize by taking a step in the dir of gradient:
+                    if phase == 'train':
+                        # Backprop:
+                        loss.backward()
+                        # Gradient step:
+                        optimizer.step()
+
+                    # Update loss and accuracy statistics:
+                    running_loss += loss.item() * inputs.size(0)
+                    running_num_correct += pt.sum(preds == labels.data).item()
                 else:
-                    inputs = Variable(inputs)
-                    labels = Variable(labels)
-
-                # Zero paramater gradients:
-                optimizer.zero_grad()
-
-                # Compute Forward pass:
-                outputs = model(inputs)
-                _, preds = pt.max(outputs[0].data, 1)
-                loss = criterion(outputs[0], labels)
-
-                # If in the training phase then backprop and optimize by taking a step in the dir of gradient:
-                if phase == 'train':
-                    # Backprop:
-                    loss.backward()
-                    # Gradient step:
-                    optimizer.step()
-
-                # Update loss and accuracy statistics:
-                running_loss += loss.item() * inputs.size(0)
-                running_num_correct += pt.sum(preds == labels.data).item()
+                    break
 
             epoch_loss = running_loss / data_props['num_samples'][phase]
             losses.append(epoch_loss)
@@ -860,6 +863,7 @@ def main():
                         scheduler=exp_lr_scheduler, checkpoint_write_path=args.resume, num_epochs=1)
 
     print('==' * 15 + 'Finished Training' + '==' * 15)
+    return
     # Visualize model predictions:
     # visualize_model(data_loaders=data_loaders, class_names=class_names['train'], model=model, num_images=6)
 
