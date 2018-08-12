@@ -686,13 +686,12 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, checkpoint
     losses = []
     accuracies = []
 
-
     for epoch in range(num_epochs):
         print('Epoch {%d}/{%d}' % (epoch, num_epochs - 1))
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train', 'test']:
+        for phase in ['train']:
             num_samples = data_props['num_samples'][phase]
             if phase == 'train':
                 # Modify learning rate according to schedule:
@@ -716,7 +715,6 @@ def train_model(data_loaders, model, criterion, optimizer, scheduler, checkpoint
             print('Number of samples for phase [%s]: %d' % (phase, num_samples))
             # Iterate over the data in minibatches:
             for i, data in enumerate(data_loaders[phase]):
-
                 # print('\t\tMaximum memory allocated by the GPU (GB) %.2f' % (float(pt.cuda.max_memory_allocated())/1000000000))
                 # print('\t\tMaximum memory cached by the caching allocator (GB) %.2f' % (float(pt.cuda.max_memory_cached())/1000000000))
                 # print('\t\tGPU memory allocated (MB) %.2f' % (float(pt.cuda.memory_allocated())/1000000))
@@ -859,7 +857,7 @@ def main():
 
     # Accuracy after a single backprop:
     model = train_model(data_loaders=data_loaders, model=model, criterion=criterion, optimizer=optimizer,
-                        scheduler=exp_lr_scheduler, checkpoint_write_path=args.resume, num_epochs=25)
+                        scheduler=exp_lr_scheduler, checkpoint_write_path=args.resume, num_epochs=1)
 
     print('==' * 15 + 'Finished Training' + '==' * 15)
     # Visualize model predictions:
