@@ -9,9 +9,9 @@ tf.reset_default_graph()
 def conv_layer(inputs, in_channels, out_channels, name="conv"):
     with tf.name_scope(name):
         # Weights:
-        w = tf.Variable(tf.zeros([5, 5, in_channels, out_channels]), name="W")
+        w = tf.Variable(tf.truncated_normal([5, 5, in_channels, out_channels], stddev=0.1), name="W")
         # Biases:
-        b = tf.Variable(tf.zeros([out_channels]), name="B")
+        b = tf.Variable(tf.constant(1.0, shape=[out_channels]), name="B")
         # Convolution operator:
         conv = tf.nn.conv2d(inputs, w, strides=[1,1,1,1], padding="SAME")
         # Activation function:
@@ -27,9 +27,9 @@ def conv_layer(inputs, in_channels, out_channels, name="conv"):
 def fc_layer(inputs, in_channels, out_channels, name="fc"):
     with tf.name_scope(name):
         # Weights:
-        w = tf.Variable(tf.zeros([in_channels, out_channels]), name="W")
+        w = tf.Variable(tf.truncated_normal([in_channels, out_channels], stddev=0.1), name="W")
         # Biases:
-        b = tf.Variable(tf.zeros([out_channels]), name="B")
+        b = tf.Variable(tf.constant(1.0, shape=[out_channels]), name="B")
         # Activation function:
         return tf.nn.relu(tf.matmul(inputs, w) + b)
 
@@ -75,7 +75,7 @@ tf.summary.scalar('accuracy', accuracy)
 tf.summary.image('input', x_image, 3)
 
 merged_summary = tf.summary.merge_all()
-writer = tf.summary.FileWriter("/tmp/log/5")
+writer = tf.summary.FileWriter("tmp/log/5")
 writer.add_graph(sess.graph)
 
 # Initialize all the variables:
