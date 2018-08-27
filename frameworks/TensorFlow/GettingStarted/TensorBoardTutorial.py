@@ -3,7 +3,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 mnist = input_data.read_data_sets('tmp/train/', one_hot=True)
 
 tf.reset_default_graph()
-
+sess = tf.InteractiveSession()
 
 # Define a simple convolutional layer WITH NAMES:
 def conv_layer(inputs, in_channels, out_channels, name="conv"):
@@ -34,10 +34,16 @@ def fc_layer(inputs, in_channels, out_channels, name="fc"):
         return tf.nn.relu(tf.matmul(inputs, w) + b)
 
 
-# Setup placeholders, and reshape the data:
-x = tf.placeholder(tf.float32, shape=[None, 784], name='x')
-x_image = tf.reshape(x, [-1, 28, 28, 1])
-y = tf.placeholder(tf.int64, shape=[None, 10], name='labels')
+# Setup Input placeholders, and reshape the data:
+with tf.name_scope('input'):
+    x = tf.placeholder(tf.float32, shape=[None, 784], name='x')
+    y = tf.placeholder(tf.int64, shape=[None, 10], name='labels')
+
+# Input reshape placeholders:
+with tf.name_scope('input_reshape'):
+    x_image = tf.reshape(x, [-1, 28, 28, 1])
+    tf.summary.image('input', x_image, 3)
+
 
 ''' Create the network WITH NAMES: '''
 conv1 = conv_layer(inputs=x_image, in_channels=1, out_channels=32, name="conv1")
@@ -54,26 +60,28 @@ logits = fc_layer(fc1, 1024, 10, name='fc2')
 
 ''' Loss and Training WITH NAMES: '''
 # Compute cross entropy as our loss function:
-with tf.name_scope("cross-entro"):
-    cross_entropy = tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(logits=logits, labels=tf.argmax(y, 1)))
+with tf.name_scope("cross_entropy"):
+    with tf.name_scope('total'):
+        # print('logits: %s' % logits)
+        # print('y: %s' % y)
+        tf.summary.tensor_summary('y', y)
+        cross_entropy = tf.losses.sparse_softmax_cross_entropy(logits=logits, labels=tf.argmax(y, 1))
+tf.summary.scalar('cross_entropy', cross_entropy)
 
 # Use an AdamOptimizer to train the network:
 with tf.name_scope("train"):
-    train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+    learning_rate = 1e-10
+    train_step = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy)
 
 # Compute the accuracy so we can print to console:
 with tf.name_scope("accuracy"):
-    correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    with tf.name_scope('correct_prediction'):
+        correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y, 1))
+    with tf.name_scope('accuracy'):
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    tf.summary.scalar('accuracy', accuracy)
 
 ''' Evaluation Step: '''
-sess = tf.InteractiveSession()
-
-''' Let's visualize the default computational graph & some scalars '''
-tf.summary.scalar('cross_entropy', cross_entropy)
-tf.summary.scalar('accuracy', accuracy)
-tf.summary.image('input', x_image, 3)
-
 merged_summary = tf.summary.merge_all()
 writer = tf.summary.FileWriter("tmp/log/5")
 writer.add_graph(sess.graph)
