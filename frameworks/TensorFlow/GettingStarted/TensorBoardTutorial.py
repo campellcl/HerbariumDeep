@@ -11,9 +11,9 @@ def conv_layer(inputs, in_channels, out_channels, name="conv"):
         # Weights:
         w = tf.Variable(tf.truncated_normal([5, 5, in_channels, out_channels], stddev=0.1), name="W")
         # Biases:
-        b = tf.Variable(tf.constant(1.0, shape=[out_channels]), name="B")
+        b = tf.Variable(tf.constant(0.1, shape=[out_channels]), name="B")
         # Convolution operator:
-        conv = tf.nn.conv2d(inputs, w, strides=[1,1,1,1], padding="SAME")
+        conv = tf.nn.conv2d(inputs, w, strides=[1, 1, 1, 1], padding="SAME")
         # Activation function:
         act = tf.nn.relu(conv + b)
         # Summaries for logging:
@@ -29,7 +29,7 @@ def fc_layer(inputs, in_channels, out_channels, name="fc"):
         # Weights:
         w = tf.Variable(tf.truncated_normal([in_channels, out_channels], stddev=0.1), name="W")
         # Biases:
-        b = tf.Variable(tf.constant(1.0, shape=[out_channels]), name="B")
+        b = tf.Variable(tf.constant(0.1, shape=[out_channels]), name="B")
         # Activation function:
         return tf.nn.relu(tf.matmul(inputs, w) + b)
 
@@ -55,7 +55,7 @@ logits = fc_layer(fc1, 1024, 10, name='fc2')
 ''' Loss and Training WITH NAMES: '''
 # Compute cross entropy as our loss function:
 with tf.name_scope("cross-entro"):
-    cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=y))
+    cross_entropy = tf.reduce_mean(tf.losses.sparse_softmax_cross_entropy(logits=logits, labels=tf.argmax(y, 1)))
 
 # Use an AdamOptimizer to train the network:
 with tf.name_scope("train"):
