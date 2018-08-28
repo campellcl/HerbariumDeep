@@ -232,13 +232,20 @@ def aggregate_occurrences_and_images():
                     # catalogNumber
 
                     # Keep only these columns:
-                    df_meta = df_meta[[
-                        'institutionCode', 'collectionID', 'occurrenceID',
-                        'kingdom', 'phylum', 'order', 'family', 'scientificName',
-                        'scientificNameAuthorship', 'genus', 'specificEpithet',
-                        'recordId', 'references', 'identifier', 'accessURI', 'thumbnailAccessURI',
-                        'goodQualityAccessURI', 'format', 'associatedSpecimenReference', 'type', 'subtype'
-                    ]]
+                    columns_to_retain = [
+                                'institutionCode', 'collectionID', 'occurrenceID',
+                                'kingdom', 'phylum', 'order', 'family', 'scientificName',
+                                'scientificNameAuthorship', 'genus', 'specificEpithet',
+                                'recordId', 'references', 'identifier', 'accessURI', 'thumbnailAccessURI',
+                                'goodQualityAccessURI', 'format', 'associatedSpecimenReference', 'type', 'subtype'
+                            ]
+                    if 'recordedBy' in df_meta.columns:
+                        columns_to_retain.append('recordedBy')
+                        if 'recordEnteredBy' in df_meta.columns:
+                            columns_to_retain.append('recordEnteredBy')
+
+                    # Drop everything but the specified columns:
+                    df_meta = df_meta[columns_to_retain]
                     # Convert object dtype to categorical where appropriate:
                     df_meta.kingdom = df_meta.kingdom.astype('category')
                     df_meta.phylum = df_meta.phylum.astype('category')
@@ -252,6 +259,10 @@ def aggregate_occurrences_and_images():
                     df_meta.format = df_meta.format.astype('category')
                     df_meta.type = df_meta.type.astype('category')
                     df_meta.subtype = df_meta.subtype.astype('category')
+                    if 'recordedBy' in df_meta.columns:
+                        df_meta.recordedBy = df_meta.recordedBy.astype('category')
+                    if 'recordEnteredBy' in df_meta.columns:
+                        df_meta.recordEnteredBy = df_meta.recordEnteredBy.astype('category')
                     # Reduce integer 64 bit and float 64 bit representations to 32 bit representations where appropriate.
                     df_meta.to_csv(subdir + '\df_meta.csv')
 
@@ -284,40 +295,6 @@ def aggregate_collection_metadata():
               'Loading global metadata file...' % (args.STORE + '\collections\df_meta.pkl'))
         df_meta = pd.read_pickle(path=args.STORE + '\collections\df_meta.pkl')
     return df_meta
-
-
-def download_high_res_images():
-    """
-    download_high_res_images: Goes through
-    :return:
-    """
-    # metadata_dtypes = [np.int64, np.int64, np.object]
-    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE)):
-        # Skip i==0 which is the root directory.
-        if i != 0:
-            if args.verbose:
-                 print('\tTargeting: %d %s' % (i, subdir))
-            with open(subdir + '\df_meta.csv', 'r') as fp:
-                df_meta = pd.read_csv(fp, header=0)
-            # Correct dtypes for mixed data columns:
-            # Discard all columns but the following:
-            df_meta = df_meta[[
-                'coreid', 'institutionCode', 'occurrenceID', 'catalogNumber',
-                'kingdom', 'phylum', 'class', 'order', 'family', 'scientificName',
-                'genus', 'specificEpithet', 'country', 'stateProvince', 'county',
-                'locality', 'recordId', 'references', 'identifier', 'accessURI',
-                'thumbnailAccessURI', 'goodQualityAccessURI', 'format', 'associatedSpecimenReference',
-                'type', 'subtype'
-            ]]
-            # Everything should really have dtype object or be OneHotEncoded.
-            # df_meta['coreid'] = df_meta['coreid'].astype('int')
-            # df_meta['institutionCode'] = df_meta['institutionCode'].astype('str')
-            # df_meta['occurrenceID'] = df_meta['occurrenceID'].astype('str')
-            for i, row in df_meta.iterrows():
-                img_response = requests.get(row['goodQualityAccessURI'])
-                if img_response.status_code == 200:
-                    # Create class directory:
-                    return NotImplementedError
 
 
 if __name__ == '__main__':
