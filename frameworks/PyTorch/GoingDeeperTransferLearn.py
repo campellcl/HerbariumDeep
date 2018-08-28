@@ -4,21 +4,21 @@ Implementation of transfer learning for the Going Deeper dataset.
 """
 
 from torchvision import models
+from torch.autograd import Variable
 import argparse
 import torch as pt
 import torch.nn as nn
 import os
 import pandas as pd
 import numpy as np
-from scipy.stats import mode
-from itertools import permutations, combinations
-from math import ceil
 from sklearn import model_selection
 import shutil
 import torchvision
 from PIL import Image
-from imageio import imread
 import matplotlib.pyplot as plt
+import time
+import copy
+import sys
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -28,40 +28,18 @@ parser = argparse.ArgumentParser(description='PyTorch Transfer Learning Demo on 
 parser.add_argument('STORE', metavar='DIR', help='Data storage directory.')
 parser.add_argument('-v', '--verbose', dest='verbose', default=False, action='store_true',
                     help='Enable verbose print statements (yes, no)?')
-parser.add_argument('--arch', '-a', metavar='ARCH', default='inception', choices=model_names,
+parser.add_argument('--arch', '-a', metavar='ARCH', default='inception_v3', choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: inception_v3)')
+parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                    metavar='LR', help='initial learning rate')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                    help='momentum')
+parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
+                    metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
 
-
-def get_metadata_properties():
-    """
-    get_metadata_properties: Returns a dictionary containing various properties about the datasets relevant to the
-        training of machine learning models.
-    :returns metadata_prop: A dictionary composed of the following metadata about datasets relevant to the training process:
-        :return has_test_set: A boolean variable indicating if a test set folder is present (DataLoader context).
-        :return has_train_set: A boolean variable indicating if a training set folder is present (DataLoader context).
-        :return has_val_set: A boolean variable indicating if a validation set folder is present (DataLoader context).
-        :return num_cols: An integer variable representing the number of columns in all datasets.
-        :return num_samples: A dictionary housing the number of samples for all of the datasets.
-            :return num_samples['test_set']: The number of cleaned samples in the testing dataset (None if not present).
-            :return num_samples['train_set']: The number of cleaned samples in the training dataset (None if not present).
-            :return num_samples['val_set']: The number of cleaned samples in the validation dataset (None if not present).
-        :return class_names: A list of classes found across all datasets.
-        :return data_loader_prop: A dictionary containing the following properties relevant to dataloader instances:
-            :return data_loader_prop['num_workers']: The number of threads to instantiate DataLoaders with.
-            :return data_loader_prop['batch_sizes']: How many images the data loader grabs during one call to
-                next(iter(data_loader)).
-                :return data_loader_prop['batch_sizes']['train']: The batch size for DataLoader instances loading,
-                    training data.
-                :return data_loader_prop['batch_sizes']['test']: The batch size for DataLoader instances loading,
-                    testing data.
-                :return data_loader_prop['batch_sizes']['val']: The batch size for DataLoader instances loading,
-                    validation data.
-            :return img_load_size: The size (in pixels) which images should be re-sized to when loaded by DataLoader,
-                instances.
-            :return receptive_field_size: The size (in pixels) which images will be center cropped to when loaded by,
-                DataLoader instances during training.
-    """
-    return NotImplementedError
+IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif']
 
 
 def sort_by_target_then_collector(df_meta):
@@ -76,87 +54,6 @@ def sort_by_target_then_collector(df_meta):
     return df_meta_sorted
 
 
-# def partition_data(df_meta):
-#     """
-#     partition_data: Partitions the metadata into training, testing, and validation datasets. Partitioning is performed
-#         secondarily by target label (dwc:scientificName) in an attempt to keep classes equally represented in both
-#         training and testing sets. Partitioned is performed primarily by collector so that no single collector has
-#         entries in both the training and testing datasets. This is done to avoid bias in the classifier. It is not
-#         desired that the classifier learns to predict samples only collected by a certain type of collector (i.e. those
-#         that follow a particular style of sample mounting). By isolating collectors' samples to either training or
-#         test sets in their entirely the algorithm has less of a chance to pick up on patterns among collectors and can
-#         instead focus on learning patterns among target labels (species). This method will update the respective,
-#         metadata dataframe's 'file_path' attribute to house the new location of the samples after partitioning.
-#     :param df_meta: The global metadata dataframe.
-#     :returns Up to 3 instances of the metadata partitioned into separate dataframes:
-#         :return df_meta_train:
-#         :return df_meta_test:
-#         :return df_meta_val:
-#     """
-#     species_coll_counts = {}
-#     # Sort the dataframe first by the class label and then by collector:
-#     df_meta = sort_by_target_then_collector(df_meta)
-#     total_num_target_labels = len(df_meta['dwc:scientificName'].unique())
-#     for i, target_label in enumerate(df_meta['dwc:scientificName'].unique()):
-#         if target_label is not np.nan:
-#
-#             coll_counts = {}
-#             target_subset = df_meta[df_meta['dwc:scientificName'] == target_label]
-#             # Drop entries with a collector of np.nan from the target label subset:
-#             target_subset = target_subset.dropna(axis=0, how='any', subset=['dwc:recordedBy'])
-#             for collector in target_subset['dwc:recordedBy'].unique():
-#                 collector_samples = target_subset[target_subset['dwc:recordedBy'] == collector]
-#                 coll_counts[collector] = collector_samples.shape[0]
-#             species_coll_counts[target_label] = coll_counts
-#             # print('collector counts for target label [%s]: %s' % (target_label, coll_counts))
-#             print('Finished partitioning samples by collector for target label <%d/%d>: [%s]'
-#                   % (i+1, total_num_target_labels, target_label))
-#             print('\tThere are %d samples for this target label with a non-NaN collector.'
-#                   % target_subset.shape[0])
-#             print('\tThere are %d collectors for this target label.' % len(coll_counts))
-#             collection_counts = list(coll_counts.values())
-#             if collection_counts:
-#                 print('\tThe min number of samples recorded by an individual collector was: %d'
-#                       % min(collection_counts))
-#                 print('\tThe max number of samples recorded by an individual collector was: %d.'
-#                       % max(collection_counts))
-#                 print('\tThe mean number of samples recorded by an individual collector was: %d'
-#                       % np.mean(collection_counts))
-#                 print('\tThe median number of samples recorded by an individual collector was: %d'
-#                       % np.median(collection_counts))
-#                 # print('\tThe mode number of samples recorded by an individual collector was: %d'
-#                 #       % mode(list(coll_counts.values())))
-#                 ''' partition collectors into training or testing based on number of samples '''
-#                 # Sort the target_subset by collector and number of observations:
-#                 coll_counts = target_subset['dwc:recordedBy'].value_counts(dropna=True)
-#                 coll_counts = coll_counts[coll_counts.values != 0]
-#                 total_num_samples = target_subset.shape[0]
-#                 percent_test = 20
-#                 ideal_num_test_samples = ceil((percent_test * total_num_samples)/100)
-#                 ideal_num_train_samples = total_num_samples - ideal_num_test_samples
-#
-#                 # Get every possible permutation of the collectors and their samples (order matters):
-#                 train_test_perms = permutations(coll_counts.items(), r=coll_counts.shape[0])
-#                 # train_test_perms = [dict(zip(coll_counts, v)) for v in permutations(coll_counts.values(), r=2)]
-#                 for p, perm in enumerate(train_test_perms):
-#                     print('permutation: %s' % (perm, ))
-#                 #     ratio = coll_counts[perm[0]]/coll_counts[perm[1]]
-#                 #     pass
-#                 pass
-#                 # sorted_coll_counts = [(coll, coll_counts[coll]) for coll in sorted(coll_counts, key=coll_counts.get, reverse=)]
-#     pass
-#
-#
-#             # TODO: how to divide the collector subsets to maintain 80/20 ratio?
-#     # Collect statistics on the number of viable class labels:
-#     # TODO: Partition so that collector is isolated and target labels equally represented in both train and test splits.
-#     # TODO: Actually move the data on the hard drive to the appropriate folders.
-#     # TODO: Update the columns of the respective dataframe to the new sample locations
-#     # TODO: Update the global metadata dataframe if necessary.
-#     # TODO: Return df_meta_train, df_meta_test, df_meta_val.
-#     return NotImplementedError
-
-
 def update_metadata_with_file_paths(df_meta):
     """
     update_metadata_with_file_paths: Updates the global metadata dataframe by appending a column with the file path of
@@ -167,6 +64,8 @@ def update_metadata_with_file_paths(df_meta):
     :return df_meta: The global metadata dataframe augmented with a file_path column which holds the physical location
         on the hard drive of each sample.
     """
+    print('Updating the metadata with file paths for every sample. This code is sequential and will take a while.')
+    print('If you wish to parallelize this code keep in mind updating the source dataframe needs to be thread safe.')
     # Add a new column of None to df_meta:
     df_meta = df_meta.assign(file_path=pd.Series([None for i in range(df_meta.shape[0])]).values)
     root_folder = args.STORE + '\\images\\'
@@ -379,16 +278,177 @@ def get_image_channel_means_and_std_deviations(df_train, df_test):
     return train_img_pop_means, test_img_pop_means, train_img_pop_std_devs, test_img_pop_std_devs
 
 
-def get_data_loaders(df_train, df_test):
+def _pil_loader(path):
+    """
+    pil_loader: PIL image loader.
+    :source url: https://github.com/pytorch/vision/blob/fe973ceed96da733ec0ae61c525b2f886ccfba21/torchvision/datasets/folder.py#L157
+    :param path:
+    :return:
+    """
+    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+    with open(path, 'rb') as f:
+        img = Image.open(f)
+        return img.convert('RGB')
+
+
+def _default_loader(path):
+    """
+    default_loader: Default image loader for image files.
+    :source url: https://github.com/pytorch/vision/blob/fe973ceed96da733ec0ae61c525b2f886ccfba21/torchvision/datasets/folder.py#L173
+    :param path:
+    :return:
+    """
+    from torchvision import get_image_backend
+    if get_image_backend() == 'accimage':
+        return NotImplementedError
+    else:
+        return _pil_loader(path)
+
+
+def _has_file_allowed_extension(filename, extensions):
+    """Checks if a file is an allowed extension.
+    Args:
+        filename (string): path to a file
+        extensions (iterable of strings): extensions to consider (lowercase)
+    Returns:
+        bool: True if the filename ends with one of given extensions
+    """
+    filename_lower = filename.lower()
+    return any(filename_lower.endswith(ext) for ext in extensions)
+
+
+def _is_image_file(filename):
+    """Checks if a file is an allowed image extension.
+    Args:
+        filename (string): path to a file
+    Returns:
+        bool: True if the filename ends with a known image extension
+    """
+    return _has_file_allowed_extension(filename, IMG_EXTENSIONS)
+
+
+def _make_dataset(dir, class_to_idx, extensions):
+    images = []
+    dir = os.path.expanduser(dir)
+    for target in sorted(class_to_idx.keys()):
+        d = os.path.join(dir, target)
+        if not os.path.isdir(d):
+            continue
+
+        for root, _, fnames in sorted(os.walk(d)):
+            for fname in sorted(fnames):
+                if _has_file_allowed_extension(fname, extensions):
+                    path = os.path.join(root, fname)
+                    item = (path, class_to_idx[target])
+                    images.append(item)
+
+    return images
+
+
+class HerbariumDataset(pt.utils.data.Dataset):
+    """
+    HerbariumDataset: A custom Dataset wrapper that performs lazy file loading reducing GPU memory footprint.
+    Attributes:
+        * classes (list): List of the class names.
+        * class_to_idx (dict): Dict with items (class_name, class_index).
+        * samples (list): List of (sample path, class_index) tuples
+        * targets (list): The class_index value for each image in the dataset.
+    see:
+        * https://discuss.pytorch.org/t/loading-huge-data-functionality/346/3?u=campellcl
+        * https://pytorch.org/docs/stable/_modules/torch/utils/data/dataset.html
+    """
+
+    def __init__(self, data_dir, transform, extensions, loader=_default_loader):
+        """
+        __init__:
+        :source url: https://github.com/pytorch/vision/blob/fe973ceed96da733ec0ae61c525b2f886ccfba21/torchvision/datasets/folder.py#L82
+        :param data_dir:
+        :param transform:
+        :param loader:
+        """
+        if not os.path.isdir(data_dir):
+            raise NotADirectoryError
+        else:
+            self.data_dir = data_dir
+            self.transform = transform
+            self.classes, class_to_idx = self._find_classes(data_dir)
+            self.samples = _make_dataset(data_dir, class_to_idx, extensions)
+            self.data_files = self.get_data_files()
+            # sorted(self.data_files)
+            self.loader = loader
+
+    def _find_classes(self, dir):
+        """
+        Finds the class folders in a dataset.
+        Args:
+            dir (string): Root directory path.
+        Returns:
+            tuple: (classes, class_to_idx) where classes are relative to (dir), and class_to_idx is a dictionary.
+        Ensures:
+            No class is a subdirectory of another.
+        """
+        if sys.version_info >= (3, 5):
+            # Faster and available in Python 3.5 and above
+            classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+        else:
+            classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+        classes.sort()
+        class_to_idx = {classes[i]: i for i in range(len(classes))}
+        return classes, class_to_idx
+
+    def get_data_files(self):
+        data_files = []
+        for item in self.classes:
+            if os.path.isdir(os.path.join(self.data_dir, item)):
+                the_folder_path = os.path.join(self.data_dir, item)
+                for the_file in os.listdir(the_folder_path):
+                    data_files.append(os.path.join(the_folder_path, the_file))
+        return data_files
+
+    def __getitem__(self, idx):
+        """
+        __getitem__:
+        :source url: https://github.com/pytorch/vision/blob/fe973ceed96da733ec0ae61c525b2f886ccfba21/torchvision/datasets/folder.py#L123
+        :param idx:
+        :return tuple (sample, target): where target is class_index of the target class
+        """
+        path, target = self.samples[idx]
+        sample = self.loader(path=path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        return sample, target
+
+    def __len__(self):
+        return len(self.data_files)
+
+
+def get_data_loaders_and_properties(df_train, df_test):
     """
     get_data_loaders: Creates either two or three instances of torch.utils.data.DataLoader depending on the datasets
         present in the storage directory provided via command line argument 'args.STORE' at runtime. Instantiates and
         returns a DataLoader for the training dataset, test dataset, and validation dataset (if present).
-    :return data_loaders: A dictionary of torch.utils.DataLoader instances.
+    :returns data_loaders, data_props:
+        :return data_loaders: A dictionary of torch.utils.DataLoader instances.
+        :return data_props: A dictionary of properties relating to the data sets comprised of the following:
+            :return has_test_set: A boolean variable indicating if a test set folder is present (DataLoader context).
+            :return has_train_set: A boolean variable indicating if a training set folder is present (DataLoader context).
+            :return has_val_set: A boolean variable indicating if a validation set folder is present (DataLoader context).
+            :return class_names['train']: A list of the class names (folder names in training directory).
+            :return class_names['test']: A list of the class names (folder names in the testing directory).
+            :return num_classes['train']: The number of classes in the training dataset.
+            :return num_classes['test']: The number of classes in the testing dataset.
+            :return dataset_sizes['train']: The number of samples in the training dataset.
+            :return dataset_sizes['test']: The number of samples in the testing dataset.
     """
-    # Specified in the research paper:
+    ''' Specified in the Research Paper: '''
     img_pxl_load_size = 1024
-    receptive_field_pxl_size = 256
+    receptive_field_pxl_size = 299
+    # How many images the DataLoader will grab during one call to next(iter(data_loader)):
+    batch_sizes = {'train': 64, 'test': 64}
+    ''' Hyperparameters specified by me: '''
+    # Declare number of asynchronous threads per data loader (I chose number of CPU cores):
+    num_workers = 6
+    shuffle = True
     '''
     Training Data and Validation Data Input Pipeline:
         Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
@@ -396,66 +456,340 @@ def get_data_loaders(df_train, df_test):
     # train_pop_means, test_pop_means, train_pop_std_devs, test_pop_std_devs = \
     #     get_image_channel_means_and_std_deviations(df_train=df_train, df_test=df_test)
     # print('train_pop_mean shape: %s' % np.array(train_pop_means).shape)
-    train_img_pop_means = [0.74535418, 0.70882273, 0.61583241]
-    train_img_pop_std_devs = [0.04480927, 0.04685673, 0.05492202]
+    # train_img_pop_means = [0.74535418, 0.70882273, 0.61583241]
+    # train_img_pop_std_devs = [0.04480927, 0.04685673, 0.05492202]
+    # See: https://pytorch.org/docs/stable/torchvision/models.html
+    train_img_pop_means_imgnet = [0.485, 0.456, 0.406]
+    train_img_pop_std_devs_imgnet = [0.229, 0.224, 0.225]
     data_transforms = {
         'train': torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.ToPILImage(),
             torchvision.transforms.Resize(img_pxl_load_size),
             torchvision.transforms.CenterCrop(receptive_field_pxl_size),
-            torchvision.transforms.Normalize(train_img_pop_means, train_img_pop_std_devs)
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(train_img_pop_means_imgnet, train_img_pop_std_devs_imgnet)
         ]),
         'test': torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.ToPILImage(),
             torchvision.transforms.Resize(img_pxl_load_size),
             torchvision.transforms.CenterCrop(receptive_field_pxl_size),
-            torchvision.transforms.Normalize(train_img_pop_means, train_img_pop_std_devs)
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(train_img_pop_means_imgnet, train_img_pop_std_devs_imgnet)
         ])
     }
-    # Training set image folder:
-    train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train',
-                                                        transform=data_transforms['train'])
-    test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test',
-                                                       transform=data_transforms['test'])
-    # Declare number of asynchronous threads per data loader (I chose number of CPU cores):
-    num_workers = 6
-    shuffle = True
-    # How many images the DataLoader will grab during one call to next(iter(data_loader)):
-    # TODO: Check the other research paper for a tested mini-batch size during transfer learning.
-    batch_sizes = {'train': 6, 'test': 6}
     data_loaders = {}
-    # Instantiate the training dataset DataLoader:
-    train_loader = pt.utils.data.DataLoader(train_img_folder, batch_size=batch_sizes['train'], shuffle=shuffle,
+    data_props = {'class_names': {}, 'num_classes': {}, 'num_samples': {}}
+
+    # Training set image folder:
+    if os.path.isdir(args.STORE + '\\images\\train'):
+        data_props['has_train_set'] = True
+        train_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\train',
+                                                            transform=data_transforms['train'])
+        # train_img_dataset = HerbariumDataset(data_dir=args.STORE + '\\images\\train', transform=data_transforms['train'], extensions=IMG_EXTENSIONS)
+        # Classes present in the training image set:
+        data_props['class_names']['train'] = train_img_folder.classes
+        # Number of classes present in the training image set:
+        data_props['num_classes']['train'] = len(train_img_folder.classes)
+        # Number of samples present in the training image set:
+        data_props['num_samples']['train'] = len(train_img_folder)
+        # Instantiate the training dataset DataLoader:
+        train_loader = pt.utils.data.DataLoader(train_img_folder, batch_size=batch_sizes['train'], shuffle=shuffle,
                                             num_workers=num_workers)
-    data_loaders['train'] = train_loader
-    if args.verbose:
-        print('Training data loader instantiated with:'
-              '\n\tshuffle data: %s'
-              '\n\tnumber of workers (async threads): %d'
-              '\n\tbatch size (during iteration):%d'
-              % (shuffle, num_workers, batch_sizes['train']))
-    # Instantiate the testing dataset DataLoader:
-    test_loader = pt.utils.data.DataLoader(test_img_folder, batch_size=batch_sizes['test'], shuffle=shuffle,
-                                           num_workers=num_workers)
-    data_loaders['test'] = test_loader
-    if args.verbose:
-        print('Testing data loader instantiated with:'
+        data_loaders['train'] = train_loader
+        if args.verbose:
+            print('Training data loader instantiated with:'
                   '\n\tshuffle data: %s'
                   '\n\tnumber of workers (async threads): %d'
                   '\n\tbatch size (during iteration):%d'
-                  % (shuffle, num_workers, batch_sizes['test']))
-    return data_loaders
+                  % (shuffle, num_workers, batch_sizes['train']))
+    else:
+        data_props['has_train_set'] = False
+
+    # Testing set image folder:
+    if os.path.isdir(args.STORE + '\\images\\test'):
+        data_props['has_test_set'] = True
+        test_img_folder = torchvision.datasets.ImageFolder(args.STORE + '\\images\\test',
+                                                           transform=data_transforms['test'])
+        # test_img_dataset = HerbariumDataset(data_dir=args.STORE + '\\images\\test', transform=data_transforms['test'], extensions=IMG_EXTENSIONS)
+        # Classes present in the testing image set:
+        data_props['class_names']['test'] = test_img_folder.classes
+        # Number of classes present in the testing image set:
+        data_props['num_classes']['test'] = len(test_img_folder.classes)
+        # Number of samples present in the testing image set:
+        data_props['num_samples']['test'] = len(test_img_folder)
+        # Instantiate the testing dataset DataLoader:
+        test_loader = pt.utils.data.DataLoader(test_img_folder, batch_size=batch_sizes['test'], shuffle=shuffle,
+                                               num_workers=num_workers)
+        data_loaders['test'] = test_loader
+        if args.verbose:
+            print('Testing data loader instantiated with:'
+                      '\n\tshuffle data: %s'
+                      '\n\tnumber of workers (async threads): %d'
+                      '\n\tbatch size (during iteration):%d'
+                      % (shuffle, num_workers, batch_sizes['test']))
+    else:
+        data_props['has_test_set'] = False
+    return data_loaders, data_props
+
+
+def imshow_tensor(input, title=None):
+    """
+    imshow_tensor: Matplotlib imshow function for PyTorch Tensor Objects.
+    :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
+    :param input: The input image as a Tensor.
+    :param title: The title for the image.
+    :return:
+    """
+    # Note: not sure what the point of this transposition is:
+    input = input.numpy().transpose((1, 2, 0))
+    # Normalize the input Tensor:
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    input = std * input + mean
+    # Restrict to [0, 1] interval:
+    input = np.clip(input, a_min=0, a_max=1)
+    fig = plt.figure()
+    has_title = title is not None
+    # fig.add_suplot(Rows,Cols,Pos)
+    # Below code does not work because we are dealing with a tensor object.
+    # for position in range(num_image):
+    #     sub_plt = fig.add_subplot(1, num_image, position+1)
+    #     if has_title:
+    #         sub_plt.set_title(title[position])
+    #         plt.imshow(input)
+    # fig.show()
+    # a = fig.add_subplot(1, num_image, 0)
+    # if has_title:
+    #     a.set_title(title[0])
+    # b = fig.add_subplot(1, num_image, 1)
+    # if has_title:
+    #     b.set_title(title[1])
+    plt.imshow(input)
+    if title is not None:
+        plt.title(title)
+    # plt.pause(0.001)    # pause a second so that plots are updated?
+    # plt.figure(num='Training Data and Ground Truth Labels')
+    plt.show()
+
+
+def visualize_model(data_loaders, class_names, model, num_images=6):
+    """
+    visualize_model: Generic function to display the models predictions for a few images.
+    :source URL: http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
+    :param model:
+    :param num_images:
+    :return:
+    """
+    train_class_names = class_names['train']
+    was_training = model.training
+    model.train(False)
+    model.eval()
+    images_so_far = 0
+    fig = plt.figure()
+    for i, data in enumerate(data_loaders['train']):
+        inputs, labels = data
+        if use_gpu:
+            inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda())
+            outputs = model(inputs)
+        else:
+            inputs, labels = Variable(inputs), Variable(labels)
+            outputs = model(inputs)
+
+        _, preds = pt.max(outputs.data, 1)
+
+        for j in range(inputs.size()[0]):
+            images_so_far += 1
+            ax = plt.subplot(num_images//2, 2, images_so_far)
+            ax.axis('off')
+            ax.set_title('predicted: {}'.format(train_class_names[preds[j]]))
+            imshow_tensor(inputs.cpu().data[j])
+
+            if images_so_far == num_images:
+                model.train(mode=was_training)
+                return
+    model.train(mode=was_training)
+
+
+def get_accuracy(model, data_loaders):
+    """
+    get_accuracy: Computes the overall accuracy of the provided pre-trained model. In this case the accuracy is the
+        number of times the network is correct in its prediction for all the test samples.
+    :param model: A classification model that has already been trained (or pre-trained).
+    :param data_loaders: The torch.utils.data.DataLoader instances which provide access to the training, testing, and
+        validation data sets.
+    :return accuracy: The overall accuracy of the provided model on the testing data set read by the provided DataLoader.
+    """
+    if 'test' in data_loaders:
+        data_loader = data_loaders['test']
+    elif 'val' in data_loaders:
+        data_loader = data_loaders['val']
+    else:
+        print('Error: No test or validation set provided. Can\'t compute the accuracy of the provided model.')
+        return NotImplementedError
+    # If the model wasn't finished training and the accuracy is being computed on the fly we need to know:
+    original_model_state_is_training = model.training
+    # If the model is currently in training mode in order to evaluate we need to switch this mode off:
+    if model.training:
+        model.train(False)
+    correct = 0
+    total = 0
+    for i, data in enumerate(data_loader):
+        images, labels = data
+        if use_gpu:
+            outputs = model(Variable(images.cuda(), volatile=True))
+        else:
+            outputs = model(Variable(images), volatile=True)
+        _, predicted = pt.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels.cuda()).sum()
+        print('Current Accuracy (Batch %d): %.2f Percent' % (i, (100 * correct / total)))
+    # Now that accuracy is computed if the model was originally in training mode, restore it to training mode:
+    if original_model_state_is_training:
+        model.train(True)
+    return 100 * correct / total
+
+
+def save_checkpoint(state, is_best, file_path='../../data/PTCheckpoints/checkpoint.pth.tar'):
+    """
+    save_checkpoint: Saves a checkpoint representing the model's process during training, which can be loaded resuming
+        the training process at a later time.
+    :param state: A dictionary that contains state information crucial to resuming the training process.
+        state['epoch']: The current epoch during training.
+        state['arch']: The architecture of the model (inception_v3, resnet18, etc...).
+        state['state_dict]: A deepcopy of the model's state dictionary (model.state_dict()). For more information see:
+            https://pytorch.org/docs/stable/nn.html#torch.nn.Module.state_dict
+        state['best_acc']: The best top-1-accuracy at this point in the model's training.
+        state['optimizer']: A deep copy of the optimizer's state dictionary.
+    :param is_best: A boolean flag indicating if this particular checkpoint is the best performing in the model's
+        history.
+    :param file_path: The path to which the saved checkpoint is to be written.
+    :return:
+    """
+    pt.save(state, file_path)
+    if is_best:
+        shutil.copyfile(file_path, 'model_best.pth.tar')
+
+
+def train_model(data_loaders, model, criterion, optimizer, scheduler, checkpoint_write_path, num_epochs=25):
+    """
+    train_model: TODO: method header
+    :param data_loaders:
+    :param model:
+    :param criterion:
+    :param optimizer:
+    :param scheduler:
+    :param num_epochs:
+    :return:
+    """
+    since = time.time()
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
+    losses = []
+    accuracies = []
+
+    for epoch in range(num_epochs):
+        print('Epoch {%d}/{%d}' % (epoch, num_epochs - 1))
+        print('-' * 10)
+
+        # Each epoch has a training and validation phase
+        for phase in ['train']:
+            num_samples = data_props['num_samples'][phase]
+            if phase == 'train':
+                # Modify learning rate according to schedule:
+                scheduler.step()
+                # Set the model to training mode (see: http://pytorch.org/docs/master/nn.html#torch.nn.Module.train):
+                model.train()
+            elif phase == 'test':
+                '''
+                WARNING: DEBUG PURPOSES ONLY. 
+                The model should never be exposed to test data during training.
+                '''
+                # Set the model to eval mode (see: http://pytorch.org/docs/master/torchvision/models.html):
+                model.eval()
+            elif phase == 'val':
+                # Here it is appropriate to use part of the training set to modify hyperparameters.
+                pass
+
+            running_loss = 0.0
+            running_num_correct = 0
+
+            print('Number of samples for phase [%s]: %d' % (phase, num_samples))
+            # Iterate over the data in minibatches:
+            for i, data in enumerate(data_loaders[phase]):
+                if i < 6:
+                    # print('\t\tMaximum memory allocated by the GPU (GB) %.2f' % (float(pt.cuda.max_memory_allocated())/1000000000))
+                    # print('\t\tMaximum memory cached by the caching allocator (GB) %.2f' % (float(pt.cuda.max_memory_cached())/1000000000))
+                    # print('\t\tGPU memory allocated (MB) %.2f' % (float(pt.cuda.memory_allocated())/1000000))
+                    # print('\t\tGPU memory allocated (GB) %.2f' % (float(pt.cuda.memory_allocated())/1000000000))
+                    # print('\t\tGPU memory cached (GB) %.2f' % (float(pt.cuda.memory_cached())/1000000000))
+                    inputs, labels = data
+                    print('\tmini-batch: [%d/%d]' % (i, (data_props['num_samples'][phase]/data_loaders[phase].batch_size)))
+                    if use_gpu:
+                        inputs = Variable(inputs.cuda(), volatile=False)
+                        labels = Variable(labels.cuda(), volatile=False)
+                    else:
+                        inputs = Variable(inputs)
+                        labels = Variable(labels)
+
+                    # Zero paramater gradients:
+                    optimizer.zero_grad()
+
+                    # Compute Forward pass:
+                    outputs = model(inputs)
+                    _, preds = pt.max(outputs[0].data, 1)
+                    loss = criterion(outputs[0], labels)
+
+                    # If in the training phase then backprop and optimize by taking a step in the dir of gradient:
+                    if phase == 'train':
+                        # Backprop:
+                        loss.backward()
+                        # Gradient step:
+                        optimizer.step()
+
+                    # Update loss and accuracy statistics:
+                    running_loss += loss.item() * inputs.size(0)
+                    running_num_correct += pt.sum(preds == labels.data).item()
+                else:
+                    break
+
+            epoch_loss = running_loss / data_props['num_samples'][phase]
+            losses.append(epoch_loss)
+            epoch_acc = running_num_correct / data_props['num_samples'][phase]
+            accuracies.append(epoch_acc)
+
+            print('[{}]:\t Epoch Loss: {:.4f} Epoch Acc: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc))
+
+            # deep copy the model's weights if this epoch was the best performing:
+            if phase == 'train' and epoch_acc >= best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
+                print('Checkpoint: This epoch had the best accuracy. Saving the model weights.')
+                # create checkpoint:
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'arch': args.arch,
+                    'state_dict': copy.deepcopy(model.state_dict()),
+                    'best_acc': best_acc,
+                    'optimizer': optimizer.state_dict()
+                }, is_best=True, file_path=checkpoint_write_path)
+        print('Accuracy (Top-1 Error or Precision at 1) of the network on %d %s images: %.2f%%\n'
+              % (data_props['num_samples'][phase], phase, epoch_acc * 100))
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(
+        time_elapsed // 60, time_elapsed % 60))
+    print('Best val Acc: {:4f}'.format(best_acc))
+    # Load best model weights:
+    model.load_state_dict(best_model_wts)
+    return model
 
 
 def main():
     # Declare globals:
-    global args, use_gpu, metadata
+    global args, use_gpu, data_props
     args = parser.parse_args()
     use_gpu = pt.cuda.is_available()
     if args.verbose:
         print('CUDA is enabled?: %s' % use_gpu)
+
     # Check if the data has already been partitioned into train, test, and validation datasets:
     if not os.path.isdir(args.STORE + '\\images\\train'):
         # Partition the metadata and move the files if necessary.
@@ -468,76 +802,73 @@ def main():
     else:
         print('Could not load either df_train or df_test with data. Exiting...')
         exit(-1)
-    data_loaders = get_data_loaders(df_train, df_test)
-    print('Instantiated data_loaders.')
-    # Get classifier training setup metadata:
-    # metadata = get_metadata(df_meta)
+    data_loaders, data_props = get_data_loaders_and_properties(df_train, df_test)
+    print('Instantiated Lazy DataLoaders.')
+    pretrained_model = True
+    model = models.__dict__[args.arch](pretrained=pretrained_model)
+    if use_gpu:
+        model = model.cuda()
+    print('Loaded %s source model. CUDA suppport?: %s. Pre-trained?: %s.' % (args.arch, use_gpu, pretrained_model))
+    # Freeze the entire network except for the final two layers (as detailed in Going Deeper in Automated Id.)
+    # Parameters of newly constructed modules have requires_grad=True by default:
+    for param in model.parameters():
+        param.requires_grad = False
+    num_ftrs = model.fc.in_features
+    # Use training classes because we can't predict what the network hasn't seen:
+    model.fc = nn.Linear(in_features=num_ftrs, out_features=data_props['num_classes']['train'], bias=True)
+    if use_gpu:
+        model = model.cuda()
 
+    # Define loss function (criterion):
+    if use_gpu:
+        criterion = nn.CrossEntropyLoss().cuda()
+    else:
+        criterion = nn.CrossEntropyLoss()
 
-class Inception(nn.Module):
-    """
-    InceptionV1 (GoogLeNet) Inception Module implementation.
-    adapted from: https://github.com/kuangliu/pytorch-cifar/blob/master/models/googlenet.py
-    """
+    # Define optimizer (observe only params of final layer are being optimized):
+    optimizer = pt.optim.SGD(model.fc.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    def __init__(self, input_channels, n1x1, n3x3reduce, n3x3, n5x5reduce, n5x5):
-        """
-        __init__: Constructor for Modules of type Inception. Specifies the Inception Module architecture as specified
-            in Figure 2(a) of the Going Deeper With Convolutions research paper.
-        """
-        super(Inception, self).__init__()
+    # Decay the learning rate by a factor of 0.1 every 7 epochs:
+    exp_lr_scheduler = pt.optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=7, gamma=0.1)
 
-        # 1x1 convolution branch:
-        self.b1 = nn.Sequential(
-            nn.Conv2d(in_channels=input_channels, out_channels=n1x1, kernel_size=1, stride=1, padding=0),
-            # nn.BatchNorm2d(n1x1)
-            nn.ReLU(inplace=True)
-        )
+    # Check to see if the checkpoint flag is enabled:
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> Attempting to load checkpoint '{}'".format(args.resume))
+            checkpoint = pt.load(args.resume)
+            if checkpoint['arch'] != args.arch:
+                print("=> Invalid checkpoint found at '{}'".format(args.resume))
+                print('\tERROR: The designated checkpoint is for model %s. It is not for the '
+                      'desired architecture provided at runtime: %s.'
+                      % (checkpoint['arch'], args.arch))
+                new_checkpoint_path = args.resume.replace('model_best', "model_best_{}".format(args.arch))
+                print('\tNOTE: As a result, this model\'s progress will instead be saved as: %s' % new_checkpoint_path)
+                args.resume = new_checkpoint_path
+                print('==' * 15 + 'Begin Training' + '==' * 15)
+            else:
+                args.start_epoch = checkpoint['epoch']
+                best_acc = checkpoint['best_acc']
+                model.load_state_dict(checkpoint['state_dict'])
+                optimizer.load_state_dict(checkpoint['optimizer'])
+                print('=> loaded checkpoint {%s} (epoch {%d})' % (args.resume, checkpoint['epoch']))
+                print('==' * 15 + 'Begin Training' + '==' * 15)
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+            print("NOTE: Since the --resume flag was enabled checkpoints will be saved during execution.")
+            print('==' * 15 + 'Begin Training' + '==' * 15)
 
-        # 1x1 convolution -> 3x3 convolution branch
-        self.b2 = nn.Sequential(
-            nn.Conv2d(in_channels=input_channels, out_channels=n3x3reduce, kernel_size=1, stride=1, padding=0),
-            # nn.BatchNorm2d(n3x3reduce)
-            nn.ReLU(inplace=True),
-            # TODO: Should the padding really be one here, not seeing that in the paper.
-            nn.Conv2d(in_channels=n3x3reduce, out_channels=n3x3, kernel_size=3, stride=1, padding=1),
-            # nn.BatchNorm2d(n3x3),
-            nn.ReLU(inplace=True)
-        )
+    # Accuracy after a single backprop:
+    model = train_model(data_loaders=data_loaders, model=model, criterion=criterion, optimizer=optimizer,
+                        scheduler=exp_lr_scheduler, checkpoint_write_path=args.resume, num_epochs=1)
 
-        # 1x1 convolution -> 5x5 convolution branch
-        self.b3 = nn.Sequential(
-            nn.Conv2d(in_channels=input_channels, out_channels=n5x5reduce, kernel_size=1, stride=1, padding=0),
-            # nn.BatchNorm2d(n5x5reduce),
-            nn.ReLU(inplace=True),
-            # TODO: The kuangliu implementation has a kernel of 3 instead of five here.
-            nn.Conv2d(in_channels=n5x5reduce, out_channels=n5x5, kernel_size=5, stride=1, padding=0)
-        )
+    print('==' * 15 + 'Finished Training' + '==' * 15)
+    return
+    # Visualize model predictions:
+    # visualize_model(data_loaders=data_loaders, class_names=class_names['train'], model=model, num_images=6)
 
-    def forward(self, x):
-        y1 = self.b1(x)
-        y2 = self.b2(x)
-        y3 = self.b3(x)
-        y4 = self.b4(x)
-        return NotImplementedError
-
-
-
-
-class GoogleNetBatchNorm(nn.Module):
-    """
-    GoogleNet architecture modified with Batch Normalization from the research paper:
-    """
-
-    def __init__(self):
-        super(GoogleNetBatchNorm, self).__init__()
-        self.pre_layers = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=112, kernel_size=2, padding=3, stride=2),
-            # nn.BatchNorm2d(112),
-            nn.ReLU(True),
-            nn.Conv2d(in_channels=64, )
-        )
-
+    # Initial accuracy before training:
+    # top_1_err_before_training = get_accuracy(model, data_loaders)
+    # print('Overall Accuracy before training: %.2f' % top_1_err_before_training)
 
 
 if __name__ == '__main__':
