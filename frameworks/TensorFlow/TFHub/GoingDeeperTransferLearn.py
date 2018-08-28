@@ -6,7 +6,9 @@ import collections
 import os
 import re
 import hashlib
+import random
 import numpy as np
+from datetime import datetime
 
 CMD_ARG_FLAGS = None
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
@@ -14,6 +16,7 @@ MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 # if it contains any of these ops.
 FAKE_QUANT_OPS = ('FakeQuantWithMinMaxVars',
                   'FakeQuantWithMinMaxVarsPerChannel')
+CHECKPOINT_DIR = 'tmp/_retrain_checkpoint'
 
 
 def prepare_tensor_board_directories():
@@ -23,8 +26,14 @@ def prepare_tensor_board_directories():
         to write new TensorBoard summaries to the specified path.
     :return:
     """
-    # TODO: Method body.
-    return NotImplementedError
+    # Check to see if the file exists:
+    if tf.gfile.Exists(CMD_ARG_FLAGS.summaries_dir):
+        # Delete everything in the file recursively:
+        tf.gfile.DeleteRecursively(CMD_ARG_FLAGS.summaries_dir)
+    # Re-create (or create for the first time) the storage directory:
+    tf.gfile.MakeDirs(CMD_ARG_FLAGS.summaries_dir)
+    # TODO: Intermediate output directory setup.
+    return
 
 
 def create_image_lists(image_dir, training_image_dir=None, testing_image_dir=None, testing_percentage=80, validation_percentage=20):
@@ -184,29 +193,29 @@ def create_image_lists(image_dir, training_image_dir=None, testing_image_dir=Non
 
 
 def create_module_graph(module_spec):
-    """Creates a graph and loads Hub Module into it.
-
+    """
+    create_module_graph: Creates a tensorflow graph from the provided TFHub module.
     source: https://github.com/tensorflow/hub/blob/master/examples/image_retraining/retrain.py
-
-    Args:
-        module_spec: the hub.ModuleSpec for the image module being used.
-
-    Returns:
-        graph: the tf.Graph that was created.
-        bottleneck_tensor: the bottleneck values output by the module.
-        resized_input_tensor: the input images, resized as expected by the module.
-        wants_quantization: a boolean, whether the module has been instrumented
-          with fake quantization ops.
+    :param module_spec: the hub.ModuleSpec for the image module being used.
+    :returns:
+        :return graph: The tf.Graph that was created.
+        :return bottleneck_tensor: The bottleneck values output by the module.
+        :return resized_input_tensor: The input images, resized as expected by the module.
+        :return wants_quantization: A boolean value, whether the module has been instrumented with fake quantization
+            ops.
     """
     # Define the receptive field in accordance with the chosen architecture:
     height, width = hub.get_expected_image_size(module_spec)
+    # Create a new default graph:
     with tf.Graph().as_default() as graph:
         # Create a placeholder tensor for input to the model.
-        resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3])
+        resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='input-resized')
         # Declare the model in accordance with the chosen architecture:
         m = hub.Module(module_spec)
         # Create another place holder tensor to catch the output of the pre-activation layer:
         bottleneck_tensor = m(resized_input_tensor)
+        # Give a name to this tensor:
+        tf.identity(bottleneck_tensor, name='bottleneck-pre-activation')
         # This is a boolean flag indicating whether the module has been put through TensorFlow Light and optimized.
         wants_quantization = any(node.op in FAKE_QUANT_OPS
                                  for node in graph.as_graph_def().node)
@@ -228,27 +237,24 @@ def variable_summaries(var):
 
 def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, quantize_layer, is_training):
     """
-    add_final_retrain_ops: Adds a new softmax and fully-connected layer for training and eval.
+    add_final_retrain_ops: Adds a new softmax and fully-connected layer for training and model evaluation. In order to
+        use the TFHub model as a fixed feature extractor, we need to retrain the top fully connected layer of the graph
+        that we previously added in the 'create_module_graph' method. This function adds the right ops to the graph,
+        along with some variables to hold the weights, and then sets up all the gradients for the backward pass.
 
-    We need to retrain the top layer to identify our new classes, so this function
-    adds the right operations to the graph, along with some variables to hold the
-    weights, and then sets up all the gradients for the backward pass.
-
-    The set up for the softmax and fully-connected layers is based on:
-    https://www.tensorflow.org/tutorials/mnist/beginners/index.html
-
-    :source url: https://github.com/tensorflow/hub/blob/master/examples/image_retraining/retrain.py
-    :modified str: Chris Campell
-    :param class_count: Integer of how many categories of things we're trying to
-        recognize.
-    :param final_tensor_name: Name string for the new final node that produces results.
-    :param bottleneck_tensor: The output of the main CNN graph.
+        The set up for the softmax and fully-connected layers is based on:
+        https://www.tensorflow.org/tutorials/mnist/beginners/index.html
+    :source https://github.com/tensorflow/hub/blob/master/examples/image_retraining/retrain.py
+    :modified_by: Chris Campell
+    :param class_count: An Integer representing the number of new classes we are trying to distinguish between.
+    :param final_tensor_name: A name string for the final node that produces the fine-tuned results.
+    :param bottleneck_tensor: The output of the main CNN graph (the specified TFHub module).
     :param quantize_layer: Boolean, specifying whether the newly added layer should be
         instrumented for quantization with TF-Lite.
     :param is_training: Boolean, specifying whether the newly add layer is for training
         or eval.
     :returns : The tensors for the training and cross entropy results, and tensors for the
-    bottleneck input and ground truth input.
+        bottleneck input and ground truth input.
     """
     # The batch size
     batch_size, bottleneck_tensor_size = bottleneck_tensor.get_shape().as_list()
@@ -257,7 +263,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
 
     # Tensor declarations:
     with tf.name_scope('input'):
-        # Create a placeholder Tensor (assignment at runtime) of the same type as bottleneck_tensor:
+        # Create a placeholder Tensor of same type as bottleneck_tensor to cache output from TFHub module:
         bottleneck_input = tf.placeholder_with_default(
             bottleneck_tensor,
             shape=[batch_size, bottleneck_tensor_size],
@@ -293,6 +299,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
             logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
             tf.summary.histogram('pre_activations', logits)
 
+    # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
     final_tensor = tf.nn.softmax(logits=logits, name=final_tensor_name)
 
     # The tf.contrib.quantize functions rewrite the graph in place for
@@ -305,7 +312,8 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
         else:
             tf.contrib.quantize.create_eval_graph()
 
-    tf.summary.histogram('activiations', final_tensor)
+    # We will keep a histogram showing the distribution of activation functions.
+    tf.summary.histogram('activations', final_tensor)
 
     # If this is an eval graph, we don't need to add loss ops or an optimizer.
     if not is_training:
@@ -588,6 +596,73 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
     return evaluation_step, prediction
 
 
+def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
+                                  bottleneck_dir, image_dir, jpeg_data_tensor,
+                                  decoded_image_tensor, resized_input_tensor,
+                                  bottleneck_tensor, module_name):
+    """Retrieves bottleneck values for cached images.
+
+    If no distortions are being applied, this function can retrieve the cached
+    bottleneck values directly from disk for images. It picks a random set of
+    images from the specified category.
+
+    Args:
+      sess: Current TensorFlow Session.
+      image_lists: OrderedDict of training images for each label.
+      how_many: If positive, a random sample of this size will be chosen.
+      If negative, all bottlenecks will be retrieved.
+      category: Name string of which set to pull from - training, testing, or
+      validation.
+      bottleneck_dir: Folder string holding cached files of bottleneck values.
+      image_dir: Root folder string of the subfolders containing the training
+      images.
+      jpeg_data_tensor: The layer to feed jpeg image data into.
+      decoded_image_tensor: The output of decoding and resizing the image.
+      resized_input_tensor: The input node of the recognition graph.
+      bottleneck_tensor: The bottleneck output layer of the CNN graph.
+      module_name: The name of the image module being used.
+
+    Returns:
+      List of bottleneck arrays, their corresponding ground truths, and the
+      relevant filenames.
+    """
+    class_count = len(image_lists.keys())
+    bottlenecks = []
+    ground_truths = []
+    filenames = []
+    if how_many >= 0:
+        # Retrieve a random sample of bottlenecks.
+        for unused_i in range(how_many):
+
+            label_index = random.randrange(class_count)
+            label_name = list(image_lists.keys())[label_index]
+            image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
+            image_name = get_image_path(image_lists, label_name, image_index,
+                                        image_dir, category)
+            bottleneck = get_or_create_bottleneck(
+                sess, image_lists, label_name, image_index, image_dir, category,
+                bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+                resized_input_tensor, bottleneck_tensor, module_name)
+            bottlenecks.append(bottleneck)
+            ground_truths.append(label_index)
+            filenames.append(image_name)
+    else:
+        # Retrieve all bottlenecks.
+        for label_index, label_name in enumerate(image_lists.keys()):
+            for image_index, image_name in enumerate(
+                    image_lists[label_name][category]):
+                image_name = get_image_path(image_lists, label_name, image_index,
+                                            image_dir, category)
+                bottleneck = get_or_create_bottleneck(
+                    sess, image_lists, label_name, image_index, image_dir, category,
+                    bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+                    resized_input_tensor, bottleneck_tensor, module_name)
+                bottlenecks.append(bottleneck)
+                ground_truths.append(label_index)
+                filenames.append(image_name)
+    return bottlenecks, ground_truths, filenames
+
+
 def main(_):
     # Enable visible logging output:
     tf.logging.set_verbosity(tf.logging.INFO)
@@ -597,8 +672,7 @@ def main(_):
         tf.logging.error('The flag --image_dir must be set.')
         return -1
 
-    # TODO: Create directories for TensorBoard summaries:
-    # prepare_tensor_board_directories()
+    prepare_tensor_board_directories()
 
     # Create lists of all the images:
     image_lists = create_image_lists(
@@ -606,7 +680,7 @@ def main(_):
         training_image_dir=CMD_ARG_FLAGS.train_image_dir,
         testing_image_dir=CMD_ARG_FLAGS.test_image_dir
     )
-    # TODO: This needs some work...
+    # TODO: This needs some work. I need to ensure same number of train classes and test classes.
     class_count = len(image_lists.keys())
 
     # TODO: See if the command-line flags specify any distortions
@@ -616,11 +690,12 @@ def main(_):
 
     # Set up the pre-trained graph:
     module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
+
     graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
         create_module_graph(module_spec)
     )
 
-    # Add the new layer that we'll be training:
+    # Add the new layer that we'll be training to our new default graph:
     with graph.as_default():
         (train_step, cross_entropy, bottleneck_input,
          ground_truth_input, final_tensor) = add_final_retrain_ops(
@@ -659,6 +734,67 @@ def main(_):
 
         # Merge all summaries and write them out to the summaries_dir
         merged = tf.summary.merge_all()
+        # TODO: This might not work for other models unless the urls are formatted the array:
+        hyper_string = '%s,lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
+        train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
+        test_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/test/' + hyper_string)
+        # Create a train saver that is used to restore values into an eval graph:
+        train_saver = tf.train.Saver()
+
+        # run training for as many cycles as requested on the command line:
+        for i in range(CMD_ARG_FLAGS.num_epochs):
+            # Get a batch of input bottleneck values, either calculated fresh every
+            # time with distortions applied, or from the cache stored on disk.
+            (train_bottlenecks, train_ground_truth, _) = get_random_cached_bottlenecks(
+                sess, image_lists, CMD_ARG_FLAGS.train_batch_size, 'training',
+                CMD_ARG_FLAGS.bottleneck_dir, CMD_ARG_FLAGS.image_dir, jpeg_data_tensor,
+                decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
+                CMD_ARG_FLAGS.tfhub_module)
+
+            # Feed the bottlenecks and ground truth into the graph, and run a training
+            # step. Capture training summaries for TensorBoard with the `merged` op.
+            train_summary, _ = sess.run([merged, train_step],
+                                        feed_dict={bottleneck_input: train_bottlenecks, ground_truth_input: train_ground_truth})
+            train_writer.add_summary(train_summary, i)
+
+            # Every so often, print out how well the graph is training.
+            is_last_step = (i + 1 == CMD_ARG_FLAGS.num_epochs)
+            if (i % CMD_ARG_FLAGS.eval_step_interval) == 0 or is_last_step:
+                train_accuracy, cross_entropy_value = sess.run(
+                    [evaluation_step, cross_entropy],
+                    feed_dict={bottleneck_input: train_bottlenecks,
+                               ground_truth_input: train_ground_truth}
+                )
+                tf.logging.info('%s: Step %d: Train accuracy = %.1f%%' % (datetime.now(), i, train_accuracy * 100))
+                tf.logging.info('%s: Step %d: Cross entropy = %f' % (datetime.now(), i, cross_entropy_value))
+                # TODO: Make this use an eval graph, to avoid quantization
+                # moving averages being updated by the validation set, though in
+                # practice this makes a negligable difference.
+                # TODO: Add validation code for early stopping, and to avoid information leakage.
+
+            # Store intermediate results
+            intermediate_frequency = CMD_ARG_FLAGS.intermediate_store_frequency
+
+            if (intermediate_frequency > 0 and (i % intermediate_frequency == 0) and i > 0):
+                # requested print frequency is greater than zero. This isn't the first epoch, it is time to print:
+                # If we do an intermediate save, we must save a checkpoint of the train graph to restore onto the eval
+                #   graph.
+                train_saver.save(sess, CHECKPOINT_DIR)
+                intermediate_file_name = (CMD_ARG_FLAGS.intermediate_output_graphs_dir +
+                                          'intermediate_' + str(i) + '.pb')
+                tf.logging.info('Save intermediate result to : ' +
+                                intermediate_file_name)
+                # TODO: Save the graph to a file:
+                # save_graph_to_file(graph, intermediate_file_name, module_spec,
+                #                    class_count)
+
+        # After training is complete, force one last save of the train checkpoint.
+        train_saver.save(sess, CHECKPOINT_DIR)
+
+        # TODO: Run final test evaluation
+
+        # TODO: Write out trained graph and labels with weights stored as constants.
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning Demo on Going Deeper Herbaria 1K Dataset')
@@ -679,6 +815,12 @@ if __name__ == '__main__':
         type=str,
         default='',
         help='Path to folders of labeled testing images.'
+    )
+    parser.add_argument(
+        '--train_batch_size',
+        type=int,
+        default='128',
+        help='The number of images per mini-batch during training.'
     )
     parser.add_argument(
         '--tfhub_module',
@@ -710,6 +852,30 @@ if __name__ == '__main__':
         type=str,
         default='/tmp/bottleneck',
         help='Path to cache bottleneck layer values as files.'
+    )
+    parser.add_argument(
+        '--num_epochs',
+        type=float,
+        default=100,
+        help='Number of training epochs (passes over the entire training dataset).'
+    )
+    parser.add_argument(
+        '--summaries_dir',
+        type=str,
+        default='tmp/summaries',
+        help='Directory to which TensorBoard summaries will be saved.'
+    )
+    parser.add_argument(
+        '--eval_step_interval',
+        type=int,
+        default='10',
+        help='Specifies the number of epochs during training before performing an evaluation step.'
+    )
+    parser.add_argument(
+        '--intermediate_store_frequency',
+        type=int,
+        default=0,
+        help='How many epochs to run before storing an intermediate checkpoint of the graph. If 0, then will not store.'
     )
     # Parse command line args and identify unknown flags:
     CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
