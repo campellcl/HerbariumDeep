@@ -6,7 +6,9 @@ from torchvision import models
 import pandas as pd
 import os
 from torch.autograd import Variable
-
+import time
+import copy
+import shutil
 
 # Hyper Parameters
 model_names = sorted(name for name in models.__dict__
@@ -25,8 +27,8 @@ parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
 #                     help='momentum')
 # parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
 #                     metavar='W', help='weight decay (default: 1e-4)')
-# parser.add_argument('--resume', default='', type=str, metavar='PATH',
-#                     help='path to latest checkpoint (default: none)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
 
 
 def get_data_loaders_and_properties():
@@ -51,7 +53,7 @@ def get_data_loaders_and_properties():
     img_pxl_load_size = 1024
     receptive_field_pxl_size = 299
     # How many images the DataLoader will grab during one call to next(iter(data_loader)):
-    batch_sizes = {'train': 64, 'test': 64}
+    batch_sizes = {'train': 128, 'test': 128}
     ''' Hyperparameters specified by me: '''
     # Declare number of asynchronous threads per data loader (I chose number of CPU cores):
     num_workers = 6
@@ -140,6 +142,27 @@ def get_data_loaders_and_properties():
     return data_loaders, data_props
 
 
+def save_checkpoint(state, is_best, file_path='../../data/PTCheckpoints/checkpoint.pth.tar'):
+    """
+    save_checkpoint: Saves a checkpoint representing the model's process during training, which can be loaded resuming
+        the training process at a later time.
+    :param state: A dictionary that contains state information crucial to resuming the training process.
+        state['epoch']: The current epoch during training.
+        state['arch']: The architecture of the model (inception_v3, resnet18, etc...).
+        state['state_dict]: A deepcopy of the model's state dictionary (model.state_dict()). For more information see:
+            https://pytorch.org/docs/stable/nn.html#torch.nn.Module.state_dict
+        state['best_acc']: The best top-1-accuracy at this point in the model's training.
+        state['optimizer']: A deep copy of the optimizer's state dictionary.
+    :param is_best: A boolean flag indicating if this particular checkpoint is the best performing in the model's
+        history.
+    :param file_path: The path to which the saved checkpoint is to be written.
+    :return:
+    """
+    torch.save(state, file_path)
+    if is_best:
+        shutil.copyfile(file_path, 'model_best.pth.tar')
+
+
 # Data Sets:
 args = parser.parse_args()
 use_gpu = torch.cuda.is_available()
@@ -177,25 +200,64 @@ if __name__ == '__main__':
 
     # Train the model:
     num_epochs = 1
+
+    since = time.time()
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
+    losses = []
+    accuracies = []
+
     for epoch in range(num_epochs):
+        running_loss = 0.0
+        running_num_correct = 0
+
         for i, (images, labels) in enumerate(data_loaders['train']):
-            if i < 6:
-                images = Variable(images).cuda(async=True)
-                labels = Variable(labels).cuda(async=True)
+            images = Variable(images).cuda(async=True)
+            labels = Variable(labels).cuda(async=True)
 
-                # Forward + Backward + Optimize
-                optimizer.zero_grad()
-                outputs = model(images)
-                loss = criterion(outputs[0], labels)
-                loss.backward()
-                optimizer.step()
+            # Forward + Backward + Optimize
+            optimizer.zero_grad()
+            outputs = model(images)
+            _, preds = torch.max(outputs[0].data, 1)
+            loss = criterion(outputs[0], labels)
 
-                if (i+1) % 2 == 0:
-                    print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f'
-                          % (epoch+1, num_epochs, i+1, data_props['num_samples']['train']//data_loaders['train'].batch_size, loss.data[0]))
-            else:
-                break
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item() * images.size(0)
+            running_num_correct += torch.sum(preds == labels.data).item()
+
+            if (i+1) % 2 == 0:
+                print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f'
+                      % (epoch+1, num_epochs, i+1, data_props['num_samples']['train']//data_loaders['train'].batch_size, loss.data[0]))
+
+        epoch_loss = running_loss / data_props['num_samples']['train']
+        losses.append(epoch_loss)
+        epoch_acc = running_num_correct / data_props['num_samples']['train']
+        accuracies.append(epoch_acc)
+
+        print('[{}]:\t Epoch Loss: {:.4f} Epoch Acc: {:.4f}'.format(
+                'train', epoch_loss, epoch_acc))
+
+        # deep copy the model's weights if this epoch was the best performing:
+        if epoch_acc >= best_acc:
+            best_acc = epoch_acc
+            best_model_wts = copy.deepcopy(model.state_dict())
+            print('Checkpoint: This epoch had the best accuracy. Saving the model weights.')
+            # create checkpoint:
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': copy.deepcopy(model.state_dict()),
+                'best_acc': best_acc,
+                'optimizer': optimizer.state_dict()
+            }, is_best=True, file_path='../../data/PTCheckpoints/model_best.pth.tar')
+
     print('==' * 15 + 'Finished Training' + '==' * 15)
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(
+        time_elapsed // 60, time_elapsed % 60))
+    print('Best val Acc: {:4f}'.format(best_acc))
     # Test the model after training:
     # model.eval()
     # correct = 0
@@ -206,6 +268,6 @@ if __name__ == '__main__':
     #     _, predicted = torch.max(outputs.data, 1)
     #     total += labels.size(0)
     #     correct += (predicted.cpu() == labels).sum()
-    #
+
     # print('Test Accuracy of the model on the 10000 test images: %d %%' % (100 * correct / total))
 
