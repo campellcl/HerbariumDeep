@@ -520,7 +520,8 @@ def get_data_loaders():
     # data_transforms = get_data_transformations(args.dir)
     data_dir = '../../data/ImageNet/SubSets/hymenoptera_data/'
     input_load_size = 256
-    receptive_field_size = 224
+    # For model inception_v3 the receptive field size is actually 299
+    receptive_field_size = 244
     '''
     Training Data and Validation Data Input Pipeline:
         Data Augmentation and Normalization as described here: http://pytorch.org/docs/master/torchvision/models.html
@@ -640,6 +641,7 @@ def main():
         for param in model.parameters():
             param.requires_grad = False
         num_ftrs = model.fc.in_features
+        # TODO: The '2' here corresponds to out_features (the size of each sample). I think this is incorrect.
         model.fc = nn.Linear(num_ftrs, 2)
         if use_gpu:
             model = model.cuda()
