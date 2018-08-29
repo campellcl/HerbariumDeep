@@ -207,18 +207,19 @@ def create_module_graph(module_spec):
     # Define the receptive field in accordance with the chosen architecture:
     height, width = hub.get_expected_image_size(module_spec)
     # Create a new default graph:
-    with tf.Graph().as_default() as graph:
-        # Create a placeholder tensor for input to the model.
-        resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='input-resized')
-        # Declare the model in accordance with the chosen architecture:
-        m = hub.Module(module_spec)
-        # Create another place holder tensor to catch the output of the pre-activation layer:
-        bottleneck_tensor = m(resized_input_tensor)
-        # Give a name to this tensor:
-        tf.identity(bottleneck_tensor, name='bottleneck-pre-activation')
-        # This is a boolean flag indicating whether the module has been put through TensorFlow Light and optimized.
-        wants_quantization = any(node.op in FAKE_QUANT_OPS
-                                 for node in graph.as_graph_def().node)
+    with tf.name_scope('source_model') as scope:
+        with tf.Graph().as_default() as graph:
+            # Create a placeholder tensor for input to the model.
+            resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
+            # Declare the model in accordance with the chosen architecture:
+            m = hub.Module(module_spec, name='pre-trained_model')
+            # Create another place holder tensor to catch the output of the pre-activation layer:
+            bottleneck_tensor = m(resized_input_tensor)
+            # Give a name to this tensor:
+            tf.identity(bottleneck_tensor, name='bottleneck-pre-activation')
+            # This is a boolean flag indicating whether the module has been put through TensorFlow Light and optimized.
+            wants_quantization = any(node.op in FAKE_QUANT_OPS
+                                     for node in graph.as_graph_def().node)
     return graph, bottleneck_tensor, resized_input_tensor, wants_quantization
 
 
@@ -672,6 +673,7 @@ def main(_):
         tf.logging.error('The flag --image_dir must be set.')
         return -1
 
+    # Delete any TensorBoard summaries left over from previous runs:
     prepare_tensor_board_directories()
 
     # Create lists of all the images:
