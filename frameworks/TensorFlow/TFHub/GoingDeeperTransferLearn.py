@@ -855,7 +855,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--num_epochs',
-        type=float,
+        type=int,
         default=100,
         help='Number of training epochs (passes over the entire training dataset).'
     )
