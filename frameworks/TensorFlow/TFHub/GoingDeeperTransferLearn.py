@@ -2,6 +2,7 @@ import argparse
 import sys
 import tensorflow as tf
 import tensorflow_hub as hub
+import tensorflow.contrib.slim as slim
 import collections
 import os
 import re
@@ -204,21 +205,24 @@ def create_module_graph(module_spec):
         :return wants_quantization: A boolean value, whether the module has been instrumented with fake quantization
             ops.
     """
+    # tf.reset_default_graph()
     # Define the receptive field in accordance with the chosen architecture:
     height, width = hub.get_expected_image_size(module_spec)
     # Create a new default graph:
     with tf.Graph().as_default() as graph:
-        # Create a placeholder tensor for input to the model.
-        resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='input-resized')
-        # Declare the model in accordance with the chosen architecture:
-        m = hub.Module(module_spec)
-        # Create another place holder tensor to catch the output of the pre-activation layer:
-        bottleneck_tensor = m(resized_input_tensor)
-        # Give a name to this tensor:
-        tf.identity(bottleneck_tensor, name='bottleneck-pre-activation')
-        # This is a boolean flag indicating whether the module has been put through TensorFlow Light and optimized.
-        wants_quantization = any(node.op in FAKE_QUANT_OPS
-                                 for node in graph.as_graph_def().node)
+        with tf.variable_scope('source_model') as source_model_scope:
+            # Create a placeholder tensor for input to the model.
+            resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
+            with tf.variable_scope('pre-trained_hub_module'):
+                # Declare the model in accordance with the chosen architecture:
+                m = hub.Module(module_spec, name='inception_v3_hub')
+                # Create another place holder tensor to catch the output of the pre-activation layer:
+                bottleneck_tensor = m(resized_input_tensor)
+                # Give a name to this tensor:
+                tf.identity(bottleneck_tensor, name='bottleneck-pre-activation')
+                # This is a boolean flag indicating whether the module has been put through TensorFlow Light and optimized.
+                wants_quantization = any(node.op in FAKE_QUANT_OPS
+                                         for node in graph.as_graph_def().node)
     return graph, bottleneck_tensor, resized_input_tensor, wants_quantization
 
 
@@ -262,72 +266,73 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
                                'constructing fully-connected and softmax layers for fine-tuning.'
 
     # Tensor declarations:
-    with tf.name_scope('input'):
-        # Create a placeholder Tensor of same type as bottleneck_tensor to cache output from TFHub module:
-        bottleneck_input = tf.placeholder_with_default(
-            bottleneck_tensor,
-            shape=[batch_size, bottleneck_tensor_size],
-            name='BottleneckInputPlaceholder'
-        )
-
-        # Another placeholder Tensor to hold the true class labels
-        ground_truth_input = tf.placeholder(
-            tf.int64,
-            shape=[batch_size],
-            name='GroundTruthInput'
-        )
-
-    # Additional organization for TensorBoard:
-    layer_name = 'final_retrain_ops'
-    with tf.name_scope(layer_name):
-        # Every layer has the following items:
-        with tf.name_scope('weights'):
-            # Output random values from truncated normal distribution:
-            initial_value = tf.truncated_normal(
-                shape=[bottleneck_tensor_size, class_count],
-                stddev=0.001
+    with tf.variable_scope('re-train_ops'):
+        with tf.name_scope('input'):
+            # Create a placeholder Tensor of same type as bottleneck_tensor to cache output from TFHub module:
+            bottleneck_input = tf.placeholder_with_default(
+                bottleneck_tensor,
+                shape=[batch_size, bottleneck_tensor_size],
+                name='BottleneckInputPlaceholder'
             )
-            layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
-            variable_summaries(layer_weights)
 
-        with tf.name_scope('biases'):
-            layer_biases = tf.Variable(initial_value=tf.zeros([class_count]), name='final_biases')
-            variable_summaries(layer_biases)
+            # Another placeholder Tensor to hold the true class labels
+            ground_truth_input = tf.placeholder(
+                tf.int64,
+                shape=[batch_size],
+                name='GroundTruthInput'
+            )
 
-        # pre-activations:
-        with tf.name_scope('Wx_plus_b'):
-            logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
-            tf.summary.histogram('pre_activations', logits)
+        # Additional organization for TensorBoard:
+        layer_name = 'final_retrain_ops'
+        with tf.name_scope(layer_name):
+            # Every layer has the following items:
+            with tf.name_scope('weights'):
+                # Output random values from truncated normal distribution:
+                initial_value = tf.truncated_normal(
+                    shape=[bottleneck_tensor_size, class_count],
+                    stddev=0.001
+                )
+                layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
+                # variable_summaries(layer_weights)
 
-    # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
-    final_tensor = tf.nn.softmax(logits=logits, name=final_tensor_name)
+            with tf.name_scope('biases'):
+                layer_biases = tf.Variable(initial_value=tf.zeros([class_count]), name='final_biases')
+                # variable_summaries(layer_biases)
 
-    # The tf.contrib.quantize functions rewrite the graph in place for
-    # quantization. The imported model graph has already been rewritten, so upon
-    # calling these rewrites, only the newly added final layer will be
-    # transformed.
-    if quantize_layer:
-        if is_training:
-            tf.contrib.quantize.create_training_graph()
-        else:
-            tf.contrib.quantize.create_eval_graph()
+            # pre-activations:
+            with tf.name_scope('Wx_plus_b'):
+                logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
+                tf.summary.histogram('pre_activations', logits)
 
-    # We will keep a histogram showing the distribution of activation functions.
-    tf.summary.histogram('activations', final_tensor)
+        # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
+        final_tensor = tf.nn.softmax(logits=logits, name=final_tensor_name)
 
-    # If this is an eval graph, we don't need to add loss ops or an optimizer.
-    if not is_training:
-        return None, None, bottleneck_input, ground_truth_input, final_tensor
+        # The tf.contrib.quantize functions rewrite the graph in place for
+        # quantization. The imported model graph has already been rewritten, so upon
+        # calling these rewrites, only the newly added final layer will be
+        # transformed.
+        if quantize_layer:
+            if is_training:
+                tf.contrib.quantize.create_training_graph()
+            else:
+                tf.contrib.quantize.create_eval_graph()
 
-    with tf.name_scope('cross_entropy'):
-        # What constitutes sparse in this case:
-        cross_entropy_mean = tf.losses.sparse_softmax_cross_entropy(labels=ground_truth_input, logits=logits)
+        # We will keep a histogram showing the distribution of activation functions.
+        tf.summary.histogram('activations', final_tensor)
 
-    tf.summary.scalar('cross_entropy', cross_entropy_mean)
+        # If this is an eval graph, we don't need to add loss ops or an optimizer.
+        if not is_training:
+            return None, None, bottleneck_input, ground_truth_input, final_tensor
 
-    with tf.name_scope('train'):
-        optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
-        train_step = optimizer.minimize(cross_entropy_mean)
+        with tf.name_scope('cross_entropy'):
+            # What constitutes sparse in this case?:
+            cross_entropy_mean = tf.losses.sparse_softmax_cross_entropy(labels=ground_truth_input, logits=logits)
+
+        tf.summary.scalar('cross_entropy', cross_entropy_mean)
+
+        with tf.name_scope('train'):
+            optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
+            train_step = optimizer.minimize(cross_entropy_mean)
 
     return (train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor)
 
@@ -672,6 +677,7 @@ def main(_):
         tf.logging.error('The flag --image_dir must be set.')
         return -1
 
+    # Delete any TensorBoard summaries left over from previous runs:
     prepare_tensor_board_directories()
 
     # Create lists of all the images:
@@ -709,8 +715,9 @@ def main(_):
         init = tf.global_variables_initializer()
         sess.run(init)
 
-        # Set up the image decoding sub-graph.
-        jpeg_data_tensor, decoded_image_tensor = add_jpeg_decoding(module_spec)
+        with tf.name_scope('re-train_ops'):
+            # Set up the image decoding sub-graph.
+            jpeg_data_tensor, decoded_image_tensor = add_jpeg_decoding(module_spec)
 
         # TODO: Add data augmentation pipeline:
         # if do_distort_images:
@@ -734,7 +741,7 @@ def main(_):
 
         # Merge all summaries and write them out to the summaries_dir
         merged = tf.summary.merge_all()
-        # TODO: This might not work for other models unless the urls are formatted the array:
+        # TODO: This might not work for other models unless the urls are formatted with the same array:
         hyper_string = '%s/lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
         train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
         test_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/test/' + hyper_string)
@@ -855,7 +862,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--num_epochs',
-        type=float,
+        type=int,
         default=100,
         help='Number of training epochs (passes over the entire training dataset).'
     )
