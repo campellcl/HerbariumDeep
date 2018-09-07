@@ -149,7 +149,7 @@ def create_image_lists(image_dir, training_image_dir=None, testing_image_dir=Non
                 for test_file_name in test_file_list:
                     base_name = os.path.basename(test_file_name)
                     testing_images.append(base_name)
-                if image_lists[test_label_name]:
+                if test_label_name in image_lists:
                     image_lists[test_label_name]['dir'] = dir_name
                     image_lists[test_label_name]['testing'] = testing_images
                 else:
@@ -558,13 +558,21 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
     Returns:
       Nothing.
     """
+    # tf.logging.log(tf.logging.INFO, msg='cache_bottlenecks called with image_lists: %s' % image_lists)
+    # tf.logging.log_first_n(level=tf.logging.INFO, msg='image_lists key\'s: %s' % image_lists.keys(), n=1)
+    # tf.logging.log(tf.logging.INFO, msg='\'training\' in image_list\'s keys?: %s' % ('training' in image_lists.keys()))
     how_many_bottlenecks = 0
     if not os.path.exists(bottleneck_dir):
         os.makedirs(bottleneck_dir)
     for label_name, label_lists in image_lists.items():
         # for category in ['training', 'testing']:
         for category in ['training']:
-            category_list = label_lists[category]
+            try:
+                # TODO: Should be image_lists[category]?
+                category_list = label_lists[category]
+            except KeyError as key_err:
+                tf.logging.log(level=tf.logging.INFO, msg='KeyError for label \'%s\': %s' % (label_name, key_err))
+            # tf.logging.log_first_n(level=tf.logging.INFO, msg='label_lists[%s]: %s' % (category, label_lists[category]), n=4)
             for index, unused_base_name in enumerate(category_list):
                 get_or_create_bottleneck(
                     sess, image_lists, label_name, index, image_dir, category,
@@ -599,6 +607,59 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
     # Export the accuracy of the model for use in tensorboard:
     tf.summary.scalar('accuracy', evaluation_step)
     return evaluation_step, prediction
+
+
+def build_eval_session(module_spec, class_count):
+    """Builds an restored eval session without train operations for exporting.
+
+    Args:
+      module_spec: The hub.ModuleSpec for the image module being used.
+      class_count: Number of classes
+
+    Returns:
+      Eval session containing the restored eval graph.
+      The bottleneck input, ground truth, eval step, and prediction tensors.
+    """
+    # If quantized, we need to create the correct eval graph for exporting.
+    eval_graph, bottleneck_tensor, resized_input_tensor, wants_quantization = (
+        create_module_graph(module_spec))
+
+    eval_sess = tf.Session(graph=eval_graph)
+    with eval_graph.as_default():
+        # Add the new layer for exporting.
+        (_, _, bottleneck_input,
+         ground_truth_input, final_tensor) = add_final_retrain_ops(
+            class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
+            wants_quantization, is_training=False)
+
+        # Now we need to restore the values from the training graph to the eval
+        # graph.
+        tf.train.Saver().restore(eval_sess, CHECKPOINT_DIR)
+
+        evaluation_step, prediction = add_evaluation_step(final_tensor,
+                                                          ground_truth_input)
+
+    return (eval_sess, resized_input_tensor, bottleneck_input, ground_truth_input,
+            evaluation_step, prediction)
+
+
+def save_graph_to_file(graph, graph_file_name, module_spec, class_count):
+    """
+    save_graph_to_file: Saves a tensorflow graph to file, creating a valid quantized one if necessary.
+    :param graph:
+    :param graph_file_name:
+    :param module_spec:
+    :param class_count:
+    :return:
+    """
+    sess, _, _, _, _, _ = build_eval_session(module_spec, class_count)
+    graph = sess.graph
+
+    output_graph_def = tf.graph_util.convert_variables_to_constants(
+        sess, graph.as_graph_def(), [CMD_ARG_FLAGS.final_tensor_name])
+
+    with tf.gfile.FastGFile(graph_file_name, 'wb') as f:
+        f.write(output_graph_def.SerializeToString())
 
 
 def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
@@ -800,7 +861,11 @@ def main(_):
 
         # TODO: Run final test evaluation
 
-        # TODO: Write out trained graph and labels with weights stored as constants.
+        # Write out trained graph and labels with weights stored as constants:
+        tf.logging.info(msg='Save final result to : ' + CMD_ARG_FLAGS.output_graph)
+        if wants_quantization:
+            tf.logging.info('The model is instrumented for quantization with TF-Lite')
+        save_graph_to_file(graph, CMD_ARG_FLAGS.output_graph, module_spec, class_count)
 
 
 if __name__ == '__main__':
@@ -883,6 +948,12 @@ if __name__ == '__main__':
         type=int,
         default=0,
         help='How many epochs to run before storing an intermediate checkpoint of the graph. If 0, then will not store.'
+    )
+    parser.add_argument(
+        '--output_graph',
+        type=str,
+        default='/tmp/output_graph.pb',
+        help='Directory to save the trained graph.'
     )
     # Parse command line args and identify unknown flags:
     CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
