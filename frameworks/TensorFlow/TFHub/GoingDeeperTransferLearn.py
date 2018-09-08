@@ -2,11 +2,9 @@ import argparse
 import sys
 import tensorflow as tf
 import tensorflow_hub as hub
-import tensorflow.contrib.slim as slim
 import collections
 import os
 import re
-import hashlib
 import random
 import numpy as np
 from datetime import datetime
@@ -33,14 +31,17 @@ def prepare_tensor_board_directories():
         tf.gfile.DeleteRecursively(CMD_ARG_FLAGS.summaries_dir)
     # Re-create (or create for the first time) the storage directory:
     tf.gfile.MakeDirs(CMD_ARG_FLAGS.summaries_dir)
-    # TODO: Intermediate output directory setup.
+    # Check to see if intermediate computational graphs are to be stored:
+    if CMD_ARG_FLAGS.intermediate_store_frequency > 0:
+        if not os.path.exists(CMD_ARG_FLAGS.intermediate_output_graphs_dir):
+            os.makedirs(CMD_ARG_FLAGS.intermediate_output_graphs_dir)
     return
 
 
 def create_image_lists(image_dir, training_image_dir=None, testing_image_dir=None, testing_percentage=80, validation_percentage=20):
     """
     create_image_lists: Creates a dictionary containing all available datasets (train, test, validate) as a list of
-        file paths.
+        image file paths (indexed by the class label).
     :param image_dir: The root directory for all images.
     :param training_image_dir: The root directory for all training images (if present).
     :param testing_image_dir: The root directory for all testing images (if present).
@@ -655,8 +656,13 @@ def save_graph_to_file(graph, graph_file_name, module_spec, class_count):
     sess, _, _, _, _, _ = build_eval_session(module_spec, class_count)
     graph = sess.graph
 
+    tf.train.write_graph(sess.graph_def, logdir='tmp/summaries', name='session_graph_def', as_text=True)
+
+    # TODO: Currently hardcoding the namescope because it will be a pain to get it otherwise. Come back and fix this.
+    # graph_name_scope = graph.get_name_scope()
+
     output_graph_def = tf.graph_util.convert_variables_to_constants(
-        sess, graph.as_graph_def(), [CMD_ARG_FLAGS.final_tensor_name])
+        sess, graph.as_graph_def(), ['re-train_ops/' + CMD_ARG_FLAGS.final_tensor_name])
 
     with tf.gfile.FastGFile(graph_file_name, 'wb') as f:
         f.write(output_graph_def.SerializeToString())
@@ -740,6 +746,7 @@ def main(_):
 
     # Delete any TensorBoard summaries left over from previous runs:
     prepare_tensor_board_directories()
+    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
 
     # Create lists of all the images:
     image_lists = create_image_lists(
@@ -747,7 +754,9 @@ def main(_):
         training_image_dir=CMD_ARG_FLAGS.train_image_dir,
         testing_image_dir=CMD_ARG_FLAGS.test_image_dir
     )
-    # TODO: This needs some work. I need to ensure same number of train classes and test classes.
+    tf.logging.info(msg='Populated image paths lists.')
+
+    # This is operating under the assumption we have the same number of classes in the training and testing sets:
     class_count = len(image_lists.keys())
 
     # TODO: See if the command-line flags specify any distortions
@@ -757,6 +766,7 @@ def main(_):
 
     # Set up the pre-trained graph:
     module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
+    tf.logging.info(msg='Loaded tensorflow hub module: %s' % CMD_ARG_FLAGS.tfhub_module)
 
     graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
         create_module_graph(module_spec)
@@ -768,6 +778,7 @@ def main(_):
          ground_truth_input, final_tensor) = add_final_retrain_ops(
             class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
             wants_quantization, is_training=True)
+    tf.logging.info(msg='Added final retrain ops to the provided source graph.')
 
     ''' Training Loop: '''
     with tf.Session(graph=graph) as sess:
@@ -802,7 +813,7 @@ def main(_):
 
         # Merge all summaries and write them out to the summaries_dir
         merged = tf.summary.merge_all()
-        # TODO: This might not work for other models unless the urls are formatted with the same array:
+        # This might not work for other models unless the urls are formatted with the same array:
         hyper_string = '%s/lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
         train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
         test_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/test/' + hyper_string)
@@ -852,24 +863,36 @@ def main(_):
                                           'intermediate_' + str(i) + '.pb')
                 tf.logging.info('Save intermediate result to : ' +
                                 intermediate_file_name)
-                # TODO: Save the graph to a file:
-                # save_graph_to_file(graph, intermediate_file_name, module_spec,
-                #                    class_count)
+
+                save_graph_to_file(graph, intermediate_file_name, module_spec,
+                                   class_count)
 
         # After training is complete, force one last save of the train checkpoint.
         train_saver.save(sess, CHECKPOINT_DIR)
 
-        # TODO: Run final test evaluation
+        # TODO: Add code to run final test evaluation
 
         # Write out trained graph and labels with weights stored as constants:
         tf.logging.info(msg='Save final result to : ' + CMD_ARG_FLAGS.output_graph)
         if wants_quantization:
             tf.logging.info('The model is instrumented for quantization with TF-Lite')
         save_graph_to_file(graph, CMD_ARG_FLAGS.output_graph, module_spec, class_count)
+        # TODO: Export saved model:
+        # with tf.gfile.FastGFile(CMD_ARG_FLAGS.output_labels, 'w') as f:
+        #     f.write('\n'.join(image_lists.keys())+ '\n')
+        #
+        # if CMD_ARG_FLAGS.saved_model_dir:
+        #     export_model(module_spec, class_count, CMD_ARG_FLAGS.saved_model_dir)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning Demo on Going Deeper Herbaria 1K Dataset')
+    parser.add_argument(
+        '--resume_from_checkpoint',
+        type=bool,
+        default=False,
+        help='Boolean, whether or not to restore from a previously trained graph (.pb file).'
+    )
     parser.add_argument(
         '--image_dir',
         type=str,
@@ -944,16 +967,22 @@ if __name__ == '__main__':
         help='Specifies the number of epochs during training before performing an evaluation step.'
     )
     parser.add_argument(
+        '--output_graph',
+        type=str,
+        default='tmp/output_graph.pb',
+        help='Directory to save the trained graph.'
+    )
+    parser.add_argument(
         '--intermediate_store_frequency',
         type=int,
         default=0,
         help='How many epochs to run before storing an intermediate checkpoint of the graph. If 0, then will not store.'
     )
     parser.add_argument(
-        '--output_graph',
+        '--intermediate_output_graphs_dir',
         type=str,
-        default='/tmp/output_graph.pb',
-        help='Directory to save the trained graph.'
+        default='tmp/intermediate_graph/',
+        help='Directory to save the intermediate graphs.'
     )
     # Parse command line args and identify unknown flags:
     CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
