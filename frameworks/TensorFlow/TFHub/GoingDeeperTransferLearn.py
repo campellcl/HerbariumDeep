@@ -333,7 +333,8 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
         tf.summary.scalar('cross_entropy', cross_entropy_mean)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
+            optimizer = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9)
+            # optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
             train_step = optimizer.minimize(cross_entropy_mean)
 
     return (train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor)
@@ -802,7 +803,7 @@ def main(_):
 
             if CMD_ARG_FLAGS.resume_final_checkpoint_path:
                 # When you restore variables you do not have to initialize them beforehand:
-                tf.saved_model.loader.load(sess=sess, tags=[tag_constants.SERVING], export_dir=CMD_ARG_FLAGS.resume_final_checkpoint_path)
+                tf.saved_model.loader.load(sess=sess, tags=[tag_constants.TRAINING], export_dir=CMD_ARG_FLAGS.resume_final_checkpoint_path)
                 tf.logging.info(msg='Restored model from saved checkpoint (.pb) file.')
 
             sess.run(init)
