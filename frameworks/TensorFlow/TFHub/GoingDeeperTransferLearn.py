@@ -2,11 +2,10 @@ import argparse
 import sys
 import tensorflow as tf
 import tensorflow_hub as hub
-import tensorflow.contrib.slim as slim
+from tensorflow.python.saved_model import tag_constants
 import collections
 import os
 import re
-import hashlib
 import random
 import numpy as np
 from datetime import datetime
@@ -33,14 +32,17 @@ def prepare_tensor_board_directories():
         tf.gfile.DeleteRecursively(CMD_ARG_FLAGS.summaries_dir)
     # Re-create (or create for the first time) the storage directory:
     tf.gfile.MakeDirs(CMD_ARG_FLAGS.summaries_dir)
-    # TODO: Intermediate output directory setup.
+    # Check to see if intermediate computational graphs are to be stored:
+    if CMD_ARG_FLAGS.intermediate_store_frequency > 0:
+        if not os.path.exists(CMD_ARG_FLAGS.intermediate_output_graphs_dir):
+            os.makedirs(CMD_ARG_FLAGS.intermediate_output_graphs_dir)
     return
 
 
 def create_image_lists(image_dir, training_image_dir=None, testing_image_dir=None, testing_percentage=80, validation_percentage=20):
     """
     create_image_lists: Creates a dictionary containing all available datasets (train, test, validate) as a list of
-        file paths.
+        image file paths (indexed by the class label).
     :param image_dir: The root directory for all images.
     :param training_image_dir: The root directory for all training images (if present).
     :param testing_image_dir: The root directory for all testing images (if present).
@@ -149,7 +151,7 @@ def create_image_lists(image_dir, training_image_dir=None, testing_image_dir=Non
                 for test_file_name in test_file_list:
                     base_name = os.path.basename(test_file_name)
                     testing_images.append(base_name)
-                if image_lists[test_label_name]:
+                if test_label_name in image_lists:
                     image_lists[test_label_name]['dir'] = dir_name
                     image_lists[test_label_name]['testing'] = testing_images
                 else:
@@ -331,7 +333,8 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
         tf.summary.scalar('cross_entropy', cross_entropy_mean)
 
         with tf.name_scope('train'):
-            optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
+            optimizer = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9)
+            # optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
             train_step = optimizer.minimize(cross_entropy_mean)
 
     return (train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor)
@@ -558,13 +561,21 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
     Returns:
       Nothing.
     """
+    # tf.logging.log(tf.logging.INFO, msg='cache_bottlenecks called with image_lists: %s' % image_lists)
+    # tf.logging.log_first_n(level=tf.logging.INFO, msg='image_lists key\'s: %s' % image_lists.keys(), n=1)
+    # tf.logging.log(tf.logging.INFO, msg='\'training\' in image_list\'s keys?: %s' % ('training' in image_lists.keys()))
     how_many_bottlenecks = 0
     if not os.path.exists(bottleneck_dir):
         os.makedirs(bottleneck_dir)
     for label_name, label_lists in image_lists.items():
         # for category in ['training', 'testing']:
         for category in ['training']:
-            category_list = label_lists[category]
+            try:
+                # TODO: Should be image_lists[category]?
+                category_list = label_lists[category]
+            except KeyError as key_err:
+                tf.logging.log(level=tf.logging.INFO, msg='KeyError for label \'%s\': %s' % (label_name, key_err))
+            # tf.logging.log_first_n(level=tf.logging.INFO, msg='label_lists[%s]: %s' % (category, label_lists[category]), n=4)
             for index, unused_base_name in enumerate(category_list):
                 get_or_create_bottleneck(
                     sess, image_lists, label_name, index, image_dir, category,
@@ -599,6 +610,64 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
     # Export the accuracy of the model for use in tensorboard:
     tf.summary.scalar('accuracy', evaluation_step)
     return evaluation_step, prediction
+
+
+def build_eval_session(module_spec, class_count):
+    """Builds an restored eval session without train operations for exporting.
+
+    Args:
+      module_spec: The hub.ModuleSpec for the image module being used.
+      class_count: Number of classes
+
+    Returns:
+      Eval session containing the restored eval graph.
+      The bottleneck input, ground truth, eval step, and prediction tensors.
+    """
+    # If quantized, we need to create the correct eval graph for exporting.
+    eval_graph, bottleneck_tensor, resized_input_tensor, wants_quantization = (
+        create_module_graph(module_spec))
+
+    eval_sess = tf.Session(graph=eval_graph)
+    with eval_graph.as_default():
+        # Add the new layer for exporting.
+        (_, _, bottleneck_input,
+         ground_truth_input, final_tensor) = add_final_retrain_ops(
+            class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
+            wants_quantization, is_training=False)
+
+        # Now we need to restore the values from the training graph to the eval
+        # graph.
+        tf.train.Saver().restore(eval_sess, CHECKPOINT_DIR)
+
+        evaluation_step, prediction = add_evaluation_step(final_tensor,
+                                                          ground_truth_input)
+
+    return (eval_sess, resized_input_tensor, bottleneck_input, ground_truth_input,
+            evaluation_step, prediction)
+
+
+def save_graph_to_file(graph, graph_file_name, module_spec, class_count):
+    """
+    save_graph_to_file: Saves a tensorflow graph to file, creating a valid quantized one if necessary.
+    :param graph:
+    :param graph_file_name:
+    :param module_spec:
+    :param class_count:
+    :return:
+    """
+    sess, _, _, _, _, _ = build_eval_session(module_spec, class_count)
+    graph = sess.graph
+
+    tf.train.write_graph(sess.graph_def, logdir='tmp/summaries', name='session_graph_def', as_text=True)
+
+    # TODO: Currently hardcoding the namescope because it will be a pain to get it otherwise. Come back and fix this.
+    # graph_name_scope = graph.get_name_scope()
+
+    output_graph_def = tf.graph_util.convert_variables_to_constants(
+        sess, graph.as_graph_def(), ['re-train_ops/' + CMD_ARG_FLAGS.final_tensor_name])
+
+    with tf.gfile.FastGFile(graph_file_name, 'wb') as f:
+        f.write(output_graph_def.SerializeToString())
 
 
 def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
@@ -679,6 +748,7 @@ def main(_):
 
     # Delete any TensorBoard summaries left over from previous runs:
     prepare_tensor_board_directories()
+    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
 
     # Create lists of all the images:
     image_lists = create_image_lists(
@@ -686,7 +756,9 @@ def main(_):
         training_image_dir=CMD_ARG_FLAGS.train_image_dir,
         testing_image_dir=CMD_ARG_FLAGS.test_image_dir
     )
-    # TODO: This needs some work. I need to ensure same number of train classes and test classes.
+    tf.logging.info(msg='Populated image paths lists.')
+
+    # This is operating under the assumption we have the same number of classes in the training and testing sets:
     class_count = len(image_lists.keys())
 
     # TODO: See if the command-line flags specify any distortions
@@ -694,117 +766,157 @@ def main(_):
     #   FLAGS.flip_left_right, FLAGS.random_crop, FLAGS.random_scale,
     #   FLAGS.random_brightness)
 
-    # Set up the pre-trained graph:
-    module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
+    # If no restoration from checkpoint was requested, then use the provided tfhub module:
+    if not CMD_ARG_FLAGS.resume_final_checkpoint_path:
+        # Set up the pre-trained graph:
+        module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
+        tf.logging.info(msg='Loaded tensorflow hub module spec: %s' % CMD_ARG_FLAGS.tfhub_module)
 
-    graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
-        create_module_graph(module_spec)
-    )
+        # Sinc
+        graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
+            create_module_graph(module_spec))
+        tf.logging.info(msg='Defined computational graph from the tensorflow hub module spec.')
 
-    # Add the new layer that we'll be training to our new default graph:
-    with graph.as_default():
-        (train_step, cross_entropy, bottleneck_input,
-         ground_truth_input, final_tensor) = add_final_retrain_ops(
-            class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
-            wants_quantization, is_training=True)
+        # Add the new layer that we'll be training to our new default graph:
+        with graph.as_default():
+            (train_step, cross_entropy, bottleneck_input,
+             ground_truth_input, final_tensor) = add_final_retrain_ops(
+                class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
+                wants_quantization, is_training=True)
+        tf.logging.info(msg='Added final retrain ops to the module source graph.')
+    else:
+        # Restore from checkpoint of a previously trained model:
+        tf.logging.info(msg='Attempting to restore from a previously saved checkpoint. '
+                            'Expecting previous model to have re-train ops already added to computational graph!')
+        graph = tf.Graph()
+
+        # graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
+        #     restore_module_graph(module_checkpoint)
+        # )
 
     ''' Training Loop: '''
-    with tf.Session(graph=graph) as sess:
-        # Initialize all weights: for the module to their pretrained values,
-        # and for the newly added retraining layer to random initial values.
-        init = tf.global_variables_initializer()
-        sess.run(init)
+    with graph.as_default():
+        with tf.Session(graph=graph) as sess:
+            # Initialize all weights: for the module to their pretrained values,
+            # and for the newly added retraining layer to random initial values.
+            init = tf.global_variables_initializer()
 
-        with tf.name_scope('re-train_ops'):
-            # Set up the image decoding sub-graph.
-            jpeg_data_tensor, decoded_image_tensor = add_jpeg_decoding(module_spec)
+            if CMD_ARG_FLAGS.resume_final_checkpoint_path:
+                # When you restore variables you do not have to initialize them beforehand:
+                tf.saved_model.loader.load(sess=sess, tags=[tag_constants.TRAINING], export_dir=CMD_ARG_FLAGS.resume_final_checkpoint_path)
+                tf.logging.info(msg='Restored model from saved checkpoint (.pb) file.')
 
-        # TODO: Add data augmentation pipeline:
-        # if do_distort_images:
-        #     # We will be applying distortions, so setup the operations we'll need.
-        #     (distorted_jpeg_data_tensor, distorted_image_tensor) = add_input_distortions(
-        #         FLAGS.flip_left_right,
-        #         FLAGS.random_crop,
-        #         FLAGS.random_scale,
-        #         FLAGS.random_brightness,
-        #         module_spec
-        #     )
-        # else:
-        ''' Ensure that the bottleneck image summaries are calculated and cached on disk'''
-        cache_bottlenecks(sess, image_lists, CMD_ARG_FLAGS.train_image_dir,
-                          CMD_ARG_FLAGS.bottleneck_dir, jpeg_data_tensor,
-                          decoded_image_tensor, resized_image_tensor,
-                          bottleneck_tensor, CMD_ARG_FLAGS.tfhub_module)
+            sess.run(init)
 
-        # Create operations to evaluate the accuracy of the new layer:
-        evaluation_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
+            with tf.name_scope('re-train_ops'):
+                # Set up the image decoding sub-graph.
+                jpeg_data_tensor, decoded_image_tensor = add_jpeg_decoding(module_spec)
 
-        # Merge all summaries and write them out to the summaries_dir
-        merged = tf.summary.merge_all()
-        # TODO: This might not work for other models unless the urls are formatted with the same array:
-        hyper_string = '%s/lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
-        train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
-        test_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/test/' + hyper_string)
-        # Create a train saver that is used to restore values into an eval graph:
-        train_saver = tf.train.Saver()
+            # TODO: Add data augmentation pipeline:
+            # if do_distort_images:
+            #     # We will be applying distortions, so setup the operations we'll need.
+            #     (distorted_jpeg_data_tensor, distorted_image_tensor) = add_input_distortions(
+            #         FLAGS.flip_left_right,
+            #         FLAGS.random_crop,
+            #         FLAGS.random_scale,
+            #         FLAGS.random_brightness,
+            #         module_spec
+            #     )
+            # else:
+            ''' Ensure that the bottleneck image summaries are calculated and cached on disk'''
+            cache_bottlenecks(sess, image_lists, CMD_ARG_FLAGS.train_image_dir,
+                              CMD_ARG_FLAGS.bottleneck_dir, jpeg_data_tensor,
+                              decoded_image_tensor, resized_image_tensor,
+                              bottleneck_tensor, CMD_ARG_FLAGS.tfhub_module)
 
-        # run training for as many cycles as requested on the command line:
-        for i in range(CMD_ARG_FLAGS.num_epochs):
-            # Get a batch of input bottleneck values, either calculated fresh every
-            # time with distortions applied, or from the cache stored on disk.
-            (train_bottlenecks, train_ground_truth, _) = get_random_cached_bottlenecks(
-                sess, image_lists, CMD_ARG_FLAGS.train_batch_size, 'training',
-                CMD_ARG_FLAGS.bottleneck_dir, CMD_ARG_FLAGS.image_dir, jpeg_data_tensor,
-                decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
-                CMD_ARG_FLAGS.tfhub_module)
+            # Create operations to evaluate the accuracy of the new layer:
+            evaluation_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
 
-            # Feed the bottlenecks and ground truth into the graph, and run a training
-            # step. Capture training summaries for TensorBoard with the `merged` op.
-            train_summary, _ = sess.run([merged, train_step],
-                                        feed_dict={bottleneck_input: train_bottlenecks, ground_truth_input: train_ground_truth})
-            train_writer.add_summary(train_summary, i)
+            # Merge all summaries and write them out to the summaries_dir
+            merged = tf.summary.merge_all()
+            # This might not work for other models unless the urls are formatted with the same array:
+            hyper_string = '%s/lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
+            train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
+            test_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/test/' + hyper_string)
+            # Create a train saver that is used to restore values into an eval graph:
+            train_saver = tf.train.Saver()
 
-            # Every so often, print out how well the graph is training.
-            is_last_step = (i + 1 == CMD_ARG_FLAGS.num_epochs)
-            if (i % CMD_ARG_FLAGS.eval_step_interval) == 0 or is_last_step:
-                train_accuracy, cross_entropy_value = sess.run(
-                    [evaluation_step, cross_entropy],
-                    feed_dict={bottleneck_input: train_bottlenecks,
-                               ground_truth_input: train_ground_truth}
-                )
-                tf.logging.info('%s: Step %d: Train accuracy = %.1f%%' % (datetime.now(), i, train_accuracy * 100))
-                tf.logging.info('%s: Step %d: Cross entropy = %f' % (datetime.now(), i, cross_entropy_value))
-                # TODO: Make this use an eval graph, to avoid quantization
-                # moving averages being updated by the validation set, though in
-                # practice this makes a negligable difference.
-                # TODO: Add validation code for early stopping, and to avoid information leakage.
+            # run training for as many cycles as requested on the command line:
+            for i in range(CMD_ARG_FLAGS.num_epochs):
+                # Get a batch of input bottleneck values, either calculated fresh every
+                # time with distortions applied, or from the cache stored on disk.
+                (train_bottlenecks, train_ground_truth, _) = get_random_cached_bottlenecks(
+                    sess, image_lists, CMD_ARG_FLAGS.train_batch_size, 'training',
+                    CMD_ARG_FLAGS.bottleneck_dir, CMD_ARG_FLAGS.image_dir, jpeg_data_tensor,
+                    decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
+                    CMD_ARG_FLAGS.tfhub_module)
 
-            # Store intermediate results
-            intermediate_frequency = CMD_ARG_FLAGS.intermediate_store_frequency
+                # Feed the bottlenecks and ground truth into the graph, and run a training
+                # step. Capture training summaries for TensorBoard with the `merged` op.
+                train_summary, _ = sess.run([merged, train_step],
+                                            feed_dict={bottleneck_input: train_bottlenecks, ground_truth_input: train_ground_truth})
+                train_writer.add_summary(train_summary, i)
 
-            if (intermediate_frequency > 0 and (i % intermediate_frequency == 0) and i > 0):
-                # requested print frequency is greater than zero. This isn't the first epoch, it is time to print:
-                # If we do an intermediate save, we must save a checkpoint of the train graph to restore onto the eval
-                #   graph.
-                train_saver.save(sess, CHECKPOINT_DIR)
-                intermediate_file_name = (CMD_ARG_FLAGS.intermediate_output_graphs_dir +
-                                          'intermediate_' + str(i) + '.pb')
-                tf.logging.info('Save intermediate result to : ' +
-                                intermediate_file_name)
-                # TODO: Save the graph to a file:
-                # save_graph_to_file(graph, intermediate_file_name, module_spec,
-                #                    class_count)
+                # Every so often, print out how well the graph is training.
+                is_last_step = (i + 1 == CMD_ARG_FLAGS.num_epochs)
+                if (i % CMD_ARG_FLAGS.eval_step_interval) == 0 or is_last_step:
+                    train_accuracy, cross_entropy_value = sess.run(
+                        [evaluation_step, cross_entropy],
+                        feed_dict={bottleneck_input: train_bottlenecks,
+                                   ground_truth_input: train_ground_truth}
+                    )
+                    tf.logging.info('%s: Step %d: Train accuracy = %.1f%%' % (datetime.now(), i, train_accuracy * 100))
+                    tf.logging.info('%s: Step %d: Cross entropy = %f' % (datetime.now(), i, cross_entropy_value))
+                    # TODO: Make this use an eval graph, to avoid quantization
+                    # moving averages being updated by the validation set, though in
+                    # practice this makes a negligable difference.
+                    # TODO: Add validation code for early stopping, and to avoid information leakage.
 
-        # After training is complete, force one last save of the train checkpoint.
-        train_saver.save(sess, CHECKPOINT_DIR)
+                # Store intermediate results
+                intermediate_frequency = CMD_ARG_FLAGS.intermediate_store_frequency
 
-        # TODO: Run final test evaluation
+                if (intermediate_frequency > 0 and (i % intermediate_frequency == 0) and i > 0):
+                    # requested print frequency is greater than zero. This isn't the first epoch, it is time to print:
+                    # If we do an intermediate save, we must save a checkpoint of the train graph to restore onto the eval
+                    #   graph.
+                    train_saver.save(sess, CHECKPOINT_DIR)
+                    intermediate_file_name = (CMD_ARG_FLAGS.intermediate_output_graphs_dir +
+                                              'intermediate_' + str(i) + '.pb')
+                    tf.logging.info('Save intermediate result to : ' +
+                                    intermediate_file_name)
 
-        # TODO: Write out trained graph and labels with weights stored as constants.
+                    save_graph_to_file(graph, intermediate_file_name, module_spec,
+                                       class_count)
+
+            # After training is complete, force one last save of the train checkpoint.
+            train_saver.save(sess, CHECKPOINT_DIR)
+
+            # TODO: Add code to run final test evaluation
+
+
+            # Write out trained graph and labels with weights stored as constants:
+            tf.logging.info(msg='Save final result to : ' + CMD_ARG_FLAGS.output_graph)
+            if wants_quantization:
+                tf.logging.info('The model is instrumented for quantization with TF-Lite')
+            save_graph_to_file(graph, CMD_ARG_FLAGS.output_graph, module_spec, class_count)
+            # TODO: Export saved model:
+            # with tf.gfile.FastGFile(CMD_ARG_FLAGS.output_labels, 'w') as f:
+            #     f.write('\n'.join(image_lists.keys())+ '\n')
+            #
+            # if CMD_ARG_FLAGS.saved_model_dir:
+            #     export_model(module_spec, class_count, CMD_ARG_FLAGS.saved_model_dir)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning Demo on Going Deeper Herbaria 1K Dataset')
+    parser.add_argument(
+        '--resume_final_checkpoint_path',
+        type=str,
+        default='',
+        help='The path to a (.pb file) housing a previously trained graph '
+             '(i.e. has a re-trained final layer already saved).'
+
+    )
     parser.add_argument(
         '--image_dir',
         type=str,
@@ -879,10 +991,22 @@ if __name__ == '__main__':
         help='Specifies the number of epochs during training before performing an evaluation step.'
     )
     parser.add_argument(
+        '--output_graph',
+        type=str,
+        default='tmp/saved_model.pb',
+        help='Directory to save the trained graph.'
+    )
+    parser.add_argument(
         '--intermediate_store_frequency',
         type=int,
         default=0,
         help='How many epochs to run before storing an intermediate checkpoint of the graph. If 0, then will not store.'
+    )
+    parser.add_argument(
+        '--intermediate_output_graphs_dir',
+        type=str,
+        default='tmp/intermediate_graph/',
+        help='Directory to save the intermediate graphs.'
     )
     # Parse command line args and identify unknown flags:
     CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
