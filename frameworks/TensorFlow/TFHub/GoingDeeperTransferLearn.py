@@ -10,7 +10,7 @@ import random
 import numpy as np
 from datetime import datetime
 from sklearn import model_selection
-import pandas as pd
+import time
 
 CMD_ARG_FLAGS = None
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
@@ -41,13 +41,15 @@ def prepare_tensor_board_directories():
     return
 
 
-def create_image_lists(df_train, df_val, df_test):
+def partition_into_image_lists(image_dir, train_percent=.80, val_percent=.20, test_percent=.20, random_state=0):
     """
     create_image_lists: Creates a dictionary containing all available datasets (train, test, validate) as a list of
         image file paths (indexed by the class label).
-    :param df_train: The dataset of training samples along with their file paths.
-    :param df_val: The dataset of validation samples along with their file paths.
-    :param df_test: The dataset of testing samples along with their file paths.
+    :param train_percent: What percentage of the training data is to remain in the training set.
+    :param test_percent: What percentage of the training data is to be allocated to a testing set.
+    :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
+        for a validation set.
+    :param random_state: A seed for the random number generator controlling the stratified partitioning.
     :return image_lists: A dictionary containing all available datasets (train, test, validate) as a list of file paths.
     """
 
@@ -63,162 +65,66 @@ def create_image_lists(df_train, df_val, df_test):
 
     accepted_extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
     image_lists = collections.OrderedDict()
-    image_lists.setdefault(str, [])
 
-    for i, sample in df_train.itterrows():
-        # Run a sanity check on the image dir:
-        image_path = sample['file_path']
-        if not tf.gfile.Exists(image_path):
-            tf.logging.error(msg='Sample \'%d\' of class \'%s\' was said to reside at \'%s\' but could not be found.'
-                                 % (i, sample['dwc:scientificName'], image_path))
-        else:
-            # D:\data\GoingDeeperData\images\acacia dealbata link\my_pic.jpg
-            # Label name corresponds to the directory name:
-            train_label = image_path.split(sep='\\')[-2]
-            if train_label not in image_lists:
-                image_lists[train_label] = {
-                    'dir': train_label,
-                    'training': [image_path]
-                }
-            else:
-                image_lists[train_label]['training'].update(image_path)
+    # TODO: This tf.gfile.Walk takes a very long time, maybe go async? It seems to cache the walk somehow...
+    sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
 
-    pass
+    # The root directory comes first, so skip it.
+    is_root_dir = True
+    for sub_dir in sub_dirs:
+        file_list = []
+        dir_name = os.path.basename(sub_dir)
+        if is_root_dir:
+            is_root_dir = False
+            # Skip the root_dir:
+            continue
+        if dir_name == image_dir:
+            # Return control to beginning of for-loop:
+            continue
+        tf.logging.info("Looking for images in '" + dir_name + "'")
+        for extension in accepted_extensions:
+            # Get a list of all accepted file extensions and the targeted file_name:
+            file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
+            # Append all items from the file_glob to the list of files (if extension exists):
+            file_list.extend(tf.gfile.Glob(file_glob))
+        if not file_list:
+            tf.logging.warning(msg='No files found in \'%s\'. Class label omitted from data sets.' % dir_name)
+            # Return control to beginning of for-loop:
+            continue
+        if len(file_list) < 20:
+            tf.logging.warning('WARNING: Folder has less than 20 images, which may cause issues. See: %s for info.'
+                               % 'https://stackoverflow.com/questions/38175673/critical-tensorflowcategory-has-no-images-validation')
+        elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
+            tf.logging.warning(
+                'WARNING: Folder {} has more than {} images. Some images will '
+                'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
+        label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
 
+        ''' Train, val, test spits: '''
+        # There isn't a point in stratifying on a class-by-class basis when performing Proportionate allocation
+        # train_images, test_images = model_selection.train_test_split(
+        #     file_list, train_size=train_percent,
+        #     test_size=test_percent, shuffle=True,
+        #     stratify=[label_name for _ in range(len(file_list))], random_state=random_state)
+        train_images, test_images = model_selection.train_test_split(
+            file_list, train_size=train_percent,
+            test_size=test_percent, shuffle=True,
+            random_state=random_state
+        )
 
+        train_images, val_images = model_selection.train_test_split(
+            train_images, train_size=train_percent,
+            test_size=val_percent, shuffle=True,
+            random_state=random_state
+        )
 
-
-    # if training_image_dir is not None:
-    #     ''' There is a separate parent folder for training images. '''
-    #     # Run a sanity check on the folder:
-    #     if not tf.gfile.Exists(training_image_dir):
-    #         tf.logging.error("You specified the existence of training image directory '"
-    #                          + training_image_dir + "' which was not found.")
-    #         return None
-    #     training_sub_dirs = sorted(x[0] for x in tf.gfile.Walk(training_image_dir))
-    #     # The root directory comes first, so skip it.
-    #     is_train_root_dir = True
-    #     # Acceptable file extensions:
-    #     extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
-    #
-    #     for train_sub_dir in training_sub_dirs:
-    #         if is_train_root_dir:
-    #             is_train_root_dir = False
-    #             # Skip the root_dir:
-    #             continue
-    #         train_file_list = []
-    #         dir_name = os.path.basename(train_sub_dir)
-    #         if dir_name == training_image_dir:
-    #             # Return control to beginning of for-loop:
-    #             continue
-    #         tf.logging.info("Looking for training images in '" + dir_name + "'")
-    #         for extension in extensions:
-    #             # Get a list of all accepted file extensions and the targeted file_name:
-    #             file_glob = os.path.join(training_image_dir, dir_name, '*.' + extension)
-    #             # Append all items from the file_glob to the list of files (if extension exists):
-    #             train_file_list.extend(tf.gfile.Glob(file_glob))
-    #         if not train_file_list:
-    #             tf.logging.warning("'No files found in '" + dir_name)
-    #             # Return control to beginning of for-loop:
-    #             continue
-    #         if len(train_file_list) < 20:
-    #             tf.logging.warning('WARNING: Folder has less than 20 images, which may cause issues. See: %s for info.'
-    #                                % ('https://stackoverflow.com/questions/38175673/critical-tensorflowcategory-has-no-images-validation'))
-    #         elif len(train_file_list) > MAX_NUM_IMAGES_PER_CLASS:
-    #             tf.logging.warning(
-    #                 'WARNING: Folder {} has more than {} images. Some images will '
-    #                 'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
-    #         train_label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
-    #         training_images = []
-    #         for train_file_name in train_file_list:
-    #             base_name = os.path.basename(train_file_name)
-    #             training_images.append(base_name)
-    #         image_lists[train_label_name] = {
-    #             'dir': dir_name,
-    #             'training': training_images
-    #         }
-    #
-    #     if testing_image_dir is not None:
-    #         ''' There is a separate parent folder for both training and testing images. '''
-    #         # Run a sanity check on the folder:
-    #         if not tf.gfile.Exists(testing_image_dir):
-    #             tf.logging.error("You specified the existence of testing image directory '"
-    #                              + testing_image_dir + "' which was not found.")
-    #             return None
-    #         testing_sub_dirs = sorted(x[0] for x in tf.gfile.Walk(testing_image_dir))
-    #         # The root directory comes first, so skip it.
-    #         is_test_root_dir = True
-    #         for test_sub_dir in testing_sub_dirs:
-    #             if is_test_root_dir:
-    #                 is_test_root_dir = False
-    #                 # Skip the root_dir:
-    #                 continue
-    #             test_file_list = []
-    #             dir_name = os.path.basename(test_sub_dir)
-    #             if dir_name == testing_image_dir:
-    #                 # Return control to beginning of for-loop:
-    #                 continue
-    #             tf.logging.info("Looking for testing images in '" + dir_name + "'")
-    #             for extension in extensions:
-    #                 # Get a list of all accepted file extensions and the targeted file_name:
-    #                 file_glob = os.path.join(testing_image_dir, dir_name, '*.' + extension)
-    #                 # Append all items form the file_glob to the list of files:
-    #                 test_file_list.extend(tf.gfile.Glob(file_glob))
-    #             if not test_file_list:
-    #                 tf.logging.warning("'No files found in '" + dir_name)
-    #                 # Return control to beginning of for-loop:
-    #                 continue
-    #             if len(test_file_list) > MAX_NUM_IMAGES_PER_CLASS:
-    #                 tf.logging.warning(
-    #                     'WARNING: Folder {} has more than {} images. Some images will '
-    #                     'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
-    #             test_label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
-    #             testing_images = []
-    #             for test_file_name in test_file_list:
-    #                 base_name = os.path.basename(test_file_name)
-    #                 testing_images.append(base_name)
-    #             if test_label_name in image_lists:
-    #                 image_lists[test_label_name]['dir'] = dir_name
-    #                 image_lists[test_label_name]['testing'] = testing_images
-    #             else:
-    #                 image_lists[test_label_name] = {
-    #                     'dir': dir_name,
-    #                     'testing': testing_images
-    #                 }
-    #         return image_lists
-    #     else:
-    #         ''' There is a separate parent folder for training images, but not testing images. '''
-    #         tf.logging.ERROR("You specified a separate folder for training images but not testing images. This logic has"
-    #                          "not been implemented yet.")
-    #         return NotImplementedError
-    # else:
-    #     ''' There is not a separate parent folder for training images. Assumed the same is true for testing images.'''
-    #     tf.logging.error("Both training and testing images are located in the same folder. This logic is not currently "
-    #                      "implemented, due to the usecase of partitioning within the class label 'species'.")
-    #     sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
-    #     # TODO: Understand the following (see: https://stackoverflow.com/questions/51922602/what-exactly-does-the-data-set-creator-do-to-group-photos-in-tensorflow)
-    #     '''
-    #     We want to ignore anything after '_nohash_' in the file name when
-    #     deciding which set to put an image in, the data set creator has a way of
-    #     grouping photos that are close variations of each other. For example
-    #     this is used in the plant disease data set to group multiple pictures of
-    #     the same leaf.
-    #     '''
-    #     # hash_name = re.sub(r'_nohash_.*$', '', train_file_name)
-    #     '''
-    #     This looks a bit magical, but we need to decide whether this file should
-    #     go into the training, testing, or validation sets, and we want to keep
-    #     existing files in the same set even if more files are subsequently
-    #     added.
-    #     To do that, we need a stable way of deciding based on just the file name
-    #     itself, so we do a hash of that and then use that to generate a
-    #     probability value that we use to assign it.
-    #     '''
-    #     # hash_name_hashed = hashlib.sha1(tf.compat.as_bytes(hash_name)).hexdigest()
-    #     # percentage_hash = ((int(hash_name_hashed, 16) %
-    #     #                     (MAX_NUM_IMAGES_PER_CLASS + 1)) *
-    #     #                    (100.0 / MAX_NUM_IMAGES_PER_CLASS))
-    #     return NotImplementedError
+        image_lists[label_name] = {
+            'dir': dir_name,
+            'train': train_images,
+            'test': test_images,
+            'val': val_images
+        }
+    return image_lists
 
 
 def create_module_graph(module_spec):
@@ -238,7 +144,7 @@ def create_module_graph(module_spec):
     height, width = hub.get_expected_image_size(module_spec)
     # Create a new default graph:
     with tf.Graph().as_default() as graph:
-        with tf.variable_scope('source_model') as source_model_scope:
+        with tf.variable_scope('source_model'):
             # Create a placeholder tensor for input to the model.
             resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
             with tf.variable_scope('pre-trained_hub_module'):
@@ -363,7 +269,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
             # optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
             train_step = optimizer.minimize(cross_entropy_mean)
 
-    return (train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor)
+    return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
 
 
 def add_jpeg_decoding(module_spec):
@@ -445,8 +351,22 @@ def get_bottleneck_path(image_lists, label_name, index, bottleneck_dir,
     module_name = (module_name.replace('://', '~')  # URL scheme.
                    .replace('/', '~')  # URL and Unix paths.
                    .replace(':', '~').replace('\\', '~'))  # Windows paths.
-    return get_image_path(image_lists, label_name, index, bottleneck_dir,
-                          category) + '_' + module_name + '.txt'
+    if label_name not in image_lists:
+        tf.logging.fatal('Label does not exist %s.', label_name)
+    label_lists = image_lists[label_name]
+    if category not in label_lists:
+        tf.logging.fatal('Category does not exist %s.', category)
+    category_list = label_lists[category]
+    if not category_list:
+        tf.logging.fatal('Label %s has no images in the category %s.',
+                         label_name, category)
+    mod_index = index % len(category_list)
+    base_name = category_list[mod_index]
+    sub_dir = bottleneck_dir
+    img_name =  base_name.split(sep='\\')[-1]
+    module_name = img_name + '_' + module_name + '.txt'
+    full_path = os.path.join(sub_dir, label_name, module_name)
+    return full_path
 
 
 def run_bottleneck_on_image(sess, image_data, image_data_tensor,
@@ -594,15 +514,17 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
     if not os.path.exists(bottleneck_dir):
         os.makedirs(bottleneck_dir)
     for label_name, label_lists in image_lists.items():
+        # TODO: Enable validation evaluation and early stopping.
         # for category in ['training', 'testing']:
-        for category in ['training']:
-            try:
-                # TODO: Should be image_lists[category]?
-                category_list = label_lists[category]
-            except KeyError as key_err:
-                tf.logging.log(level=tf.logging.INFO, msg='KeyError for label \'%s\': %s' % (label_name, key_err))
+        for category in ['train']:
+            category_list = label_lists[category]
+            # try:
+            #     category_list = label_lists[category]
+            # except KeyError as key_err:
+            #     tf.logging.log(level=tf.logging.INFO, msg='KeyError for label \'%s\': %s' % (label_name, key_err))
             # tf.logging.log_first_n(level=tf.logging.INFO, msg='label_lists[%s]: %s' % (category, label_lists[category]), n=4)
             for index, unused_base_name in enumerate(category_list):
+                # TODO: Break this into two functions so two counters can be maintained (one for load one for init.):
                 get_or_create_bottleneck(
                     sess, image_lists, label_name, index, image_dir, category,
                     bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
@@ -611,7 +533,7 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
                 how_many_bottlenecks += 1
                 if how_many_bottlenecks % 100 == 0:
                     tf.logging.info(
-                        str(how_many_bottlenecks) + ' bottleneck files created.')
+                        str(how_many_bottlenecks) + ' bottleneck files loaded (or created).')
 
 
 def add_evaluation_step(result_tensor, ground_truth_tensor):
@@ -763,33 +685,6 @@ def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
     return bottlenecks, ground_truths, filenames
 
 
-def train_val_test_split(df_meta, train_percent=.80, val_percent=.20, test_percent=.20, random_state=0):
-    """
-    train_val_test_split: Performs a Stratified and shuffled partitioning of df_meta into df_train, df_val, and
-        df_test using the provided percentages.
-    :param df_meta: The global metadata dataframe to be partitioned into three sets.
-    :param train_percent: What percentage of the training data is to remain in the training set.
-    :param test_percent: What percentage of the training data is to be allocated to a testing set.
-    :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
-        for a validation set.
-    :param random_state: A seed for the random number generator controlling the stratified partitioning.
-    :return df_train, df_meta, df_test: Dataframes containing a subset of the original df_meta partitioned in a
-        stratified manner after having been shuffled.
-    """
-
-    # sss_train_test = model_selection.StratifiedShuffleSplit(n_splits=1, train_size=train_percent*(10**-2),
-    #                                              test_size=test_percent*(10**-2), random_state=random_state)
-    print(df_meta.head(1))
-    df_train, df_test = model_selection.train_test_split(train_size=train_percent, test_size=test_percent, shuffle=True, stratify=df_meta['dwc:scientificName'].values)
-    pass
-    RESUME HERE
-    # df_train, df_test = model_selection.StratifiedShuffleSplit(n_splits=2, test_size=test_percent*(10**-2),
-    #                                                            random_state=random_state)
-    # df_train, df_val = model_selection.StratifiedShuffleSplit(n_splits=2, test_size=val_percent*(10**-2),
-    #                                                           random_state=random_state+1)
-    # return df_train, df_val, df_test
-
-
 def main(_):
     # Enable visible logging output:
     tf.logging.set_verbosity(tf.logging.INFO)
@@ -798,36 +693,20 @@ def main(_):
         # The directory housing the training images was not specified.
         tf.logging.error('The flag --image_dir must be set.')
         return -1
-    # Check to see if the metadata dataframe is present in root:
-    if os.path.isfile(CMD_ARG_FLAGS.image_dir + '\\df_meta.pkl'):
-        df_meta = pd.read_pickle(path=CMD_ARG_FLAGS.image_dir + '\\df_meta.pkl')
-        tf.logging.info(msg='Located and loaded metadata into memory.')
-        # Drop rows with a file_path of None (hopefully due to http 404):
-        df_meta = df_meta.mask(df_meta.eq('None')).dropna(axis=0, how='all', subset=['file_path'])
-        tf.logging.info(msg='Removed samples with no file path from the metadata.')
-        # Drop rows with a class label ('dwc:scientificName') of NaN:
-        df_meta = df_meta.dropna(axis=0, how='any', subset=['dwc:scientificName'])
-        # TODO: This should have been done already, did something go wrong?
-        tf.logging.info(msg='Removed samples with no class label from the metadata.')
-    else:
-        tf.logging.info(msg='Couldn\'t find  the metadata file \'df_meta.pkl\' in the provided root dir: \'%s\'.'
-                            % CMD_ARG_FLAGS.image_dir)
-        return -1
 
     # Delete any TensorBoard summaries left over from previous runs:
     prepare_tensor_board_directories()
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
 
-    df_train, df_val, df_test = train_val_test_split(df_meta, train_percent=80, test_percent=20, val_percent=20)
-
-    # Create lists of all the images:
-    image_lists = create_image_lists(
-        df_train, df_val, df_test
-    )
-    tf.logging.info(msg='Populated image paths lists.')
+    # Partition images into train, test, validate sets:
+    tf.logging.info(msg='Partitioning images into training, validation, testing sets. Using: proportionate allocation stratified shuffled sampling...')
+    ts = time.time()
+    image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2, val_percent=.2, random_state=0)
+    tf.logging.info(msg='Populated image lists, performed partitioning in: %s seconds (%.2f minutes).' % ((time.time() - ts), (time.time() - ts)/60))
 
     # This is operating under the assumption we have the same number of classes in the training and testing sets:
     class_count = len(image_lists.keys())
+    tf.logging.info(msg='Detected %d unique classes.' % class_count)
 
     # TODO: See if the command-line flags specify any distortions
     # do_distort_images = should_distort_images(
@@ -840,7 +719,6 @@ def main(_):
         module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
         tf.logging.info(msg='Loaded tensorflow hub module spec: %s' % CMD_ARG_FLAGS.tfhub_module)
 
-        # Sinc
         graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
             create_module_graph(module_spec))
         tf.logging.info(msg='Defined computational graph from the tensorflow hub module spec.')
@@ -892,7 +770,7 @@ def main(_):
             #     )
             # else:
             ''' Ensure that the bottleneck image summaries are calculated and cached on disk'''
-            cache_bottlenecks(sess, image_lists, CMD_ARG_FLAGS.train_image_dir,
+            cache_bottlenecks(sess, image_lists, CMD_ARG_FLAGS.image_dir,
                               CMD_ARG_FLAGS.bottleneck_dir, jpeg_data_tensor,
                               decoded_image_tensor, resized_image_tensor,
                               bottleneck_tensor, CMD_ARG_FLAGS.tfhub_module)
@@ -902,7 +780,7 @@ def main(_):
 
             # Merge all summaries and write them out to the summaries_dir
             merged = tf.summary.merge_all()
-            # This might not work for other models unless the urls are formatted with the same array:
+            # TODO: This might not work for other models unless the urls are formatted with the same array:
             hyper_string = '%s/lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
             train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
             test_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/test/' + hyper_string)
@@ -1025,7 +903,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bottleneck_dir',
         type=str,
-        default='/tmp/bottleneck',
+        default='/tmp/bottlenecks',
         help='Path to cache bottleneck layer values as files.'
     )
     parser.add_argument(
