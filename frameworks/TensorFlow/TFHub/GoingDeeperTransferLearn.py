@@ -98,7 +98,8 @@ def partition_into_image_lists(image_dir, train_percent=.80, val_percent=.20, te
             tf.logging.warning(
                 'WARNING: Folder {} has more than {} images. Some images will '
                 'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
-        label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+        # label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+        label_name = dir_name.lower()
 
         ''' Train, val, test spits: '''
         # There isn't a point in stratifying on a class-by-class basis when performing Proportionate allocation
@@ -792,7 +793,7 @@ def main(_):
                 # Get a batch of input bottleneck values, either calculated fresh every
                 # time with distortions applied, or from the cache stored on disk.
                 (train_bottlenecks, train_ground_truth, _) = get_random_cached_bottlenecks(
-                    sess, image_lists, CMD_ARG_FLAGS.train_batch_size, 'training',
+                    sess, image_lists, CMD_ARG_FLAGS.train_batch_size, 'train',
                     CMD_ARG_FLAGS.bottleneck_dir, CMD_ARG_FLAGS.image_dir, jpeg_data_tensor,
                     decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
                     CMD_ARG_FLAGS.tfhub_module)
