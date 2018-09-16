@@ -1,0 +1,26 @@
+Runtime configuration for GoingDeeperTransferLearn.py (Going Deeper in the Automated Id. data set):
+D:\data\GoingDeeperData -v -a inception_v3 --resume ../../data/PTCheckpoints/model_best.pth.tar
+
+Runtime configuration for GoingDeeperTransferLearn.py (Going Deeper in the Automated Id. data SUB-set):
+C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper -v -a inception_v3 --resume ../../data/PTCheckpoints/model_best.pth.tar
+
+Runtime configuration for InceptionV3TransferLearn.py:
+C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\ImageNet\SubSets\hymenoptera_data -j 2 -b 6 --pretrained
+
+Runtime configuration for TensorFlow TensorFlow Hub retrain_example.py:
+Execute: python C:\Users\ccamp\Documents\GitHub\HerbariumDeep\frameworks\TensorFlow\TFHub\retrain_example.py
+--image_dir D:\data\GoingDeeperData\images\train --output_graph ..\Output --intermediate_store_frequency 1 --how_many_training_steps 1 --train_batch_size 64 --test_batch_size 64 --bottleneck_dir ..\Bottlenecks --saved_model_dir ..\\Output\\model_graph.record --tfhub_module https://tfhub.dev/google/imagenet/inception_v3/classification/1 --intermediate_output_dir ..\TBLogs
+
+Debug configuration for TensorFlow TensorFlow Hub retrain_example.py:
+--image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --bottleneck_dir ..\SubsetBottlenecks
+
+Runtime configuration for TFHub\GoingDeeperTransferLearn.py:
+--image_dir D:\data\GoingDeeperData\images --train_image_dir D:\data\GoingDeeperData\images\train --test_image_dir D:\data\GoingDeeperData\images\test --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 100000 --intermediate_store_frequency 1000
+--image_dir D:\data\GoingDeeperData\images --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 100000 --intermediate_store_frequency 1000
+
+
+Debug configuration for TFHub\GoingDeeperTransferLearn.py:
+--image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --train_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\train --test_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\test --bottleneck_dir ..\SubsetBottlenecks --num_epochs 100 --intermediate_store_frequency 10
+--image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --train_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\train --
+
+C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\ImageNet\SubSets\hymenoptera_data -a inception_v3 -j 2 -b 6 --pretrained
