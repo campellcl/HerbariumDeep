@@ -517,7 +517,7 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
     for label_name, label_lists in image_lists.items():
         # TODO: Enable validation evaluation and early stopping.
         # for category in ['training', 'testing']:
-        for category in ['train']:
+        for category in ['train', 'val']:
             category_list = label_lists[category]
             # try:
             #     category_list = label_lists[category]
@@ -776,7 +776,7 @@ def main(_):
                               decoded_image_tensor, resized_image_tensor,
                               bottleneck_tensor, CMD_ARG_FLAGS.tfhub_module)
 
-            # Create operations to evaluate the accuracy of the new layer:
+            # Create operations to evaluate the accuracy of the new layer (called during validation during training):
             evaluation_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
 
             # Merge all summaries and write them out to the summaries_dir
@@ -784,7 +784,7 @@ def main(_):
             # TODO: This might not work for other models unless the urls are formatted with the same array:
             hyper_string = '%s/lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
             train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
-            test_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/test/' + hyper_string)
+            val_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/val/' + hyper_string)
             # Create a train saver that is used to restore values into an eval graph:
             train_saver = tf.train.Saver()
 
@@ -817,7 +817,21 @@ def main(_):
                     # TODO: Make this use an eval graph, to avoid quantization
                     # moving averages being updated by the validation set, though in
                     # practice this makes a negligable difference.
-                    # TODO: Add validation code for early stopping, and to avoid information leakage.
+                    validation_bottlenecks, validation_ground_truth, _ = (
+                        get_random_cached_bottlenecks(
+                                sess=sess, image_lists=image_lists, how_many=CMD_ARG_FLAGS.val_batch_size,
+                                category='val', bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir,
+                                image_dir=CMD_ARG_FLAGS.image_dir, jpeg_data_tensor=jpeg_data_tensor,
+                                decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
+                                bottleneck_tensor=bottleneck_tensor, module_name=CMD_ARG_FLAGS.tfhub_module))
+                    # Run a validation step and capture training summaries for TensorBoard with the 'merged' op:
+                    validation_summary, validation_accuracy = sess.run(
+                        [merged, evaluation_step],
+                        feed_dict={bottleneck_input: validation_bottlenecks,
+                                   ground_truth_input: validation_ground_truth})
+                    val_writer.add_summary(validation_summary, i)
+                    tf.logging.info('%s: Step %d: Validation accuracy = %.1f%% (N=%d)' %
+                                    (datetime.now(), i, validation_accuracy * 100, len(validation_bottlenecks)))
 
                 # Store intermediate results
                 intermediate_frequency = CMD_ARG_FLAGS.intermediate_store_frequency
@@ -873,8 +887,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--train_batch_size',
         type=int,
-        default='128',
+        default=128,
         help='The number of images per mini-batch during training.'
+    )
+    parser.add_argument(
+        '--val_batch_size',
+        type=int,
+        default=128,
+        help='The number of images per mini-batch during validation.'
     )
     parser.add_argument(
         '--tfhub_module',
