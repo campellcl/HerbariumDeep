@@ -192,8 +192,9 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
         instrumented for quantization with TF-Lite.
     :param is_training: Boolean, specifying whether the newly add layer is for training
         or eval.
-    :returns : The tensors for the training and cross entropy results, and tensors for the
-        bottleneck input and ground truth input.
+    :returns : The tensors for the training and cross entropy results, tensors for the
+        bottleneck input and ground truth input, a reference to the optimizer for archival purposes and use in the
+        hyper-string representation of this training run.
     """
     # The batch size
     batch_size, bottleneck_tensor_size = bottleneck_tensor.get_shape().as_list()
@@ -257,7 +258,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
 
         # If this is an eval graph, we don't need to add loss ops or an optimizer.
         if not is_training:
-            return None, None, bottleneck_input, ground_truth_input, final_tensor
+            return None, None, bottleneck_input, ground_truth_input, final_tensor, 'No optimizer'
 
         with tf.name_scope('cross_entropy'):
             # What constitutes sparse in this case?:
@@ -267,10 +268,17 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
 
         with tf.name_scope('train'):
             optimizer = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9)
-            # optimizer = tf.train.GradientDescentOptimizer(CMD_ARG_FLAGS.learning_rate)
+            # TODO: Can we make this not hard-coded? Trouble accessing the params passed to the optim at instantiation.
+            if optimizer.get_name() == 'Momentum':
+                optimizer_info = optimizer.get_name() + '{%s=%.2f}' % (optimizer.get_slot_names()[0], optimizer._momentum)
+            else:
+                optimizer_info = optimizer.get_name() + '{%s}' % (optimizer.get_slot_names())
+                # optimizer_info = {slot_name: slot_value for slot_name, slot_value in zip(optimizer.get_slot_names(), optimizer.'_'.join(...)}
+                # optimizer_info = optimizer.get_name() + '{%s}' % optimizer.variables()
+                # optimizer_info = optimizer.get_name() + '{%s=%.2f}' % (optimizer.get_slot_names()[0], optimizer._momentum)
             train_step = optimizer.minimize(cross_entropy_mean)
 
-    return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
+    return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor, optimizer_info
 
 
 def add_jpeg_decoding(module_spec):
@@ -580,7 +588,7 @@ def build_eval_session(module_spec, class_count):
     with eval_graph.as_default():
         # Add the new layer for exporting.
         (_, _, bottleneck_input,
-         ground_truth_input, final_tensor) = add_final_retrain_ops(
+         ground_truth_input, final_tensor, optimizer_info) = add_final_retrain_ops(
             class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
             wants_quantization, is_training=False)
 
@@ -727,7 +735,7 @@ def main(_):
         # Add the new layer that we'll be training to our new default graph:
         with graph.as_default():
             (train_step, cross_entropy, bottleneck_input,
-             ground_truth_input, final_tensor) = add_final_retrain_ops(
+             ground_truth_input, final_tensor, optimizer_info) = add_final_retrain_ops(
                 class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
                 wants_quantization, is_training=True)
         tf.logging.info(msg='Added final retrain ops to the module source graph.')
@@ -782,7 +790,7 @@ def main(_):
             # Merge all summaries and write them out to the summaries_dir
             merged = tf.summary.merge_all()
             # TODO: This might not work for other models unless the urls are formatted with the same array:
-            hyper_string = '%s/lr_%.1E' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate)
+            hyper_string = '%s/lr_%.1E,opt_%s' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate, optimizer_info)
             train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
             val_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/val/' + hyper_string)
             # Create a train saver that is used to restore values into an eval graph:
