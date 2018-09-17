@@ -21,6 +21,6 @@ Runtime configuration for TFHub\GoingDeeperTransferLearn.py:
 
 Debug configuration for TFHub\GoingDeeperTransferLearn.py:
 --image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --train_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\train --test_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\test --bottleneck_dir ..\SubsetBottlenecks --num_epochs 100 --intermediate_store_frequency 10
---image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --train_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\train --
+--image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --bottleneck_dir ..\SubsetBottlenecks --num_epochs 100 --intermediate_store_frequency 10
 
 C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\ImageNet\SubSets\hymenoptera_data -a inception_v3 -j 2 -b 6 --pretrained
