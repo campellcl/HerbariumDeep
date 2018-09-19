@@ -655,7 +655,7 @@ def save_graph_to_file(graph, graph_file_name, module_spec, class_count):
     :param class_count:
     :return:
     """
-    sess, _, _, _, _, _ = build_eval_session(module_spec, class_count)
+    sess, _, _, _, _, _, _ = build_eval_session(module_spec, class_count)
     graph = sess.graph
 
     tf.train.write_graph(sess.graph_def, logdir='tmp/summaries', name='session_graph_def', as_text=True)
