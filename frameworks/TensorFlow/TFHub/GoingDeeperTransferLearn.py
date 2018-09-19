@@ -238,7 +238,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
             # pre-activations:
             with tf.name_scope('Wx_plus_b'):
                 logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
-                tf.summary.histogram('pre_activations', logits)
+                tf.summary.histogram('pre_activations(logits)', logits)
 
         # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
         final_tensor = tf.nn.softmax(logits=logits, name=final_tensor_name)
@@ -270,7 +270,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
             optimizer = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9)
             # TODO: Can we make this not hard-coded? Trouble accessing the params passed to the optim at instantiation.
             if optimizer.get_name() == 'Momentum':
-                optimizer_info = optimizer.get_name() + '{%s=%.2f}' % (optimizer.get_slot_names()[0], optimizer._momentum)
+                optimizer_info = optimizer.get_name() + '{momentum=%.2f}' % optimizer._momentum
             else:
                 optimizer_info = optimizer.get_name() + '{%s}' % (optimizer.get_slot_names())
                 # optimizer_info = {slot_name: slot_value for slot_name, slot_value in zip(optimizer.get_slot_names(), optimizer.'_'.join(...)}
@@ -523,7 +523,7 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
     if not os.path.exists(bottleneck_dir):
         os.makedirs(bottleneck_dir)
     for label_name, label_lists in image_lists.items():
-        # TODO: Enable validation evaluation and early stopping.
+        # TODO: Enable early stopping.
         # for category in ['training', 'testing']:
         for category in ['train', 'val']:
             category_list = label_lists[category]
@@ -546,7 +546,7 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
 
 
 def add_evaluation_step(result_tensor, ground_truth_tensor):
-    """Inserts the operations we need to evaluate the accuracy of our results.
+    """Inserts the operations needed to evaluate the accuracy of the results.
 
       Args:
         result_tensor: The new final node that produces results.
@@ -558,15 +558,58 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
     """
     with tf.name_scope('accuracy'):
         with tf.name_scope('correct_prediction'):
+            tf.logging.info(msg='result_tensor: %s' % result_tensor)
+            # tf.logging.info(msg='result_tensor_shape: %s' % result_tensor.shape)
+            tf.logging.info(msg='ground_truth_tensor: %s' % ground_truth_tensor)
             prediction = tf.argmax(result_tensor, 1)
+            tf.logging.info(msg='prediction tensor: %s' % prediction)
             # Returns the truth value of (prediction == ground_truth_tensor) element-wise.
             correct_prediction = tf.equal(prediction, ground_truth_tensor)
+            tf.logging.info(msg='correct_prediction: %s' % correct_prediction)
         with tf.name_scope('accuracy'):
             # Compute the mean of the elements along the given axis:
-            evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            acc_evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        # Now compute the top-k accuracy:
+        with tf.name_scope('top5_accuracy'):
+            top5_acc_eval_step = tf.reduce_mean(tf.cast(tf.nn.in_top_k(predictions=result_tensor, targets=ground_truth_tensor, k=5), tf.float32))
+            # top5_acc_eval_step = tf.constant(top5_acc_eval_step)
+            # top_k_probs, top_k_indices = tf.nn.top_k(input=result_tensor, k=5)
+            # top_k_probs is a [128, 5] matrix. Each row is a sample. Each column is one of the probabilities.
+            # top_k_indices is a [128, 5] matrix. Each row is a sample. Each column is the col index containing the top prob.
+            # top_k_predictions is equivalent to top_k_indices because the index corresponds to encoded class label
+            # top_k_class_labels = tf.gather(params=ground_truth_tensor, indices=top_k_indices)
+            # top_k_class_labels = top_k_probs[:, 0]
+            # tf.logging.info(msg='top_k_class_labels: %s' % top_k_class_labels)
+            # correct_predictions = tf.equal(tf.cast(top_k_class_labels, tf.int64), ground_truth_tensor)
+            # tf.logging.info(msg='correct_predictions: %s' % correct_predictions)
+            # top_5_acc_eval_step = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
+            # tf.logging.info(msg='top_5_acc_eval_step: %s' % top_5_acc_eval_step)
+
+
+            # top_5_probabilities, top_5_predicted_labels = tf.nn.top_k(input=prediction, k=5)
+            # # top_5_acc_eval_step = tf.reduce_mean(tf.nn.top_k(input=tf.cast(result_tensor, tf.float32), k=5))
+            # k_largest_probs, k_largest_indices = tf.nn.top_k(result_tensor, k=5)
+            # tf.logging.info('k_largest_probs: %s' % k_largest_probs)
+            # tf.logging.info('k_largest_indices: %s' % k_largest_indices)
+            # # truth value of (k_largest_pred == ground_truth_tensor) element wise:
+            # correct_predictions = tf.equal(k_largest_probs, tf.cast(ground_truth_tensor, tf.float32))
+            # top_5_acc_eval_step = tf.reduce_mean(tf.cast(correct_predictions, tf.float32), axis=1)
+            # top_5_acc_eval_step = tf.reduce_mean(tf.cast(tf.nn.top_k(input=result_tensor, k=5), dtype=tf.float32), axis=1)
+
+            # tf.metrics.mean(tf.nn.in_top_k(predictions=prediction, targets=ground_truth_tensor, k=5))
+            # tf.logging.info(msg='top_5_probabilities: %s, top_5_predicted_labels: %s' % (top_5_probabilities, top_5_predicted_labels))
+            # correct_predictions = tf.equal(top_5_predicted_labels, tf.nn.top_k(input=ground_truth_tensor, k=5))
+            # tf.logging.info(msg='predictions: %s' % predictions)
+            # top_5_acc_eval_step = tf.get_variable(name="top_5_acc_eval", shape=(1,), trainable=False)
+            # top_5_acc_eval_step = tf.metrics.mean(tf.nn.in_top_k(predictions=tf.cast(result_tensor, tf.float32), targets=ground_truth_tensor, k=5, name='in_top_5'), name='top5_accuracy')
+            # top_5_acc_eval_step = tf.nn.top_k(predictions=tf.cast(prediction, tf.float32), targets=ground_truth_tensor, k=5)
+            # top_5_acc_eval_step = None
+
     # Export the accuracy of the model for use in tensorboard:
-    tf.summary.scalar('accuracy', evaluation_step)
-    return evaluation_step, prediction
+    tf.summary.scalar('accuracy', acc_evaluation_step)
+    tf.summary.scalar('top5_accuracy', top5_acc_eval_step)
+
+    return acc_evaluation_step, top5_acc_eval_step, prediction
 
 
 def build_eval_session(module_spec, class_count):
@@ -596,11 +639,11 @@ def build_eval_session(module_spec, class_count):
         # graph.
         tf.train.Saver().restore(eval_sess, CHECKPOINT_DIR)
 
-        evaluation_step, prediction = add_evaluation_step(final_tensor,
+        acc_evaluation_step, top5_acc_eval_step, prediction = add_evaluation_step(final_tensor,
                                                           ground_truth_input)
 
     return (eval_sess, resized_input_tensor, bottleneck_input, ground_truth_input,
-            evaluation_step, prediction)
+            acc_evaluation_step, top5_acc_eval_step, prediction)
 
 
 def save_graph_to_file(graph, graph_file_name, module_spec, class_count):
@@ -754,14 +797,17 @@ def main(_):
         with tf.Session(graph=graph) as sess:
             # Initialize all weights: for the module to their pretrained values,
             # and for the newly added retraining layer to random initial values.
-            init = tf.global_variables_initializer()
+            # init = tf.global_variables_initializer()
+            # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 
             if CMD_ARG_FLAGS.resume_final_checkpoint_path:
                 # When you restore variables you do not have to initialize them beforehand:
                 tf.saved_model.loader.load(sess=sess, tags=[tag_constants.TRAINING], export_dir=CMD_ARG_FLAGS.resume_final_checkpoint_path)
                 tf.logging.info(msg='Restored model from saved checkpoint (.pb) file.')
 
-            sess.run(init)
+            # sess.run(init)
+            sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
 
             with tf.name_scope('re-train_ops'):
                 # Set up the image decoding sub-graph.
@@ -785,7 +831,7 @@ def main(_):
                               bottleneck_tensor, CMD_ARG_FLAGS.tfhub_module)
 
             # Create operations to evaluate the accuracy of the new layer (called during validation during training):
-            evaluation_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
+            acc_evaluation_step, top5_acc_eval_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
 
             # Merge all summaries and write them out to the summaries_dir
             merged = tf.summary.merge_all()
@@ -815,8 +861,9 @@ def main(_):
                 # Every so often, print out how well the graph is training.
                 is_last_step = (i + 1 == CMD_ARG_FLAGS.num_epochs)
                 if (i % CMD_ARG_FLAGS.eval_step_interval) == 0 or is_last_step:
-                    train_accuracy, cross_entropy_value = sess.run(
-                        [evaluation_step, cross_entropy],
+                    # TODO: Error has something to do with this, keep an eye on cross_entropy_value != predictions
+                    train_accuracy, top5_accuracy, cross_entropy_value = sess.run(
+                        [acc_evaluation_step, top5_acc_eval_step, cross_entropy],
                         feed_dict={bottleneck_input: train_bottlenecks,
                                    ground_truth_input: train_ground_truth}
                     )
@@ -833,13 +880,15 @@ def main(_):
                                 decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
                                 bottleneck_tensor=bottleneck_tensor, module_name=CMD_ARG_FLAGS.tfhub_module))
                     # Run a validation step and capture training summaries for TensorBoard with the 'merged' op:
-                    validation_summary, validation_accuracy = sess.run(
-                        [merged, evaluation_step],
+                    validation_summary, validation_accuracy, top5_val_accuracy = sess.run(
+                        [merged, acc_evaluation_step, top5_acc_eval_step],
                         feed_dict={bottleneck_input: validation_bottlenecks,
                                    ground_truth_input: validation_ground_truth})
                     val_writer.add_summary(validation_summary, i)
                     tf.logging.info('%s: Step %d: Validation accuracy = %.1f%% (N=%d)' %
                                     (datetime.now(), i, validation_accuracy * 100, len(validation_bottlenecks)))
+                    tf.logging.info(msg='%s: Step %d: Validation top-5 accuracy = %.1f%% (N=%d)' %
+                                        (datetime.now(), i, top5_val_accuracy * 100, len(validation_bottlenecks)))
 
                 # Store intermediate results
                 intermediate_frequency = CMD_ARG_FLAGS.intermediate_store_frequency
