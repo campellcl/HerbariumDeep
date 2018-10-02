@@ -238,7 +238,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
             # pre-activations:
             with tf.name_scope('Wx_plus_b'):
                 logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
-                tf.summary.histogram('pre_activations(logits)', logits)
+                tf.summary.histogram('pre_activations_logits', logits)
 
         # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
         final_tensor = tf.nn.softmax(logits=logits, name=final_tensor_name)
@@ -756,6 +756,14 @@ def main(_):
     image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2, val_percent=.2, random_state=0)
     tf.logging.info(msg='Populated image lists, performed partitioning in: %s seconds (%.2f minutes).' % ((time.time() - ts), (time.time() - ts)/60))
 
+    # Record the number of validation samples:
+    num_val_samples = 0
+    for clss in image_lists.keys():
+        num_val_samples += len(image_lists[clss]['val'])
+    # If the provided validation batch size was -1 then use the entire validation set:
+    if CMD_ARG_FLAGS.val_batch_size == -1:
+        CMD_ARG_FLAGS.val_batch_size = num_val_samples
+
     # This is operating under the assumption we have the same number of classes in the training and testing sets:
     class_count = len(image_lists.keys())
     tf.logging.info(msg='Detected %d unique classes.' % class_count)
@@ -951,8 +959,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--val_batch_size',
         type=int,
-        default=128,
-        help='The number of images per mini-batch during validation.'
+        default=-1,
+        help='The number of images per mini-batch during validation. By default this is the size of the entire validation set.'
     )
     parser.add_argument(
         '--tfhub_module',
