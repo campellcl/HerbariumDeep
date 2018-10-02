@@ -836,7 +836,9 @@ def main(_):
             # Merge all summaries and write them out to the summaries_dir
             merged = tf.summary.merge_all()
             # TODO: This might not work for other models unless the urls are formatted with the same array:
-            hyper_string = '%s/lr_%.1E,opt_%s' % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.learning_rate, optimizer_info)
+            hyper_string = '%s/MBT_%s,MBV_%s,lr_%.1E,opt_%s' \
+                           % (CMD_ARG_FLAGS.tfhub_module.split('/')[-3], CMD_ARG_FLAGS.train_batch_size,
+                              CMD_ARG_FLAGS.val_batch_size, CMD_ARG_FLAGS.learning_rate, optimizer_info)
             train_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/train/' + hyper_string, sess.graph)
             val_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/val/' + hyper_string)
             # Create a train saver that is used to restore values into an eval graph:
@@ -933,7 +935,6 @@ if __name__ == '__main__':
         default='',
         help='The path to a (.pb file) housing a previously trained graph '
              '(i.e. has a re-trained final layer already saved).'
-
     )
     parser.add_argument(
         '--image_dir',
