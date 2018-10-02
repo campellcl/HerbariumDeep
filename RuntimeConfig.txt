@@ -16,7 +16,7 @@ Debug configuration for TensorFlow TensorFlow Hub retrain_example.py:
 
 Runtime configuration for TFHub\GoingDeeperTransferLearn.py:
 --image_dir D:\data\GoingDeeperData\images --train_image_dir D:\data\GoingDeeperData\images\train --test_image_dir D:\data\GoingDeeperData\images\test --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 100000 --intermediate_store_frequency 1000
---image_dir D:\data\GoingDeeperData\images --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 100000 --intermediate_store_frequency 1000
+--image_dir D:\data\GoingDeeperData\images --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 200000 --intermediate_store_frequency 1000
 
 
 Debug configuration for TFHub\GoingDeeperTransferLearn.py:
