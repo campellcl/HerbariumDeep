@@ -550,8 +550,7 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
 
       Args:
         result_tensor: The new final node that produces results.
-        ground_truth_tensor: The node we feed ground truth data
-        into.
+        ground_truth_tensor: The node we feed ground truth data into.
 
       Returns:
         Tuple of (evaluation step, prediction).
@@ -572,40 +571,8 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
         # Now compute the top-k accuracy:
         with tf.name_scope('top5_accuracy'):
             top5_acc_eval_step = tf.reduce_mean(tf.cast(tf.nn.in_top_k(predictions=result_tensor, targets=ground_truth_tensor, k=5), tf.float32))
-            # top5_acc_eval_step = tf.constant(top5_acc_eval_step)
-            # top_k_probs, top_k_indices = tf.nn.top_k(input=result_tensor, k=5)
-            # top_k_probs is a [128, 5] matrix. Each row is a sample. Each column is one of the probabilities.
-            # top_k_indices is a [128, 5] matrix. Each row is a sample. Each column is the col index containing the top prob.
-            # top_k_predictions is equivalent to top_k_indices because the index corresponds to encoded class label
-            # top_k_class_labels = tf.gather(params=ground_truth_tensor, indices=top_k_indices)
-            # top_k_class_labels = top_k_probs[:, 0]
-            # tf.logging.info(msg='top_k_class_labels: %s' % top_k_class_labels)
-            # correct_predictions = tf.equal(tf.cast(top_k_class_labels, tf.int64), ground_truth_tensor)
-            # tf.logging.info(msg='correct_predictions: %s' % correct_predictions)
-            # top_5_acc_eval_step = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
-            # tf.logging.info(msg='top_5_acc_eval_step: %s' % top_5_acc_eval_step)
 
-
-            # top_5_probabilities, top_5_predicted_labels = tf.nn.top_k(input=prediction, k=5)
-            # # top_5_acc_eval_step = tf.reduce_mean(tf.nn.top_k(input=tf.cast(result_tensor, tf.float32), k=5))
-            # k_largest_probs, k_largest_indices = tf.nn.top_k(result_tensor, k=5)
-            # tf.logging.info('k_largest_probs: %s' % k_largest_probs)
-            # tf.logging.info('k_largest_indices: %s' % k_largest_indices)
-            # # truth value of (k_largest_pred == ground_truth_tensor) element wise:
-            # correct_predictions = tf.equal(k_largest_probs, tf.cast(ground_truth_tensor, tf.float32))
-            # top_5_acc_eval_step = tf.reduce_mean(tf.cast(correct_predictions, tf.float32), axis=1)
-            # top_5_acc_eval_step = tf.reduce_mean(tf.cast(tf.nn.top_k(input=result_tensor, k=5), dtype=tf.float32), axis=1)
-
-            # tf.metrics.mean(tf.nn.in_top_k(predictions=prediction, targets=ground_truth_tensor, k=5))
-            # tf.logging.info(msg='top_5_probabilities: %s, top_5_predicted_labels: %s' % (top_5_probabilities, top_5_predicted_labels))
-            # correct_predictions = tf.equal(top_5_predicted_labels, tf.nn.top_k(input=ground_truth_tensor, k=5))
-            # tf.logging.info(msg='predictions: %s' % predictions)
-            # top_5_acc_eval_step = tf.get_variable(name="top_5_acc_eval", shape=(1,), trainable=False)
-            # top_5_acc_eval_step = tf.metrics.mean(tf.nn.in_top_k(predictions=tf.cast(result_tensor, tf.float32), targets=ground_truth_tensor, k=5, name='in_top_5'), name='top5_accuracy')
-            # top_5_acc_eval_step = tf.nn.top_k(predictions=tf.cast(prediction, tf.float32), targets=ground_truth_tensor, k=5)
-            # top_5_acc_eval_step = None
-
-    # Export the accuracy of the model for use in tensorboard:
+    # Export the accuracy of the model for use with TensorBoard:
     tf.summary.scalar('accuracy', acc_evaluation_step)
     tf.summary.scalar('top5_accuracy', top5_acc_eval_step)
 
@@ -613,7 +580,8 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
 
 
 def build_eval_session(module_spec, class_count):
-    """Builds an restored eval session without train operations for exporting.
+    """
+    Builds an restored eval session without train operations for exporting.
 
     Args:
       module_spec: The hub.ModuleSpec for the image module being used.
@@ -635,8 +603,7 @@ def build_eval_session(module_spec, class_count):
             class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
             wants_quantization, is_training=False)
 
-        # Now we need to restore the values from the training graph to the eval
-        # graph.
+        # Now we need to restore the values from the training graph to the eval graph.
         tf.train.Saver().restore(eval_sess, CHECKPOINT_DIR)
 
         acc_evaluation_step, top5_acc_eval_step, prediction = add_evaluation_step(final_tensor,
@@ -737,6 +704,24 @@ def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
     return bottlenecks, ground_truths, filenames
 
 
+# def restore_module_graph(checkpoint_file):
+#     """
+#     restore_module_graph: Loads a previously trained model into the program in order to either continue training, or
+#         run evaluation metrics.
+#     :param checkpoint_file: The checkpoint file housing the saved final model.
+#     :return:
+#     """
+#     bottleneck_tensor = tf.get_variable('bottleneck_tensor')
+#
+#     with tf.Session() as sess:
+#         # Restore variables from disk
+#         train_saver.restore(sess, checkpoint_file)
+#         print('Model restored from file: \'%s\'' % checkpoint_file)
+#         # Check the values of the variables:
+#         print('Restored bottleneck_tensor: \'%s\'' % bottleneck_tensor)
+#     return bottleneck_tensor
+#     # return graph, bottleneck_tensor, resized_image_tensor
+
 def main(_):
     # Enable visible logging output:
     tf.logging.set_verbosity(tf.logging.INFO)
@@ -794,10 +779,12 @@ def main(_):
         # Restore from checkpoint of a previously trained model:
         tf.logging.info(msg='Attempting to restore from a previously saved checkpoint. '
                             'Expecting previous model to have re-train ops already added to computational graph!')
-        graph = tf.Graph()
+
+        # TODO: The 'graph' variable is not instantiated at this point. Need to decide whether to...
+        #   resume from a checkpoint or save and restore entire saved model. Checkpoint for training, restore for eval.
 
         # graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
-        #     restore_module_graph(module_checkpoint)
+        #     restore_module_graph(CMD_ARG_FLAGS.resume_final_checkpoint_path)
         # )
 
     ''' Training Loop: '''
@@ -871,7 +858,6 @@ def main(_):
                 # Every so often, print out how well the graph is training.
                 is_last_step = (i + 1 == CMD_ARG_FLAGS.num_epochs)
                 if (i % CMD_ARG_FLAGS.eval_step_interval) == 0 or is_last_step:
-                    # TODO: Error has something to do with this, keep an eye on cross_entropy_value != predictions
                     train_accuracy, top5_accuracy, cross_entropy_value = sess.run(
                         [acc_evaluation_step, top5_acc_eval_step, cross_entropy],
                         feed_dict={bottleneck_input: train_bottlenecks,
@@ -937,12 +923,25 @@ def main(_):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning Demo on Going Deeper Herbaria 1K Dataset')
-    parser.add_argument(
-        '--resume_final_checkpoint_path',
+    # Group enforces that cmd args for model restoration for training and for eval cannot be invoked at the same time.
+    mutual_exclusion_restore_params_group = parser.add_mutually_exclusive_group()
+    mutual_exclusion_restore_params_group.add_argument(
+        '--resume_train_checkpoint_path',
         type=str,
         default='',
-        help='The path to a (.pb file) housing a previously trained graph '
-             '(i.e. has a re-trained final layer already saved).'
+        help='The path to a (.pb file) housing a previously trained (or partially trained) graph.'
+             'This checkpoint file must have re-train ops already saved to restore from. IMPORTANT: This flag is '
+             'intended only to be used to resume the training of a previously saved checkpoint. This flag is NOT '
+             'intended to load a saved model for evaluation.'
+    )
+    mutual_exclusion_restore_params_group.add_argument(
+        '--saved_model_path',
+        type=str,
+        default='',
+        help='The path to a previously trained model exported via a tf.Saver object. This flag is intended to be used '
+             'to restore a previously trained model ONLY for evaluation purposes. Gradients will NOT be restored, do '
+             'NOT attempt to resume model training with this flag. Instead, use the: --resume_train_checkpoint_path '
+             'command line argument if you wish to restore with the gradients for training purposes.'
     )
     parser.add_argument(
         '--image_dir',
@@ -960,7 +959,8 @@ if __name__ == '__main__':
         '--val_batch_size',
         type=int,
         default=-1,
-        help='The number of images per mini-batch during validation. By default this is the size of the entire validation set.'
+        help='The number of images per mini-batch during validation. By default the value is -1, the size of the '
+             '-entire validation set.'
     )
     parser.add_argument(
         '--tfhub_module',
