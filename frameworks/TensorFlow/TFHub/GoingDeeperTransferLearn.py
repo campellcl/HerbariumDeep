@@ -722,70 +722,40 @@ def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
 #     return bottleneck_tensor
 #     # return graph, bottleneck_tensor, resized_image_tensor
 
-def main(_):
-    # Enable visible logging output:
-    tf.logging.set_verbosity(tf.logging.INFO)
+def resume_training(checkpoint_path):
+    # if CMD_ARG_FLAGS.resume_final_checkpoint_path:
+    #     # When you restore variables you do not have to initialize them beforehand:
+    #     tf.saved_model.loader.load(sess=sess, tags=[tag_constants.TRAINING], export_dir=CMD_ARG_FLAGS.resume_final_checkpoint_path)
+    #     tf.logging.info(msg='Restored model from saved checkpoint (.pb) file.')
+    pass
 
-    if not CMD_ARG_FLAGS.image_dir:
-        # The directory housing the training images was not specified.
-        tf.logging.error('The flag --image_dir must be set.')
-        return -1
 
-    # Delete any TensorBoard summaries left over from previous runs:
-    prepare_tensor_board_directories()
-    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
+def fine_tune_and_train_model(class_count, image_lists):
+    """
+    fine_tune_and_train_model: Transfer Learning with the source model as a tfhub module provided as a command line
+        argument (CMD_ARG_FLAGS.tfhub_module). The initial weight values will be sourced from the given tfhub module.
+    :param class_count: The number of unique class labels in the training and testing datasets (it is assumed that-
+        there are an equal number of unique classes in the training and testing sets).
+    :param image_lists: A dictionary containing all available datasets (train, test, validate) as a list of file paths.
+    :return:
+    """
 
-    # Partition images into train, test, validate sets:
-    tf.logging.info(msg='Partitioning images into training, validation, testing sets. Using: proportionate allocation stratified shuffled sampling...')
-    ts = time.time()
-    image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2, val_percent=.2, random_state=0)
-    tf.logging.info(msg='Populated image lists, performed partitioning in: %s seconds (%.2f minutes).' % ((time.time() - ts), (time.time() - ts)/60))
+    # No restoration from checkpoint was requested; use the provided tfhub module instead:
+    # Set up the pre-trained graph:
+    module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
+    tf.logging.info(msg='Loaded tensorflow hub module spec: %s' % CMD_ARG_FLAGS.tfhub_module)
 
-    # Record the number of validation samples:
-    num_val_samples = 0
-    for clss in image_lists.keys():
-        num_val_samples += len(image_lists[clss]['val'])
-    # If the provided validation batch size was -1 then use the entire validation set:
-    if CMD_ARG_FLAGS.val_batch_size == -1:
-        CMD_ARG_FLAGS.val_batch_size = num_val_samples
+    graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
+        create_module_graph(module_spec))
+    tf.logging.info(msg='Defined computational graph from the tensorflow hub module spec.')
 
-    # This is operating under the assumption we have the same number of classes in the training and testing sets:
-    class_count = len(image_lists.keys())
-    tf.logging.info(msg='Detected %d unique classes.' % class_count)
-
-    # TODO: See if the command-line flags specify any distortions
-    # do_distort_images = should_distort_images(
-    #   FLAGS.flip_left_right, FLAGS.random_crop, FLAGS.random_scale,
-    #   FLAGS.random_brightness)
-
-    # If no restoration from checkpoint was requested, then use the provided tfhub module:
-    if not CMD_ARG_FLAGS.resume_final_checkpoint_path:
-        # Set up the pre-trained graph:
-        module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
-        tf.logging.info(msg='Loaded tensorflow hub module spec: %s' % CMD_ARG_FLAGS.tfhub_module)
-
-        graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
-            create_module_graph(module_spec))
-        tf.logging.info(msg='Defined computational graph from the tensorflow hub module spec.')
-
-        # Add the new layer that we'll be training to our new default graph:
-        with graph.as_default():
-            (train_step, cross_entropy, bottleneck_input,
-             ground_truth_input, final_tensor, optimizer_info) = add_final_retrain_ops(
-                class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
-                wants_quantization, is_training=True)
-        tf.logging.info(msg='Added final retrain ops to the module source graph.')
-    else:
-        # Restore from checkpoint of a previously trained model:
-        tf.logging.info(msg='Attempting to restore from a previously saved checkpoint. '
-                            'Expecting previous model to have re-train ops already added to computational graph!')
-
-        # TODO: The 'graph' variable is not instantiated at this point. Need to decide whether to...
-        #   resume from a checkpoint or save and restore entire saved model. Checkpoint for training, restore for eval.
-
-        # graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
-        #     restore_module_graph(CMD_ARG_FLAGS.resume_final_checkpoint_path)
-        # )
+    # Add the new layer that we'll be training to our new default graph:
+    with graph.as_default():
+        (train_step, cross_entropy, bottleneck_input,
+         ground_truth_input, final_tensor, optimizer_info) = add_final_retrain_ops(
+            class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
+            wants_quantization, is_training=True)
+    tf.logging.info(msg='Added final retrain ops to the module source graph.')
 
     ''' Training Loop: '''
     with graph.as_default():
@@ -794,12 +764,6 @@ def main(_):
             # and for the newly added retraining layer to random initial values.
             # init = tf.global_variables_initializer()
             # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-
-            if CMD_ARG_FLAGS.resume_final_checkpoint_path:
-                # When you restore variables you do not have to initialize them beforehand:
-                tf.saved_model.loader.load(sess=sess, tags=[tag_constants.TRAINING], export_dir=CMD_ARG_FLAGS.resume_final_checkpoint_path)
-                tf.logging.info(msg='Restored model from saved checkpoint (.pb) file.')
-
             # sess.run(init)
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
@@ -921,6 +885,66 @@ def main(_):
             #     export_model(module_spec, class_count, CMD_ARG_FLAGS.saved_model_dir)
 
 
+def main(_):
+    # Enable visible logging output:
+    tf.logging.set_verbosity(tf.logging.INFO)
+
+    if not CMD_ARG_FLAGS.image_dir:
+        # The directory housing the training images was not specified.
+        tf.logging.error('The flag --image_dir must be set.')
+        return -1
+
+    # Delete any TensorBoard summaries left over from previous runs:
+    prepare_tensor_board_directories()
+    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
+
+    # Partition images into train, test, validate sets:
+    tf.logging.info(msg='Partitioning images into training, validation, testing sets. Using: proportionate allocation stratified shuffled sampling...')
+    ts = time.time()
+    image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2, val_percent=.2, random_state=0)
+    tf.logging.info(msg='Populated image lists, performed partitioning in: %s seconds (%.2f minutes).' % ((time.time() - ts), (time.time() - ts)/60))
+
+    # Record the number of validation samples:
+    num_val_samples = 0
+    for clss in image_lists.keys():
+        num_val_samples += len(image_lists[clss]['val'])
+    # If the provided validation batch size was -1 then use the entire validation set:
+    if CMD_ARG_FLAGS.val_batch_size == -1:
+        CMD_ARG_FLAGS.val_batch_size = num_val_samples
+
+    # This is operating under the assumption we have the same number of classes in the training and testing sets:
+    class_count = len(image_lists.keys())
+    tf.logging.info(msg='Detected %d unique classes.' % class_count)
+
+    # TODO: See if the command-line flags specify any distortions
+    # do_distort_images = should_distort_images(
+    #   FLAGS.flip_left_right, FLAGS.random_crop, FLAGS.random_scale,
+    #   FLAGS.random_brightness)
+
+    if CMD_ARG_FLAGS.resume_train_checkpoint_path:
+        # TODO: Load the model WITH gradients for training purposes:
+        # Restore from checkpoint of a previously trained model:
+        tf.logging.info(msg='Attempting to restore training from a previously saved checkpoint. '
+                            'Expecting that re-train ops are already added to the computational graph!')
+        # resume_training(checkpoint_path)
+        return NotImplementedError
+    elif CMD_ARG_FLAGS.saved_model_path:
+        # TODO: Load the model WITHOUT gradients for evaluation purposes:
+        return NotImplementedError
+    elif CMD_ARG_FLAGS.train_from_scratch:
+        # TODO: Do NOT load the pretrained imagenet. Train from scratch instead.
+        # train_model_from_scratch()
+        return NotImplementedError
+    else:
+        # Transfer Learning from a pre-trained tfhub module:
+        fine_tune_and_train_model(class_count=class_count, image_lists=image_lists)
+
+        # graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
+        #     restore_module_graph(CMD_ARG_FLAGS.resume_train_checkpoint_path)
+        # )
+
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning Demo on Going Deeper Herbaria 1K Dataset')
     # Group enforces that cmd args for model restoration for training and for eval cannot be invoked at the same time.
@@ -943,6 +967,24 @@ if __name__ == '__main__':
              'NOT attempt to resume model training with this flag. Instead, use the: --resume_train_checkpoint_path '
              'command line argument if you wish to restore with the gradients for training purposes.'
     )
+    mutual_exclusion_restore_params_group.add_argument(
+        '--train_from_scratch',
+        type=bool,
+        default=False,
+        help='A boolean flag indicating if training should be performed from scratch (i.e. no transfer learning or '
+             'restoration from previous checkpoint). '
+    )
+    parser.add_argument(
+        '--tfhub_module',
+        type=str,
+        default=(
+            'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'),
+            help="""\
+            Which TensorFlow Hub module to use.
+            See https://github.com/tensorflow/hub/blob/r0.1/docs/modules/image.md
+            for some publicly available ones.\
+            """
+    )
     parser.add_argument(
         '--image_dir',
         type=str,
@@ -961,17 +1003,6 @@ if __name__ == '__main__':
         default=-1,
         help='The number of images per mini-batch during validation. By default the value is -1, the size of the '
              '-entire validation set.'
-    )
-    parser.add_argument(
-        '--tfhub_module',
-        type=str,
-        default=(
-            'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'),
-            help="""\
-            Which TensorFlow Hub module to use.
-            See https://github.com/tensorflow/hub/blob/r0.1/docs/modules/image.md
-            for some publicly available ones.\
-            """
     )
     parser.add_argument(
         '--final_tensor_name',
