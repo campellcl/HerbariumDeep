@@ -876,7 +876,7 @@ def fine_tune_and_train_model(class_count, image_lists):
         tf.logging.info(msg='Save final result to : ' + CMD_ARG_FLAGS.output_graph)
         if wants_quantization:
             tf.logging.info('The model is instrumented for quantization with TF-Lite')
-        save_graph_to_file(graph, CMD_ARG_FLAGS.output_graph, module_spec, class_count)
+        save_graph_to_file(CMD_ARG_FLAGS.output_graph, module_spec, class_count)
         # TODO: Export saved model:
         # with tf.gfile.FastGFile(CMD_ARG_FLAGS.output_labels, 'w') as f:
         #     f.write('\n'.join(image_lists.keys())+ '\n')
