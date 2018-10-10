@@ -17,10 +17,13 @@ Debug configuration for TensorFlow TensorFlow Hub retrain_example.py:
 Runtime configuration for TFHub\GoingDeeperTransferLearn.py:
 --image_dir D:\data\GoingDeeperData\images --train_image_dir D:\data\GoingDeeperData\images\train --test_image_dir D:\data\GoingDeeperData\images\test --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 100000 --intermediate_store_frequency 1000
 --image_dir D:\data\GoingDeeperData\images --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 200000 --intermediate_store_frequency 1000
-
+--image_dir D:\data\GoingDeeperData\images --bottleneck_dir D:\data\GoingDeeperData\Bottlenecks --num_epochs 200000 --intermediate_store_frequency 1000 --train_batch_size 128 --eval_step_interval 1000
 
 Debug configuration for TFHub\GoingDeeperTransferLearn.py:
 --image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --train_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\train --test_image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images\test --bottleneck_dir ..\SubsetBottlenecks --num_epochs 100 --intermediate_store_frequency 10
 --image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --bottleneck_dir ..\SubsetBottlenecks --num_epochs 100 --intermediate_store_frequency 10
+# Restore a trained model for evaluation purposes:
+--image_dir C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\GoingDeeper\images --bottleneck_dir ..\SubsetBottlenecks --num_epochs 100 --intermediate_store_frequency 10 --saved_model_path tmp/saved_model.pb
+# Resume training by restoring from a checkpoint:
 
 C:\Users\ccamp\Documents\GitHub\HerbariumDeep\data\ImageNet\SubSets\hymenoptera_data -a inception_v3 -j 2 -b 6 --pretrained
