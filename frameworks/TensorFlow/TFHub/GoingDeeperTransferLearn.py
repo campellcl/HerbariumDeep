@@ -11,6 +11,7 @@ import numpy as np
 from datetime import datetime
 from sklearn import model_selection
 import time
+import pandas as pd
 
 CMD_ARG_FLAGS = None
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
@@ -63,7 +64,7 @@ def partition_into_image_lists(image_dir, train_percent=.80, val_percent=.20, te
         tf.logging.error("Root image directory '" + image_dir + "' not found.")
         return None
 
-    accepted_extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
+    accepted_extensions = ['jpg', 'jpeg']   # Note: Includes JPG and JPEG b/c the glob is case insensitive
     image_lists = collections.OrderedDict()
 
     # TODO: This tf.gfile.Walk takes a very long time, maybe go async? It seems to cache the walk somehow...
@@ -427,6 +428,33 @@ def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
         bottleneck_file.write(bottleneck_string)
 
 
+def calculate_bottleneck_value(sess, image_path, image_data, image_data_tensor, decoded_image_tensor, resized_input_tensor, bottleneck_tensor):
+    """
+    calculate_bottleneck_value: Forward propagates the provided image through the original source network to produce the
+        output tensor associated with the penultimate layer (pre softmax).
+    :param sess: <tf.Session> The current active TensorFlow Session.
+    :param image_path: <str> The file path to the original input image (used for debug purposes).
+    :param image_data: <str> String of raw JPEG data.
+    :param image_data_tensor: <?> Input data layer in the graph.
+    :param decoded_image_tensor: <?> Output of initial image resizing and preprocessing.
+    :param resized_input_tensor: <?> The input node of the source/recognition graph.
+    :param bottleneck_tensor: <?> The penultimate node before the final softmax layer of the source/recognition graph.
+    :return bottleneck_tensor_value: <numpy.ndarray> The result of forward propagating the provided image through the
+        source/recognition graph.
+    """
+    tf.logging.info('Creating bottleneck for sample image ' + image_path)
+    try:
+        bottleneck_tensor_value = run_bottleneck_on_image(sess=sess, image_data=image_data,
+                                                    image_data_tensor=image_data_tensor,
+                                                    decoded_image_tensor=decoded_image_tensor,
+                                                    resized_input_tensor=resized_input_tensor,
+                                                    bottleneck_tensor=bottleneck_tensor)
+    except Exception as e:
+        raise RuntimeError('Error during bottleneck processing file %s (%s)' % (image_path,
+                                                                     str(e)))
+    return bottleneck_tensor_value
+
+
 def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
                              category, bottleneck_dir, jpeg_data_tensor,
                              decoded_image_tensor, resized_input_tensor,
@@ -524,7 +552,6 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
         os.makedirs(bottleneck_dir)
     for label_name, label_lists in image_lists.items():
         # TODO: Enable early stopping.
-        # for category in ['training', 'testing']:
         for category in ['train', 'val']:
             category_list = label_lists[category]
             # try:
@@ -542,7 +569,62 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
                 how_many_bottlenecks += 1
                 if how_many_bottlenecks % 100 == 0:
                     tf.logging.info(
-                        str(how_many_bottlenecks) + ' bottleneck files loaded (or created).')
+                        str(how_many_bottlenecks) + ' bottleneck files loaded.')
+
+
+def cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor, decoded_image_tensor, resized_input_tensor, bottleneck_tensor):
+    """
+    cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
+        sample's Tensor through the original source network. At the penultimate layer of the provided source network
+        (that is, pre-softmax layer) each sample's output tensors are recorded in lieu of the original input image.
+        These recorded output tensors constitute the 'bottlenecks' of the provided image_lists. This method computes
+        and stores the calculated bottlenecks in a bottlenecks dataframe for retrieval at a later time during training
+        or evaluation.
+        WARNING: This method currently assumes that all bottlenecks will fit in a single output dataframe. If this is
+            not the case then this method (and prior logic) needs to be updated.
+    :param sess: <tf.Session> The current active TensorFlow Session.
+    :param image_metadata: <dict> Contains information regarding the distribution of images among training, validation,
+        and testing datasets.
+        image_metadata['num_train_images']: Number of training images.
+        image_metadata['num_val_images']: Number of validation images.
+        image_metadata['num_test_images']: Number of testing images.
+        image_metadata['num_images']: Total number of sample images.
+    :param image_lists: <OrderedDict> of training images for each label.\
+    :param jpeg_data_tensor: <tf.Tensor?> Input tensor for jpeg data from file.
+    :param decoded_image_tensor: <tf.Tensor?> The tensor holding the output of the image decoding sub-graph.
+    :param resized_input_tensor: <tf.Tensor?> The input node of the source/recognition graph.
+    :param bottleneck_tensor: <tf.Tensor?> The penultimate (pre-softmax) output node of the source/recognition graph.
+    :return bottlenecks_array: <np.ndarray> A numpy array containing the bottleneck values for every tensor in the
+        datasets.
+    """
+    bottlenecks_df = pd.DataFrame(image_lists)
+    bottlenecks_array = np.empty(shape=(image_metadata['num_images'], bottleneck_tensor.shape[1].value))
+    image_dir = CMD_ARG_FLAGS.image_dir
+    num_bottlenecks_cached = 0
+    for label_name, label_lists in image_lists.items():
+        for category in ['train', 'val', 'test']:
+            category_list = label_lists[category]
+            for index, unused_base_name in enumerate(category_list):
+                image_path = get_image_path(image_lists, label_name, index, image_dir, category)
+                # Raw image data:
+                if not tf.gfile.Exists(image_path):
+                    tf.logging.fatal('File does not exist %s', image_path)
+                image_data = tf.gfile.FastGFile(image_path, 'rb').read()
+                bottleneck_tensor_values = calculate_bottleneck_value(sess=sess, image_path=image_path,
+                                                                   image_data=image_data,
+                                                                   image_data_tensor=jpeg_data_tensor,
+                                                                   decoded_image_tensor=decoded_image_tensor,
+                                                                   resized_input_tensor=resized_input_tensor,
+                                                                   bottleneck_tensor=bottleneck_tensor)
+                bottlenecks_df['']
+                bottlenecks_array[index] = bottleneck_tensor_values
+                num_bottlenecks_cached += 1
+                if num_bottlenecks_cached % 100 == 0:
+                    tf.logging.info(msg='Computed %d bottleneck arrays.' % num_bottlenecks_cached)
+    if os.path.exists(CMD_ARG_FLAGS.bottleneck_dir):
+        write_path = os.path.join(CMD_ARG_FLAGS.bottleneck_dir, 'bottlenecks_array.pkl')
+        bottlenecks_array.dump(file=write_path)
+    return bottlenecks_array
 
 
 def add_evaluation_step(result_tensor, ground_truth_tensor):
@@ -731,13 +813,41 @@ def resume_training(checkpoint_path):
     pass
 
 
-def fine_tune_and_train_model(class_count, image_lists):
+def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir, image_dir, jpeg_data_tensor,
+                               decoded_image_tensor, resized_input_tensor, bottleneck_tensor, module_name):
+    class_count = len(image_lists.keys())
+    bottlenecks = []
+    ground_truths = []
+    filenames = []
+    # Retrieve all bottlenecks.
+    for label_index, label_name in enumerate(image_lists.keys()):
+        for image_index, image_name in enumerate(
+                image_lists[label_name][category]):
+            image_name = get_image_path(image_lists, label_name, image_index,
+                                        image_dir, category)
+            bottleneck = get_or_create_bottleneck(
+                sess, image_lists, label_name, image_index, image_dir, category,
+                bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+                resized_input_tensor, bottleneck_tensor, module_name)
+            bottlenecks.append(bottleneck)
+            ground_truths.append(label_index)
+            filenames.append(image_name)
+    return bottlenecks, ground_truths, filenames
+
+
+def fine_tune_and_train_model(class_count, image_lists, image_metadata):
     """
     fine_tune_and_train_model: Transfer Learning with the source model as a tfhub module provided as a command line
         argument (CMD_ARG_FLAGS.tfhub_module). The initial weight values will be sourced from the given tfhub module.
     :param class_count: The number of unique class labels in the training and testing datasets (it is assumed that-
         there are an equal number of unique classes in the training and testing sets).
     :param image_lists: A dictionary containing all available datasets (train, test, validate) as a list of file paths.
+    :param image_metadata: <dict> Contains information regarding the distribution of images among training, validation,
+        and testing datasets.
+        image_metadata['num_train_images']: Number of training images.
+        image_metadata['num_val_images']: Number of validation images.
+        image_metadata['num_test_images']: Number of testing images.
+        image_metadata['num_images']: Total number of sample images.
     :return:
     """
 
@@ -759,15 +869,11 @@ def fine_tune_and_train_model(class_count, image_lists):
     tf.logging.info(msg='Added final retrain ops to the module source graph.')
 
     ''' Training Loop: '''
-    # with graph.as_default():
     with tf.Session(graph=graph) as sess:
         # Initialize all weights: for the module to their pretrained values,
         # and for the newly added retraining layer to random initial values.
-        # init = tf.global_variables_initializer()
-        # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-        # sess.run(init)
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.local_variables_initializer())
+        init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+        sess.run(init)
 
         with tf.name_scope('re-train_ops'):
             # Set up the image decoding sub-graph.
@@ -784,11 +890,22 @@ def fine_tune_and_train_model(class_count, image_lists):
         #         module_spec
         #     )
         # else:
+
+        ''' Ensure that the bottleneck image summaries are calculated and cached on disk  '''
+        # TODO: 1. Calculate the memory requirements of storing all bottlenecks as a single data frame:
+        # get_module_memory_requirements()
+        # 2. Cache the bottlenecks as an np.ndarray, any overflow allocated to new files? Sharded representation bad?
+        # TODO: Might gain some efficiency by excluding the test set from caching until needed for eval.
+        bottlenecks_array = cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor,
+                                                  decoded_image_tensor, resized_image_tensor, bottleneck_tensor)
+
+        exit(0)
         ''' Ensure that the bottleneck image summaries are calculated and cached on disk'''
-        cache_bottlenecks(sess, image_lists, CMD_ARG_FLAGS.image_dir,
-                          CMD_ARG_FLAGS.bottleneck_dir, jpeg_data_tensor,
-                          decoded_image_tensor, resized_image_tensor,
-                          bottleneck_tensor, CMD_ARG_FLAGS.tfhub_module)
+        # TODO: This needs to be re-written to pickle a single df with the bottleneck weights.
+        cache_bottlenecks(sess=sess, image_lists=image_lists, image_dir=CMD_ARG_FLAGS.image_dir,
+                          bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir, jpeg_data_tensor=jpeg_data_tensor,
+                          decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
+                          bottleneck_tensor=bottleneck_tensor, module_name=CMD_ARG_FLAGS.tfhub_module)
 
         # Create operations to evaluate the accuracy of the new layer (called during validation during training):
         acc_evaluation_step, top5_acc_eval_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
@@ -803,6 +920,15 @@ def fine_tune_and_train_model(class_count, image_lists):
         val_writer = tf.summary.FileWriter(CMD_ARG_FLAGS.summaries_dir + '/val/' + hyper_string)
         # Create a train saver that is used to restore values into an eval graph:
         train_saver = tf.train.Saver()
+
+        bottlenecks = get_all_cached_bottlenecks(sess=sess, image_lists=image_lists, category='train',
+                                                 bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir,
+                                                 jpeg_data_tensor=jpeg_data_tensor,
+                                                 decoded_image_tensor=decoded_image_tensor,
+                                                 resized_input_tensor=resized_image_tensor,
+                                                 bottleneck_tensor=bottleneck_tensor,
+                                                 module_name=CMD_ARG_FLAGS.tfhub_module,
+                                                 image_dir=CMD_ARG_FLAGS.image_dir)
 
         # run training for as many cycles as requested on the command line:
         for i in range(CMD_ARG_FLAGS.num_epochs):
@@ -904,17 +1030,29 @@ def main(_):
     image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2, val_percent=.2, random_state=0)
     tf.logging.info(msg='Populated image lists, performed partitioning in: %s seconds (%.2f minutes).' % ((time.time() - ts), (time.time() - ts)/60))
 
-    # Record the number of validation samples:
-    num_val_samples = 0
-    for clss in image_lists.keys():
-        num_val_samples += len(image_lists[clss]['val'])
-    # If the provided validation batch size was -1 then use the entire validation set:
-    if CMD_ARG_FLAGS.val_batch_size == -1:
-        CMD_ARG_FLAGS.val_batch_size = num_val_samples
-
     # This is operating under the assumption we have the same number of classes in the training and testing sets:
     class_count = len(image_lists.keys())
     tf.logging.info(msg='Detected %d unique classes.' % class_count)
+
+    # Record the number of training, test, validation images:
+    num_train_images = 0
+    num_val_images = 0
+    num_test_images = 0
+    for clss in image_lists.keys():
+        num_train_images += len(image_lists[clss]['train'])
+        num_val_images += len(image_lists[clss]['val'])
+        num_test_images += len(image_lists[clss]['test'])
+    num_images = num_train_images + num_val_images + num_test_images
+    # TODO: Probably better to store this information as a tf.Constant within tf.Session but it hasn't been created yet.
+    image_partition_metadata = {'num_images': num_images, 'num_train_images': num_train_images,
+                                'num_val_images': num_val_images, 'num_test_images': num_test_images}
+    tf.logging.info(msg='Detected %d total sample images now partitioned into:\n\t%d total training images\n\t%d total '
+                        'validation images\n\t%d total testing images'
+                        % (num_images, num_train_images, num_val_images, num_test_images))
+
+    # If the provided validation batch size was -1 then use the entire validation set:
+    if CMD_ARG_FLAGS.val_batch_size == -1:
+        CMD_ARG_FLAGS.val_batch_size = num_val_images
 
     # TODO: See if the command-line flags specify any distortions
     # do_distort_images = should_distort_images(
@@ -933,7 +1071,6 @@ def main(_):
         tf.logging.info(msg='Attempting to restore final trained model for evaluation purposes. Gradients will NOT be'
                             ' loaded. Do NOT attempt to resume training with this command line invocation.')
         # If the model is a tfhub module, perhaps the base graph needs to be instantiated first?
-
         return NotImplementedError
     elif CMD_ARG_FLAGS.train_from_scratch:
         # TODO: Do NOT load the pretrained imagenet. Train from scratch instead.
@@ -941,7 +1078,7 @@ def main(_):
         return NotImplementedError
     else:
         # Transfer Learning from a pre-trained tfhub module:
-        fine_tune_and_train_model(class_count=class_count, image_lists=image_lists)
+        fine_tune_and_train_model(class_count=class_count, image_lists=image_lists, image_metadata=image_partition_metadata)
 
         # graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
         #     restore_module_graph(CMD_ARG_FLAGS.resume_train_checkpoint_path)
