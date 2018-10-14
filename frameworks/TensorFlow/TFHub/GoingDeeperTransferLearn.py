@@ -594,37 +594,36 @@ def cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor, d
     :param decoded_image_tensor: <tf.Tensor?> The tensor holding the output of the image decoding sub-graph.
     :param resized_input_tensor: <tf.Tensor?> The input node of the source/recognition graph.
     :param bottleneck_tensor: <tf.Tensor?> The penultimate (pre-softmax) output node of the source/recognition graph.
-    :return bottlenecks_array: <np.ndarray> A numpy array containing the bottleneck values for every tensor in the
+    :return bottlenecks: <pd.DataFrame> A dataframe containing the bottleneck values for every tensor in the
         datasets.
     """
-    bottlenecks_df = pd.DataFrame(image_lists)
-    bottlenecks_array = np.empty(shape=(image_metadata['num_images'], bottleneck_tensor.shape[1].value))
-    image_dir = CMD_ARG_FLAGS.image_dir
-    num_bottlenecks_cached = 0
-    for label_name, label_lists in image_lists.items():
+    bottlenecks_empty = pd.DataFrame(columns=['class', 'path', 'bottleneck'])
+    for clss in image_lists.keys():
         for category in ['train', 'val', 'test']:
-            category_list = label_lists[category]
-            for index, unused_base_name in enumerate(category_list):
-                image_path = get_image_path(image_lists, label_name, index, image_dir, category)
-                # Raw image data:
-                if not tf.gfile.Exists(image_path):
-                    tf.logging.fatal('File does not exist %s', image_path)
-                image_data = tf.gfile.FastGFile(image_path, 'rb').read()
-                bottleneck_tensor_values = calculate_bottleneck_value(sess=sess, image_path=image_path,
+            for image_path in image_lists[clss][category]:
+                new_bottleneck_entry = pd.Series([clss, image_path, None], index=['class', 'path', 'bottleneck'])
+                bottlenecks_empty = bottlenecks_empty.append(new_bottleneck_entry, ignore_index=True)
+    bottlenecks = bottlenecks_empty.copy(deep=True)
+    num_bottlenecks = 0
+    for i, (clss, series) in enumerate(bottlenecks_empty.iterrows()):
+        image_path = series['path']
+        if not tf.gfile.Exists(image_path):
+            tf.logging.fatal('File does not exist %s', image_path)
+        image_data = tf.gfile.FastGFile(image_path, 'rb').read()
+        bottleneck_tensor_values = calculate_bottleneck_value(sess=sess, image_path=image_path,
                                                                    image_data=image_data,
                                                                    image_data_tensor=jpeg_data_tensor,
                                                                    decoded_image_tensor=decoded_image_tensor,
                                                                    resized_input_tensor=resized_input_tensor,
                                                                    bottleneck_tensor=bottleneck_tensor)
-                bottlenecks_df['']
-                bottlenecks_array[index] = bottleneck_tensor_values
-                num_bottlenecks_cached += 1
-                if num_bottlenecks_cached % 100 == 0:
-                    tf.logging.info(msg='Computed %d bottleneck arrays.' % num_bottlenecks_cached)
-    if os.path.exists(CMD_ARG_FLAGS.bottleneck_dir):
-        write_path = os.path.join(CMD_ARG_FLAGS.bottleneck_dir, 'bottlenecks_array.pkl')
-        bottlenecks_array.dump(file=write_path)
-    return bottlenecks_array
+        bottlenecks.iat[i, 2] = bottleneck_tensor_values
+        num_bottlenecks += 1
+        if num_bottlenecks % 100 == 0:
+            tf.logging.info(msg='Computed %d bottleneck arrays.' % num_bottlenecks)
+    if not os.path.exists(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path)):
+        os.mkdir(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path))
+    bottlenecks.to_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+    return bottlenecks
 
 
 def add_evaluation_step(result_tensor, ground_truth_tensor):
@@ -868,6 +867,8 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
             wants_quantization, is_training=True)
     tf.logging.info(msg='Added final retrain ops to the module source graph.')
 
+
+
     ''' Training Loop: '''
     with tf.Session(graph=graph) as sess:
         # Initialize all weights: for the module to their pretrained values,
@@ -894,14 +895,16 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
         ''' Ensure that the bottleneck image summaries are calculated and cached on disk  '''
         # TODO: 1. Calculate the memory requirements of storing all bottlenecks as a single data frame:
         # get_module_memory_requirements()
-        # 2. Cache the bottlenecks as an np.ndarray, any overflow allocated to new files? Sharded representation bad?
+        # 2. Cache the bottlenecks as a dataframe, any overflow allocated to new files? Sharded representation bad?
         # TODO: Might gain some efficiency by excluding the test set from caching until needed for eval.
-        bottlenecks_array = cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor,
+        if os.path.isfile(os.path.basename(CMD_ARG_FLAGS.bottleneck_path)):
+            # Read bottlenecks from disk:
+            bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+        else:
+            bottlenecks = cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor,
                                                   decoded_image_tensor, resized_image_tensor, bottleneck_tensor)
 
         exit(0)
-        ''' Ensure that the bottleneck image summaries are calculated and cached on disk'''
-        # TODO: This needs to be re-written to pickle a single df with the bottleneck weights.
         cache_bottlenecks(sess=sess, image_lists=image_lists, image_dir=CMD_ARG_FLAGS.image_dir,
                           bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir, jpeg_data_tensor=jpeg_data_tensor,
                           decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
@@ -1159,10 +1162,10 @@ if __name__ == '__main__':
         help='How large a learning rate to use when training.'
     )
     parser.add_argument(
-        '--bottleneck_dir',
+        '--bottleneck_path',
         type=str,
-        default='/tmp/bottlenecks',
-        help='Path to cache bottleneck layer values as files.'
+        default='tmp/bottlenecks.pkl',
+        help='Path to cache bottleneck layer values as dataframe.'
     )
     parser.add_argument(
         '--num_epochs',
