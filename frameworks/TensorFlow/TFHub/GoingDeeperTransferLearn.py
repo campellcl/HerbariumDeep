@@ -129,6 +129,31 @@ def partition_into_image_lists(image_dir, train_percent=.80, val_percent=.20, te
     return image_lists
 
 
+def partition_bottlenecks_dataframe(bottlenecks, train_percent=.80, val_percent=.20, test_percent=.20, random_state=0):
+    """
+    partition_bottlenecks_dataframe: Partitions the bottlenecks dataframe into training, testing, and validation
+        dataframes.
+    :param bottlenecks: <pd.DataFrame> The bottlenecks dataframe containing image-labels, paths, and bottleneck values.
+    :param train_percent: What percentage of the training data is to remain in the training set.
+    :param test_percent: What percentage of the training data is to be allocated to a testing set.
+    :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
+        for a validation set.
+    :param random_state: A seed for the random number generator controlling the stratified partitioning.
+    :return:
+    """
+    train_bottlenecks, test_bottlenecks = model_selection.train_test_split(
+        bottlenecks, train_size=train_percent,
+        test_size=test_percent, shuffle=True,
+        random_state=random_state
+    )
+    train_bottlenecks, val_bottlenecks = model_selection.train_test_split(
+        train_bottlenecks, train_size=train_percent,
+        test_size=val_percent, shuffle=True,
+        random_state=random_state
+    )
+    return train_bottlenecks, val_bottlenecks, test_bottlenecks
+
+
 def create_module_graph(module_spec):
     """
     create_module_graph: Creates a tensorflow graph from the provided TFHub module.
@@ -610,18 +635,18 @@ def cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor, d
         if not tf.gfile.Exists(image_path):
             tf.logging.fatal('File does not exist %s', image_path)
         image_data = tf.gfile.FastGFile(image_path, 'rb').read()
-        bottleneck_tensor_values = calculate_bottleneck_value(sess=sess, image_path=image_path,
-                                                                   image_data=image_data,
-                                                                   image_data_tensor=jpeg_data_tensor,
-                                                                   decoded_image_tensor=decoded_image_tensor,
-                                                                   resized_input_tensor=resized_input_tensor,
-                                                                   bottleneck_tensor=bottleneck_tensor)
+        bottleneck_tensor_values = calculate_bottleneck_value(sess=sess, image_path=image_path, image_data=image_data,
+                                                              image_data_tensor=jpeg_data_tensor,
+                                                              decoded_image_tensor=decoded_image_tensor,
+                                                              resized_input_tensor=resized_input_tensor,
+                                                              bottleneck_tensor=bottleneck_tensor)
         bottlenecks.iat[i, 2] = bottleneck_tensor_values
         num_bottlenecks += 1
         if num_bottlenecks % 100 == 0:
             tf.logging.info(msg='Computed %d bottleneck arrays.' % num_bottlenecks)
     if not os.path.exists(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path)):
         os.mkdir(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path))
+    tf.logging.info(msg='Finished computing bottlenecks. Saving dataframe to: \'%s\'' % CMD_ARG_FLAGS.bottleneck_path)
     bottlenecks.to_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
     return bottlenecks
 
@@ -638,14 +663,14 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
     """
     with tf.name_scope('accuracy'):
         with tf.name_scope('correct_prediction'):
-            tf.logging.info(msg='result_tensor: %s' % result_tensor)
+            # tf.logging.info(msg='result_tensor: %s' % result_tensor)
             # tf.logging.info(msg='result_tensor_shape: %s' % result_tensor.shape)
-            tf.logging.info(msg='ground_truth_tensor: %s' % ground_truth_tensor)
+            # tf.logging.info(msg='ground_truth_tensor: %s' % ground_truth_tensor)
             prediction = tf.argmax(result_tensor, 1)
-            tf.logging.info(msg='prediction tensor: %s' % prediction)
+            # tf.logging.info(msg='prediction tensor: %s' % prediction)
             # Returns the truth value of (prediction == ground_truth_tensor) element-wise.
             correct_prediction = tf.equal(prediction, ground_truth_tensor)
-            tf.logging.info(msg='correct_prediction: %s' % correct_prediction)
+            # tf.logging.info(msg='correct_prediction: %s' % correct_prediction)
         with tf.name_scope('accuracy'):
             # Compute the mean of the elements along the given axis:
             acc_evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -719,71 +744,107 @@ def save_graph_to_file(graph_file_name, module_spec, class_count):
         f.write(output_graph_def.SerializeToString())
 
 
-def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
-                                  bottleneck_dir, image_dir, jpeg_data_tensor,
-                                  decoded_image_tensor, resized_input_tensor,
-                                  bottleneck_tensor, module_name):
-    """Retrieves bottleneck values for cached images.
+# def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
+#                                   bottleneck_dir, image_dir, jpeg_data_tensor,
+#                                   decoded_image_tensor, resized_input_tensor,
+#                                   bottleneck_tensor, module_name):
+#     """Retrieves bottleneck values for cached images.
+#
+#     If no distortions are being applied, this function can retrieve the cached
+#     bottleneck values directly from disk for images. It picks a random set of
+#     images from the specified category.
+#
+#     Args:
+#       sess: Current TensorFlow Session.
+#       image_lists: OrderedDict of training images for each label.
+#       how_many: If positive, a random sample of this size will be chosen.
+#       If negative, all bottlenecks will be retrieved.
+#       category: Name string of which set to pull from - training, testing, or
+#       validation.
+#       bottleneck_dir: Folder string holding cached files of bottleneck values.
+#       image_dir: Root folder string of the subfolders containing the training
+#       images.
+#       jpeg_data_tensor: The layer to feed jpeg image data into.
+#       decoded_image_tensor: The output of decoding and resizing the image.
+#       resized_input_tensor: The input node of the recognition graph.
+#       bottleneck_tensor: The bottleneck output layer of the CNN graph.
+#       module_name: The name of the image module being used.
+#
+#     Returns:
+#       List of bottleneck arrays, their corresponding ground truths, and the
+#       relevant filenames.
+#     """
+#     class_count = len(image_lists.keys())
+#     bottlenecks = []
+#     ground_truths = []
+#     filenames = []
+#     if how_many >= 0:
+#         # Retrieve a random sample of bottlenecks.
+#         for unused_i in range(how_many):
+#
+#             label_index = random.randrange(class_count)
+#             label_name = list(image_lists.keys())[label_index]
+#             image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
+#             image_name = get_image_path(image_lists, label_name, image_index,
+#                                         image_dir, category)
+#             bottleneck = get_or_create_bottleneck(
+#                 sess, image_lists, label_name, image_index, image_dir, category,
+#                 bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+#                 resized_input_tensor, bottleneck_tensor, module_name)
+#             bottlenecks.append(bottleneck)
+#             ground_truths.append(label_index)
+#             filenames.append(image_name)
+#     else:
+#         # Retrieve all bottlenecks.
+#         for label_index, label_name in enumerate(image_lists.keys()):
+#             for image_index, image_name in enumerate(
+#                     image_lists[label_name][category]):
+#                 image_name = get_image_path(image_lists, label_name, image_index,
+#                                             image_dir, category)
+#                 bottleneck = get_or_create_bottleneck(
+#                     sess, image_lists, label_name, image_index, image_dir, category,
+#                     bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+#                     resized_input_tensor, bottleneck_tensor, module_name)
+#                 bottlenecks.append(bottleneck)
+#                 ground_truths.append(label_index)
+#                 filenames.append(image_name)
+#     return bottlenecks, ground_truths, filenames
 
-    If no distortions are being applied, this function can retrieve the cached
-    bottleneck values directly from disk for images. It picks a random set of
-    images from the specified category.
 
-    Args:
-      sess: Current TensorFlow Session.
-      image_lists: OrderedDict of training images for each label.
-      how_many: If positive, a random sample of this size will be chosen.
-      If negative, all bottlenecks will be retrieved.
-      category: Name string of which set to pull from - training, testing, or
-      validation.
-      bottleneck_dir: Folder string holding cached files of bottleneck values.
-      image_dir: Root folder string of the subfolders containing the training
-      images.
-      jpeg_data_tensor: The layer to feed jpeg image data into.
-      decoded_image_tensor: The output of decoding and resizing the image.
-      resized_input_tensor: The input node of the recognition graph.
-      bottleneck_tensor: The bottleneck output layer of the CNN graph.
-      module_name: The name of the image module being used.
-
-    Returns:
-      List of bottleneck arrays, their corresponding ground truths, and the
-      relevant filenames.
+def get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
     """
-    class_count = len(image_lists.keys())
-    bottlenecks = []
-    ground_truths = []
-    filenames = []
+    get_random_cached_bottlenecks: Retrieve a random sample of rows from the bottlenecks dataframe of size 'how_many'.
+        Performs random sampling with replacement.
+    :param bottlenecks: The dataframe containing pre-computed bottleneck values.
+    :param how_many: The number of bottleneck samples to retrieve.
+    :param category: Which subset of dataframes to partition.
+    :param class_labels: <list> A list of all unique class labels in the training and testing datasets.
+    :returns bottleneck_values, bottleneck_ground_truth_labels:
+        :return bottleneck_values: <list> A Python array of size 'how_many' by 2048 (the size of the penultimate output
+            layer).
+        :return bottleneck_ground_truth_indices: <list> A Python list of size 'how_many' by one, containing the index
+            into the class_labels array that corresponds with the ground truth label name associated with each
+            bottlneck array.
+    """
+    bottleneck_dataframe = bottleneck_dataframes[category]
+    # TODO: Get size of output layer from module itself.
+    penultimate_output_layer_size = 2048
     if how_many >= 0:
-        # Retrieve a random sample of bottlenecks.
-        for unused_i in range(how_many):
+        random_mini_batch_indices = np.random.randint(low=0, high=bottleneck_dataframe.shape[0], size=(how_many, ))
+        minibatch_samples = bottleneck_dataframe.iloc[random_mini_batch_indices]
+        bottleneck_values = minibatch_samples['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = minibatch_samples['class'].values
 
-            label_index = random.randrange(class_count)
-            label_name = list(image_lists.keys())[label_index]
-            image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
-            image_name = get_image_path(image_lists, label_name, image_index,
-                                        image_dir, category)
-            bottleneck = get_or_create_bottleneck(
-                sess, image_lists, label_name, image_index, image_dir, category,
-                bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-                resized_input_tensor, bottleneck_tensor, module_name)
-            bottlenecks.append(bottleneck)
-            ground_truths.append(label_index)
-            filenames.append(image_name)
     else:
-        # Retrieve all bottlenecks.
-        for label_index, label_name in enumerate(image_lists.keys()):
-            for image_index, image_name in enumerate(
-                    image_lists[label_name][category]):
-                image_name = get_image_path(image_lists, label_name, image_index,
-                                            image_dir, category)
-                bottleneck = get_or_create_bottleneck(
-                    sess, image_lists, label_name, image_index, image_dir, category,
-                    bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-                    resized_input_tensor, bottleneck_tensor, module_name)
-                bottlenecks.append(bottleneck)
-                ground_truths.append(label_index)
-                filenames.append(image_name)
-    return bottlenecks, ground_truths, filenames
+        bottleneck_values = bottleneck_dataframe['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = bottleneck_dataframe['class'].values
+
+    # Convert to index (encoded int class label):
+    bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                       for ground_truth_label in bottleneck_ground_truth_labels])
+    return bottleneck_values, bottleneck_ground_truth_indices
 
 
 # def restore_module_graph(checkpoint_file):
@@ -804,6 +865,7 @@ def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
 #     return bottleneck_tensor
 #     # return graph, bottleneck_tensor, resized_image_tensor
 
+
 def resume_training(checkpoint_path):
     # if CMD_ARG_FLAGS.resume_final_checkpoint_path:
     #     # When you restore variables you do not have to initialize them beforehand:
@@ -812,26 +874,26 @@ def resume_training(checkpoint_path):
     pass
 
 
-def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir, image_dir, jpeg_data_tensor,
-                               decoded_image_tensor, resized_input_tensor, bottleneck_tensor, module_name):
-    class_count = len(image_lists.keys())
-    bottlenecks = []
-    ground_truths = []
-    filenames = []
-    # Retrieve all bottlenecks.
-    for label_index, label_name in enumerate(image_lists.keys()):
-        for image_index, image_name in enumerate(
-                image_lists[label_name][category]):
-            image_name = get_image_path(image_lists, label_name, image_index,
-                                        image_dir, category)
-            bottleneck = get_or_create_bottleneck(
-                sess, image_lists, label_name, image_index, image_dir, category,
-                bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-                resized_input_tensor, bottleneck_tensor, module_name)
-            bottlenecks.append(bottleneck)
-            ground_truths.append(label_index)
-            filenames.append(image_name)
-    return bottlenecks, ground_truths, filenames
+# def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir, image_dir, jpeg_data_tensor,
+#                                decoded_image_tensor, resized_input_tensor, bottleneck_tensor, module_name):
+#     class_count = len(image_lists.keys())
+#     bottlenecks = []
+#     ground_truths = []
+#     filenames = []
+#     # Retrieve all bottlenecks.
+#     for label_index, label_name in enumerate(image_lists.keys()):
+#         for image_index, image_name in enumerate(
+#                 image_lists[label_name][category]):
+#             image_name = get_image_path(image_lists, label_name, image_index,
+#                                         image_dir, category)
+#             bottleneck = get_or_create_bottleneck(
+#                 sess, image_lists, label_name, image_index, image_dir, category,
+#                 bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+#                 resized_input_tensor, bottleneck_tensor, module_name)
+#             bottlenecks.append(bottleneck)
+#             ground_truths.append(label_index)
+#             filenames.append(image_name)
+#     return bottlenecks, ground_truths, filenames
 
 
 def fine_tune_and_train_model(class_count, image_lists, image_metadata):
@@ -853,7 +915,7 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
     # No restoration from checkpoint was requested; use the provided tfhub module instead:
     # Set up the pre-trained graph:
     module_spec = hub.load_module_spec(CMD_ARG_FLAGS.tfhub_module)
-    tf.logging.info(msg='Loaded tensorflow hub module spec: %s' % CMD_ARG_FLAGS.tfhub_module)
+    tf.logging.info(msg='Loaded TensorFlowHub module spec: %s' % CMD_ARG_FLAGS.tfhub_module)
 
     graph, bottleneck_tensor, resized_image_tensor, wants_quantization = (
         create_module_graph(module_spec))
@@ -866,8 +928,6 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
             class_count, CMD_ARG_FLAGS.final_tensor_name, bottleneck_tensor,
             wants_quantization, is_training=True)
     tf.logging.info(msg='Added final retrain ops to the module source graph.')
-
-
 
     ''' Training Loop: '''
     with tf.Session(graph=graph) as sess:
@@ -904,11 +964,9 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
             bottlenecks = cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor,
                                                   decoded_image_tensor, resized_image_tensor, bottleneck_tensor)
 
-        exit(0)
-        cache_bottlenecks(sess=sess, image_lists=image_lists, image_dir=CMD_ARG_FLAGS.image_dir,
-                          bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir, jpeg_data_tensor=jpeg_data_tensor,
-                          decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
-                          bottleneck_tensor=bottleneck_tensor, module_name=CMD_ARG_FLAGS.tfhub_module)
+        # Train, val, test, splits:
+        train_bottlenecks, val_bottlenecks, test_bottlenecks = partition_bottlenecks_dataframe(bottlenecks)
+        bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
 
         # Create operations to evaluate the accuracy of the new layer (called during validation during training):
         acc_evaluation_step, top5_acc_eval_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
@@ -924,29 +982,36 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
         # Create a train saver that is used to restore values into an eval graph:
         train_saver = tf.train.Saver()
 
-        bottlenecks = get_all_cached_bottlenecks(sess=sess, image_lists=image_lists, category='train',
-                                                 bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir,
-                                                 jpeg_data_tensor=jpeg_data_tensor,
-                                                 decoded_image_tensor=decoded_image_tensor,
-                                                 resized_input_tensor=resized_image_tensor,
-                                                 bottleneck_tensor=bottleneck_tensor,
-                                                 module_name=CMD_ARG_FLAGS.tfhub_module,
-                                                 image_dir=CMD_ARG_FLAGS.image_dir)
+        # bottlenecks = get_all_cached_bottlenecks(sess=sess, image_lists=image_lists, category='train',
+        #                                          bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir,
+        #                                          jpeg_data_tensor=jpeg_data_tensor,
+        #                                          decoded_image_tensor=decoded_image_tensor,
+        #                                          resized_input_tensor=resized_image_tensor,
+        #                                          bottleneck_tensor=bottleneck_tensor,
+        #                                          module_name=CMD_ARG_FLAGS.tfhub_module,
+        #                                          image_dir=CMD_ARG_FLAGS.image_dir)
 
         # run training for as many cycles as requested on the command line:
         for i in range(CMD_ARG_FLAGS.num_epochs):
             # Get a batch of input bottleneck values, either calculated fresh every
             # time with distortions applied, or from the cache stored on disk.
-            (train_bottlenecks, train_ground_truth, _) = get_random_cached_bottlenecks(
-                sess, image_lists, CMD_ARG_FLAGS.train_batch_size, 'train',
-                CMD_ARG_FLAGS.bottleneck_dir, CMD_ARG_FLAGS.image_dir, jpeg_data_tensor,
-                decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
-                CMD_ARG_FLAGS.tfhub_module)
+            # (train_bottlenecks, train_ground_truth, _) = get_random_cached_bottlenecks(
+            #     sess, image_lists, CMD_ARG_FLAGS.train_batch_size, 'train',
+            #     CMD_ARG_FLAGS.bottleneck_dir, CMD_ARG_FLAGS.image_dir, jpeg_data_tensor,
+            #     decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
+            #     CMD_ARG_FLAGS.tfhub_module)
+
+            # Get a batch of input bottleneck values from the respective dataframes (sample with replacement):
+            # Use a list of size minibatch_size:
+            minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = get_random_cached_bottlenecks(
+                bottleneck_dataframes, how_many=CMD_ARG_FLAGS.train_batch_size,
+                category='train', class_labels=list(image_lists.keys())
+            )
 
             # Feed the bottlenecks and ground truth into the graph, and run a training
             # step. Capture training summaries for TensorBoard with the `merged` op.
             train_summary, _ = sess.run([merged, train_step],
-                                        feed_dict={bottleneck_input: train_bottlenecks, ground_truth_input: train_ground_truth})
+                                        feed_dict={bottleneck_input: minibatch_train_bottlenecks, ground_truth_input: minibatch_train_ground_truth_indices})
             train_writer.add_summary(train_summary, i)
 
             # Every so often, print out how well the graph is training.
@@ -954,31 +1019,35 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
             if (i % CMD_ARG_FLAGS.eval_step_interval) == 0 or is_last_step:
                 train_accuracy, top5_accuracy, cross_entropy_value = sess.run(
                     [acc_evaluation_step, top5_acc_eval_step, cross_entropy],
-                    feed_dict={bottleneck_input: train_bottlenecks,
-                               ground_truth_input: train_ground_truth}
+                    feed_dict={bottleneck_input: minibatch_train_bottlenecks,
+                               ground_truth_input: minibatch_train_ground_truth_indices}
                 )
                 tf.logging.info('%s: Step %d: Train accuracy = %.1f%%' % (datetime.now(), i, train_accuracy * 100))
                 tf.logging.info('%s: Step %d: Cross entropy = %f' % (datetime.now(), i, cross_entropy_value))
                 # TODO: Make this use an eval graph, to avoid quantization
                 # moving averages being updated by the validation set, though in
                 # practice this makes a negligable difference.
-                validation_bottlenecks, validation_ground_truth, _ = (
-                    get_random_cached_bottlenecks(
-                            sess=sess, image_lists=image_lists, how_many=CMD_ARG_FLAGS.val_batch_size,
-                            category='val', bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir,
-                            image_dir=CMD_ARG_FLAGS.image_dir, jpeg_data_tensor=jpeg_data_tensor,
-                            decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
-                            bottleneck_tensor=bottleneck_tensor, module_name=CMD_ARG_FLAGS.tfhub_module))
+                minibatch_val_bottlenecks, minibatch_val_ground_truth = get_random_cached_bottlenecks(
+                    bottleneck_dataframes, how_many=CMD_ARG_FLAGS.val_batch_size,
+                    category='val', class_labels=list(image_lists.keys())
+                )
+                # validation_bottlenecks, validation_ground_truth, _ = (
+                #     get_random_cached_bottlenecks(
+                #             sess=sess, image_lists=image_lists, how_many=CMD_ARG_FLAGS.val_batch_size,
+                #             category='val', bottleneck_dir=CMD_ARG_FLAGS.bottleneck_dir,
+                #             image_dir=CMD_ARG_FLAGS.image_dir, jpeg_data_tensor=jpeg_data_tensor,
+                #             decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
+                #             bottleneck_tensor=bottleneck_tensor, module_name=CMD_ARG_FLAGS.tfhub_module))
                 # Run a validation step and capture training summaries for TensorBoard with the 'merged' op:
                 validation_summary, validation_accuracy, top5_val_accuracy = sess.run(
                     [merged, acc_evaluation_step, top5_acc_eval_step],
-                    feed_dict={bottleneck_input: validation_bottlenecks,
-                               ground_truth_input: validation_ground_truth})
+                    feed_dict={bottleneck_input: minibatch_val_bottlenecks,
+                               ground_truth_input: minibatch_val_ground_truth})
                 val_writer.add_summary(validation_summary, i)
                 tf.logging.info('%s: Step %d: Validation accuracy = %.1f%% (N=%d)' %
-                                (datetime.now(), i, validation_accuracy * 100, len(validation_bottlenecks)))
+                                (datetime.now(), i, validation_accuracy * 100, len(minibatch_val_bottlenecks)))
                 tf.logging.info(msg='%s: Step %d: Validation top-5 accuracy = %.1f%% (N=%d)' %
-                                    (datetime.now(), i, top5_val_accuracy * 100, len(validation_bottlenecks)))
+                                    (datetime.now(), i, top5_val_accuracy * 100, len(minibatch_val_bottlenecks)))
 
             # Store intermediate results
             intermediate_frequency = CMD_ARG_FLAGS.intermediate_store_frequency
@@ -1028,10 +1097,13 @@ def main(_):
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
 
     # Partition images into train, test, validate sets:
-    tf.logging.info(msg='Partitioning images into training, validation, testing sets. Using: proportionate allocation stratified shuffled sampling...')
+    tf.logging.info(msg='Partitioning images into training, validation, testing sets. '
+                        'Using: stratified shuffled sampling...')
     ts = time.time()
-    image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2, val_percent=.2, random_state=0)
-    tf.logging.info(msg='Populated image lists, performed partitioning in: %s seconds (%.2f minutes).' % ((time.time() - ts), (time.time() - ts)/60))
+    image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2,
+                                             val_percent=.2, random_state=0)
+    tf.logging.info(msg='Populated image lists, performed partitioning in: %s seconds (%.2f minutes).'
+                        % ((time.time() - ts), (time.time() - ts)/60))
 
     # This is operating under the assumption we have the same number of classes in the training and testing sets:
     class_count = len(image_lists.keys())
@@ -1166,6 +1238,13 @@ if __name__ == '__main__':
         type=str,
         default='tmp/bottlenecks.pkl',
         help='Path to cache bottleneck layer values as dataframe.'
+    )
+    # TODO: This argument is only here for debugging purposes (type inference from legacy code):
+    parser.add_argument(
+        '--bottleneck_dir',
+        type=str,
+        default='tmp/',
+        help='<Deprecated> Path to the directory housing bottleneck values. Use only for debugging.'
     )
     parser.add_argument(
         '--num_epochs',
