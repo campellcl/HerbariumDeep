@@ -622,6 +622,10 @@ def cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor, d
     :return bottlenecks: <pd.DataFrame> A dataframe containing the bottleneck values for every tensor in the
         datasets.
     """
+    # If the specified bottleneck directory doesn't exist, create it:
+    if not os.path.exists(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path)):
+        os.mkdir(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path))
+    # TODO: Save dataframe every x bottlenecks. Add logic for restoring bottleneck creation process. Async approach?
     bottlenecks_empty = pd.DataFrame(columns=['class', 'path', 'bottleneck'])
     for clss in image_lists.keys():
         for category in ['train', 'val', 'test']:
@@ -644,8 +648,8 @@ def cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor, d
         num_bottlenecks += 1
         if num_bottlenecks % 100 == 0:
             tf.logging.info(msg='Computed %d bottleneck arrays.' % num_bottlenecks)
-    if not os.path.exists(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path)):
-        os.mkdir(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path))
+            bottlenecks.to_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+
     tf.logging.info(msg='Finished computing bottlenecks. Saving dataframe to: \'%s\'' % CMD_ARG_FLAGS.bottleneck_path)
     bottlenecks.to_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
     return bottlenecks
@@ -960,7 +964,15 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
         if os.path.isfile(os.path.basename(CMD_ARG_FLAGS.bottleneck_path)):
             # Read bottlenecks from disk:
             bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+            tf.logging.info(msg='Bottleneck file located at the provided path: \'%s\'. Restored from disk.' %
+                                CMD_ARG_FLAGS.bottleneck_path)
+            tf.logging.info(msg='Determining if bottleneck creation is finished, or if it should be resumed '
+                                '(i.e. if not all bottlenecks on disk are cached)...')
+            exit()
+            # TODO: How to differntiate between finished trained bottleneck df and interrputed bottleneck creation.
         else:
+            tf.logging.info(msg='Bottleneck file at the provided path: \'%s\' could not be located. Re-creating...'
+                                % CMD_ARG_FLAGS.bottleneck_path)
             bottlenecks = cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor,
                                                   decoded_image_tensor, resized_image_tensor, bottleneck_tensor)
 
@@ -1098,7 +1110,7 @@ def main(_):
 
     # Partition images into train, test, validate sets:
     tf.logging.info(msg='Partitioning images into training, validation, testing sets. '
-                        'Using: stratified shuffled sampling...')
+                        'Using: stratified shuffled sampling without replacement...')
     ts = time.time()
     image_lists = partition_into_image_lists(image_dir=CMD_ARG_FLAGS.image_dir, train_percent=.8, test_percent=.2,
                                              val_percent=.2, random_state=0)
