@@ -966,10 +966,15 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
             bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
             tf.logging.info(msg='Bottleneck file located at the provided path: \'%s\'. Restored from disk.' %
                                 CMD_ARG_FLAGS.bottleneck_path)
-            tf.logging.info(msg='Determining if bottleneck creation is finished, or if it should be resumed '
-                                '(i.e. if not all bottlenecks on disk are cached)...')
-            exit()
-            # TODO: How to differntiate between finished trained bottleneck df and interrputed bottleneck creation.
+            # TODO: Right now assuming bottleneck creation is completed; refactor in progress: BottleneckExecutor.py
+            tf.logging.warning(msg='Currently not programmed to detect if the bottleneck creation process was '
+                                   'previously interrupted. Huge computational overhead is associated with confirming '
+                                   'the presence of a bottleneck for every sample image. Refactor is currently in '
+                                   'progress (see: BottleneckExecutor.py). For now, this script assumes the compressed '
+                                   'bottleneck file contains all relevant samples.')
+            # tf.logging.info(msg='Determining if bottleneck creation is finished, or if it should be resumed '
+            #                     '(i.e. if not all bottlenecks on disk are cached)...')
+
         else:
             tf.logging.info(msg='Bottleneck file at the provided path: \'%s\' could not be located. Re-creating...'
                                 % CMD_ARG_FLAGS.bottleneck_path)
@@ -979,6 +984,9 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
         # Train, val, test, splits:
         train_bottlenecks, val_bottlenecks, test_bottlenecks = partition_bottlenecks_dataframe(bottlenecks)
         bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
+        tf.logging.info('Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), '
+                        'and testing (N=%d) datasets.'
+                        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0]))
 
         # Create operations to evaluate the accuracy of the new layer (called during validation during training):
         acc_evaluation_step, top5_acc_eval_step, _ = add_evaluation_step(final_tensor, ground_truth_input)
@@ -1034,8 +1042,9 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
                     feed_dict={bottleneck_input: minibatch_train_bottlenecks,
                                ground_truth_input: minibatch_train_ground_truth_indices}
                 )
-                tf.logging.info('%s: Step %d: Train accuracy = %.1f%%' % (datetime.now(), i, train_accuracy * 100))
-                tf.logging.info('%s: Step %d: Cross entropy = %f' % (datetime.now(), i, cross_entropy_value))
+                tf.logging.info('%s: Step %d: Mini-batch train accuracy = %.1f%% (N=%d)' % (datetime.now(), i, train_accuracy * 100, len(minibatch_train_bottlenecks)))
+                tf.logging.info('%s: Step %d: Mini-batch cross entropy = %f (N=%d)' % (datetime.now(), i, cross_entropy_value, len(minibatch_train_bottlenecks)))
+                # tf.logging.info('%s: Step %d: Train accuracy = %.1f%% (N=%d)' % (datetime.now(), i, ))
                 # TODO: Make this use an eval graph, to avoid quantization
                 # moving averages being updated by the validation set, though in
                 # practice this makes a negligable difference.
@@ -1108,6 +1117,9 @@ def main(_):
     prepare_tensor_board_directories()
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
 
+    # TODO: Here is where the existence of the bottleneck file should be confirmed (not in cache_all_bottlenecks)
+    # TODO: Refactor entire program, too many competing design philosophies.
+
     # Partition images into train, test, validate sets:
     tf.logging.info(msg='Partitioning images into training, validation, testing sets. '
                         'Using: stratified shuffled sampling without replacement...')
@@ -1130,7 +1142,7 @@ def main(_):
         num_val_images += len(image_lists[clss]['val'])
         num_test_images += len(image_lists[clss]['test'])
     num_images = num_train_images + num_val_images + num_test_images
-    # TODO: Probably better to store this information as a tf.Constant within tf.Session but it hasn't been created yet.
+    # TODO: Probably better to store this information as a tf.Constant within tf.Session, but it hasn't been created yet.
     image_partition_metadata = {'num_images': num_images, 'num_train_images': num_train_images,
                                 'num_val_images': num_val_images, 'num_test_images': num_test_images}
     tf.logging.info(msg='Detected %d total sample images now partitioned into:\n\t%d total training images\n\t%d total '
