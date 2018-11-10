@@ -52,6 +52,7 @@ if __name__ == '__main__':
         parser.add_argument(
             '-train_batch_size',
             dest='train_batch_size',
+            type=int,
             default=-1,
             nargs='?',
             help='The number of images per mini-batch during training. If -1 (default) is provided the entire training '
@@ -79,25 +80,42 @@ if __name__ == '__main__':
         )
         CMD_ARG_FLAGS, unknown = parser.parse_known_args()
         # CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
-        if CMD_ARG_FLAGS.learning_rate_type == 'static':
+        if CMD_ARG_FLAGS.learning_rate_type[0] == 'static':
             parser.add_argument(
                 '-learning_rate',
                 dest='learning_rate',
                 default=0.01,
                 nargs=1,
+                type=float,
+                required=True,
                 help='Specify the learning rate (eta). The default value is eta=0.01.'
             )
         else:
             parser.add_argument(
-                '-dynamic_learning_rate_type',
+                '--dynamic_learning_rate_type',
                 choices=['learning_rate_schedule', 'optimization_algorithm'],
-                default='optimization_algorithm',
                 dest='dynamic_learning_rate_type',
-                nargs='?',
+                nargs=1,
+                required=True,
                 help='Specify the type of dynamic learning rate as either a user-provided Learning Rate Schedule ' \
                      '{learning_rate_schedule} or a specific optimization algorithm {optimization_algorithm} such as:'
                      ' Nestrov Accelerated Gradient, ...., etc..'
             )
+            CMD_ARG_FLAGS, unknown = parser.parse_known_args()
+            if CMD_ARG_FLAGS.dynamic_learning_rate_type[0] == 'learning_rate_schedule':
+                print('ERROR: Learning rate scheduling not implemented yet.')
+                raise NotImplementedError
+            else:
+                parser.add_argument(
+                    '-learning_rate_optimizer',
+                    dest='lr_optimizer',
+                    choices=('tf.optim.MomentumOptimizer', 'tf.optim.ClassName'),
+                    nargs=1,
+                    required=True,
+                    help='You have chosen a dynamic learning rate controlled by an optimization algorithm. Specify the '
+                         'module housing the optimization algorithm of your choice: '
+                         '{tf.optim.MomentumOptimizer,tf.optim.ClassName}. '
+                )
 
     # CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
     # global non-positional arguments go here (use single - prefix instead of double dash --).
