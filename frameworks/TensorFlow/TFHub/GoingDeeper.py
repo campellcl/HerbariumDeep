@@ -13,51 +13,162 @@ def main(_):
     if not CMD_ARG_FLAGS.image_dir:
         tf.logging.error(msg='...')
 
+# class CommandLineArgumentParser(argparse.ArgumentParser):
+#     def error(self, message):
+#         sys.stderr.write('error: %s\n' % message)
+#         self.print_help()
+#         sys.exit(2)
 
-if __name__ == '__main__':
-    # Create top-level parser:
-    parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning on Going Deeper Datasets')
-    # Create namespace to hold partially parsed statements for action tree:
-    CMD_ARG_FLAGS = argparse.Namespace()
-    # Use case training or testing?
-    # parser.add_argument(
-    #     '--eval',
-    #     dest='global_use_case_is_evaluation',
-    #     action='store_true',
-    #     help='Indicates that evaluation is to be performed (as opposed to training).'
-    # )
+
+def _parse_known_evaluation_args(parser):
+    '''
+    Evaluation specific command line arguments go here:
+    '''
+    print('Error: Support for evaluation mode only has only been partially implemented.')
+    raise NotImplementedError
+
+
+def _parse_train_dynamic_learn_rate_optimizer_known_args(parser):
+    """
+    _parse_known_train_dynamic_learn_rate_optimizer: This helper method is invoked if the user provides the following
+        sequence of flags during invocation:
+            --learn_rate_type dynamic --optimizer_type adaptive_optimizer
+        This helper method ensures that the arguments necessary for user-specified optimization module are all provided
+        during invocation and prior to instantiation.
+    :param parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
+    :return None: Upon completion, the provided argparse object will be updated with the necessary set of required
+        command line flags, and argparse will have ensured that the required flags were provided during invocation.
+    """
     parser.add_argument(
-        '--use_case',
-        choices=('train', 'eval'),
-        dest='use_case',
+        '--learning_rate_optimizer',
+        dest='lr_optimizer',
+        choices=('tf.train.MomentumOptimizer', 'tf.train.AdagradOptimizer', 'tf.train.AdamOptimizer'),
         nargs=1,
         required=True,
-        help='Indicates the intended use case of the program by the user. This program can be run in either training '
-             '{train} or evaluation {eval} mode.'
+        help='You have chosen a dynamic learning rate controlled by an optimization algorithm. Specify the '
+             'module housing the optimization algorithm of your choice: '
+             '{tf.train.MomentumOptimizer,tf.train.AdagradOptimizer,tf.train.AdamOptimizer}. '
     )
     CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    if CMD_ARG_FLAGS.use_case == 'eval':
-        # Evaluation specific command line arguments go here.
-        print('Support for evaluation only has not been implemented yet.')
-        raise NotImplementedError
-    else:
-        ''' Training mode specific command line arguments go here: '''
+    if CMD_ARG_FLAGS.lr_optimizer[0] == 'tf.train.MomentumOptimizer':
         parser.add_argument(
-            '--init_type',
-            choices=('he', 'xavier', 'random'),
-            default='random',
+            '--momentum',
+            dest='momentum',
             nargs=1,
-            help='Initialization technique {he, xavier, random}. URL resources to be added soon.'
+            type=float,
+            required=True,
+            metavar='[0-1]',
+            help='Threshold (0-1) indicating '
         )
-        parser.add_argument(
-            '-train_batch_size',
-            dest='train_batch_size',
-            type=int,
-            default=-1,
-            nargs='?',
-            help='The number of images per mini-batch during training. If -1 (default) is provided the entire training '
-                 'dataset will be used.'
-        )
+    elif CMD_ARG_FLAGS.lr_optimizer[0] == 'tf.train.AdagradOptimizer':
+        print('Error: The dynamic learning rate optimizer \'tf.train.AdagradOptimizer\' is not yet supported.')
+        raise NotImplementedError
+    elif CMD_ARG_FLAGS.lr_optimizer[0] == 'tf.train.AdamOptimizer':
+        print('Error: The dynamic learning rate optimizer \'tf.train.AdamOptimizer\' is not yet supported.')
+        raise NotImplementedError
+
+
+def _parse_train_tensorflow_related_hyperparameter_known_args(parser):
+    """
+    _parse_train_tensorflow_related_heyperparameter_known_args: This helper method is executed if the user provides the
+        following sequence of flags during script invocation:
+            --use_case train
+    :param parser: parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
+    :return: None: Upon completion, the provided argparse object will be updated with the necessary set of required
+        command line flags, and argparse will have ensured that the required flags were provided during invocation.
+    """
+    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
+    parser.add_argument(
+        '--eval_step_interval',
+        dest='eval_step_interval',
+        type=int,
+        default=CMD_ARG_FLAGS.num_epochs[0] // 10,
+        nargs='?',
+        help='Specifies how many epochs should pass during training before performing an evaluation step (i.e. computing'
+             ' the chosen training metrics on the validation batch).'
+    )
+    parser.add_argument(
+        '--summaries_dir',
+        type=str,
+        default='tmp/summaries',
+        required=True,
+        nargs=1,
+        help='The directory to which TensorBoard summaries will be saved.'
+    )
+    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
+    parser.add_argument(
+        '--intermediate_store_frequency',
+        type=int,
+        default=CMD_ARG_FLAGS.eval_step_interval[0],
+        nargs='?',
+        help="""Specifies how many epochs should be run (during training) before storing an intermediate checkpoint of 
+                the computational graph. If 0 is provided, then no checkpoints of the computational graph will be stored 
+                during the training process; but one will be stored once the training process is complete.
+                NOTE: The disk write required to store the computational graph is somewhat computationally expensive in
+                    comparison to the training process (when using pre-computed bottleneck values). As a result, the 
+                    saving (and automatic restore from) the computational graph should be invoked somewhat sparingly. 
+                    However, in the event of a critical failure; the training process will only ever to be capable of 
+                    resuming from the last-saved checkpoint of the model. If frequent interruptions to the
+                    training process is anticipated, then it is recommended to set this frequency at least as high as 
+                    the default value (e.g. trigger the saving of a checkpoint every time the evaluation step is run).  
+                """
+    )
+    parser.add_argument(
+        '--output_graph',
+        type=str,
+        default='tmp/saved_model.pb',
+        nargs='?',
+        help="""Indicates the directory in which to save the computational graph of the final trained model. 
+            NOTE: It is not the final checkpoint that is saved (of the form checkpoint, *.index, *.meta) but rather; the
+            final trained model in it's entirety (architecture included) as a *.pb file. It is this file that will be
+            used, if this program is later invoked with the flag:
+                --use_case eval 
+        """
+    )
+    parser.add_argument(
+        '--intermediate_output_graphs_dir',
+        type=str,
+        default='tmp/intermediate_graphs/',
+        nargs='?',
+        help="""Indicates the directory used to save intermediate copies of the computational graph. The anticipated use
+            case is that a model may not have been finished training, but still may have converged. In this case, it may 
+            be convenient to compare and contrast this model (viewed externally as a fully trained model) with other 
+            already trained models, or other equally partially-trained models at the same epoch.
+            NOTE: This does NOT specify the directory to house checkpoints generated during training. Instead, this flag
+                specifies the directory to house architectural copies of the entire model (as a *.pb file) during 
+                training. It is this file that will be used, if the program is later invoked with the --use_case flag 
+                set to 'eval' mode, and the previous model never fully completed training (therebye failing to generate 
+                the trained \'saved_model.pb\' file which is usually preferred in the evaluation invocation context).  
+        """
+    )
+
+
+def _parse_known_training_args(parser):
+    """
+    _parse_known_training_args: This helper method is executed if the user provides the following sequence of flags
+        during script invocation:
+            --use_case train
+        This helper method ensures that the arguments necessary for all forms of training are provided during invocation
+        and prior to instantiation.
+    :param parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
+    :return None: Upon completion, the provided argparse object will be updated with the necessary set of required
+        command line flags, and argparse will have ensured that the required flags were provided during invocation.
+    """
+    '''
+    Training mode specific command line arguments go here:
+    '''
+    parser.add_argument(
+        '--training_state',
+        choices=('new_model', 'resume_training'),
+        dest='train_state',
+        nargs=1,
+        required=True,
+        help='Whether or not the model\'s weights should be re-initialized {new_model} or restored '
+             '{resume_training} from a previous session wherein the model was not able to finish training.'
+    )
+    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
+    if CMD_ARG_FLAGS.train_state[0] == 'new_model':
+        # _parse_known_train_new_model_args(parser=parser)
         parser.add_argument(
             '-tfhub_module',
             type=str,
@@ -70,197 +181,159 @@ if __name__ == '__main__':
                     """
         )
         parser.add_argument(
-            '--learning_rate_type',
-            choices=('static', 'dynamic'),
-            default='static',
+            '--init_type',
+            choices=('he', 'xavier', 'random'),
             nargs=1,
-            dest='learning_rate_type',
-            help='Specify the type of learning rate as either static {static} (e.g. fixed) or dynamic {dynamic} (e.g. '
-                 'learning rate schedule, learning rate optimization technique).'
+            required=True,
+            help='Initialization technique {he, xavier, random}. URL resources to be added soon.'
+        )
+    else:
+        print('Error: Support for resuming training of a previous model has not been implemented yet.')
+        raise NotImplementedError
+    parser.add_argument(
+        '-train_batch_size',
+        dest='train_batch_size',
+        type=int,
+        default=-1,
+        nargs='?',
+        help='The number of images per mini-batch during training. If -1 (default) is provided the entire training '
+             'dataset will be used.'
+    )
+    parser.add_argument(
+        '-val_batch_size',
+        dest='val_batch_size',
+        type=int,
+        default=-1,
+        nargs='?',
+        help='The number of images to use during an evaluation step on the validation dataset while training. By default'
+             ' this value is -1, the size of the entire validation datset.'
+    )
+    parser.add_argument(
+        '--num_epochs',
+        dest='num_epochs',
+        type=int,
+        default=10000,
+        nargs=1,
+        required=True,
+        help='The number of training epochs (the number of passes over the entire training dataset during training).'
+    )
+    _parse_train_tensorflow_related_hyperparameter_known_args(parser=parser)
+    parser.add_argument(
+        '--learning_rate_type',
+        choices=('static', 'dynamic'),
+        default='static',
+        nargs=1,
+        dest='learning_rate_type',
+        help='Specify the type of learning rate as either static {static} (e.g. fixed) or dynamic {dynamic} (e.g. '
+             'learning rate schedule, learning rate optimization technique).'
+    )
+    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
+    if CMD_ARG_FLAGS.learning_rate_type[0] == 'static':
+        parser.add_argument(
+            '--learning_rate',
+            dest='learning_rate',
+            default=0.01,
+            nargs=1,
+            type=float,
+            required=True,
+            help='Specify the learning rate (eta). The default value is eta=0.01. This will initialize a '
+                 'tf.train.GradientDescentOptimizer designed to use a constant learning rate.'
+        )
+    else:
+        parser.add_argument(
+            '--optimizer_type',
+            choices=['fixed_lr_schedule', 'adaptive_optimizer'],
+            dest='optimizer_type',
+            nargs=1,
+            required=True,
+            help='Specify the type of dynamic learning rate as either a user-provided Learning Rate Schedule ' \
+                 '{learning_rate_schedule} or a specific op algorithm {optimization_algorithm} such as:'
+                 ' Nestrov Accelerated Gradient, ...., etc..'
         )
         CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-        # CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
-        if CMD_ARG_FLAGS.learning_rate_type[0] == 'static':
-            parser.add_argument(
-                '-learning_rate',
-                dest='learning_rate',
-                default=0.01,
-                nargs=1,
-                type=float,
-                required=True,
-                help='Specify the learning rate (eta). The default value is eta=0.01.'
-            )
+        if CMD_ARG_FLAGS.optimizer_type[0] == 'learning_rate_schedule':
+            # _parse_known_train_optimizer_learn_schedule(parser=parser)
+            print('ERROR: Support for custom learning rate schedule not implemented yet. See: '
+                  'https://stackoverflow.com/questions/33919948/how-to-set-adaptive-learning-rate-for-gradientdescentoptimizer')
+            raise NotImplementedError
         else:
-            parser.add_argument(
-                '--dynamic_learning_rate_type',
-                choices=['learning_rate_schedule', 'optimization_algorithm'],
-                dest='dynamic_learning_rate_type',
-                nargs=1,
-                required=True,
-                help='Specify the type of dynamic learning rate as either a user-provided Learning Rate Schedule ' \
-                     '{learning_rate_schedule} or a specific optimization algorithm {optimization_algorithm} such as:'
-                     ' Nestrov Accelerated Gradient, ...., etc..'
-            )
-            CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-            if CMD_ARG_FLAGS.dynamic_learning_rate_type[0] == 'learning_rate_schedule':
-                print('ERROR: Learning rate scheduling not implemented yet.')
-                raise NotImplementedError
-            else:
-                parser.add_argument(
-                    '-learning_rate_optimizer',
-                    dest='lr_optimizer',
-                    choices=('tf.optim.MomentumOptimizer', 'tf.optim.ClassName'),
-                    nargs=1,
-                    required=True,
-                    help='You have chosen a dynamic learning rate controlled by an optimization algorithm. Specify the '
-                         'module housing the optimization algorithm of your choice: '
-                         '{tf.optim.MomentumOptimizer,tf.optim.ClassName}. '
-                )
+            _parse_train_dynamic_learn_rate_optimizer_known_args(parser=parser)
 
+
+
+if __name__ == '__main__':
+    """
+    __main__: Global scope initialization. Performs argument parsing prior to invoking the main method. If this script
+        is functioning properly there is NO chance that a method called in main that relies on user input will fail to 
+        have access to the required user-provided arguments during initialization. This method is intended to ensure 
+        that all required TensorFlow constructor's parameters have associated user-provided values during invocation, 
+        and prior to instantiation.
+    """
+    # Create top-level parser:
+    parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning on Going Deeper Datasets')
+    '''
+    Initialization-Level global command line arguments go here:
+    '''
+    parser.add_argument(
+        '--use_case',
+        choices=('train', 'eval'),
+        dest='use_case',
+        nargs=1,
+        required=True,
+        help='Indicates the intended use case of the program by the user. This program can be run in either training '
+             '{train} or evaluation {eval} mode.'
+    )
+    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
+    if CMD_ARG_FLAGS.use_case == 'eval':
+        # Parse command line arguments only relevant to the use case of evaluating existing and already trained models:
+        _parse_known_evaluation_args(parser=parser)
+    else:
+        # Parse command line arguments only relevant to the use case of training a model:
+        _parse_known_training_args(parser=parser)
+    '''
+    Post-Initialization-Level global command line arguments go here:
+        For global non-positional arguments use a single - prefix instead of a double -- prefix. 
+    '''
+    parser.add_argument(
+        '--image_dir',
+        dest='image_dir',
+        type=str,
+        required=True,
+        nargs=1,
+        help='Path to folders of labeled images. If this script is being invoked in training mode this directory will '
+             'later be partitioned into training, validation, and testing datasets. However, if this script is being '
+             'invoked in evaluation mode, this entire directory will be inferred solely as a testing dataset.'
+    )
+    parser.add_argument(
+        '--bottleneck_path',
+        dest='bottleneck_path',
+        type=str,
+        required=True,
+        nargs=1,
+        help="""The path to the dataframe storing the cached bottleneck layer values. It is standard to name this file:
+        \'bottlenecks.pkl\'. Note that bottleneck generation via forward propagation is computationally expensive. It 
+        is therefore recommended that great care should be taken to prevent altering this path repeatedly, unless it is
+        absolutely necessary (as in the case of a new architecture or newly applied data augmentation technique). 
+            * If this script is being invoked in training mode, and a new model is being trained, the bottlenecks file
+                may not yet exist. In this case, the provided argument will be interpreted as the location in which the
+                bottlenecks file is to reside upon it\'s eventual creation. 
+            * If data augmentation is being performed, then this method will need to be adapted to support a parent 
+                directory that houses multiple bottleneck files (one for each form of data augmentation and network
+                 architecture that is applied). 
+        """
+    )
     # CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
     # global non-positional arguments go here (use single - prefix instead of double dash --).
 
-
-
-
-
-# if __name__ == '__main__':
-#     # Create top-level parser:
-#     parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning on Going Deeper Datasets')
-#     # Either training or evaluating:
-#     global_use_case = None
-#     mutual_exclusion_train_eval_group = parser.add_mutually_exclusive_group(required=True)
-#     # Create the parser for the 'train' command
-#     train_parser = mutual_exclusion_train_eval_group.add_argument(
-#         '--train',
-#         type=str,
-#         default='',
-#         nargs='?',
-#         help='Indicates that training is to be performed (as opposed to evaluation).'
-#     )
-#     test_parser = mutual_exclusion_train_eval_group.add_argument(
-#         '--test',
-#         type=str,
-#         default='',
-#         help='Indicates that testing is to be performed (as opposed to training).'
-#     )
-
-# if __name__ == '__main__':
-#     # Create top-level parser:
-#     parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning on Going Deeper Datasets')
-#     # Either training or evaluating:
-#     global_use_case = None
-#     parser.add_argument(
-#         dest='global_use_case',
-#         choices=['--train', '--eval'],
-#         # action='store_const',
-#         # const='--train',
-#         nargs='?',
-#         help='The intended use case of the program, either training {--train} or evaluating {--eval}.'
-#     )
-#     parser.add_argument(
-#         '--image_dir',
-#         dest='image_dir',
-#         help='The path to the directory housing sample images partitioned into subdirectories named by class label.',
-#     )
-#
-#
-#     parser.add_argument(
-#         '--log_dir',
-#         type=str,
-#         default=os.path.join(os.getenv('TEST_TMPDIR', 'tmp'),
-#                              'tensorflow/mnist/logs/mnist_with_summaries'),
-#         help='Summaries log directory')
-
-
-    # # Hyper Parameters
-    # model_names = sorted(name for name in models.__dict__
-    #                      if name.islower() and not name.startswith("__")
-    #                      and callable(models.__dict__[name]))
-    #
-    # parser = argparse.ArgumentParser(description='PyTorch Transfer Learning Demo on Going Deeper Herbaria 1K Dataset')
-#     # parser.add_argument('STORE', metavar='DIR', help='Data storage directory.')
-#     # parser.add_argument('-v', '--verbose', dest='verbose', default=False, action='store_true',
-#     #                     help='Enable verbose print statements (yes, no)?')
-#     # parser.add_argument('--arch', '-a', metavar='ARCH', default='inception_v3', choices=model_names,
-#     #                     help='model architecture: ' + ' | '.join(model_names) + ' (default: inception_v3)')
-#     # parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-#     #                     metavar='LR', help='initial learning rate')
-#     # # parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-#     # #                     help='momentum')
-#     # # parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
-#     # #                     metavar='W', help='weight decay (default: 1e-4)')
-#     # parser.add_argument('--resume', default='', type=str, metavar='PATH',
-#     #                     help='path to latest checkpoint (default: none)')
-#
-#     # CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-#     # if CMD_ARG_FLAGS.global_use_case == 'train':
-#     #     parser.add_argument(
-#     #         dest='--image_dir',
-#     #         metavar=str,
-#     #         dest='image_dir'
-#     #     )
-#
-#     # mutual_exclusion_train_eval_group = parser.add_mutually_exclusive_group(required=True)
-#     # # Create the parser for the 'train' command
-#     # train_parser = mutual_exclusion_train_eval_group.add_argument(
-#     #     '--train',
-#     #     type=str,
-#     #     default='',
-#     #     help='Indicates that training is to be performed (as opposed to evaluation).'
-#     # )
-#     # test_parser = mutual_exclusion_train_eval_group.add_argument(
-#     #     '--test',
-#     #     type=str,
-#     #     default='',
-#     #     help='Indicates that testing is to be performed (as opposed to training).'
-#     # )
-#
     # Tests:
     # Valid:
     # CMD_ARG_FLAGS, unparsed = parser.parse_known_args(['--train', '--init', 'random', '--train_batch_size 0'])
     # CMD_ARG_FLAGS, unknown = parser.parse_known_args(['--train', '--image_dir', 'C:\\sample_images\\root_dir'])
     CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
     print(CMD_ARG_FLAGS)
-    # CMD_ARG_FLAGS, unknown = parser.parse_known_args(['--eval'])
-    # CMD_ARG_FLAGS, unknown = parser.parse_known_args(['--train', '--eval'])
-
-    # Invalid:
-    # CMD_ARG_FLAGS, unknown = parser.parse_known_args([])    # TODO: Add case for do nothing (executed as valid).
-    # CMD_ARG_FLAGS, unknown = parser.parse_known_args(['--train --eval'])
-    # CMD_ARG_FLAGS, unknown = parser.parse_known_args(['--train', '--eval'])     # TODO: Add case for both mutually exclusive group ignore.
-#
-#
-#
-#
-#     # # create the top-level parser
-#     # parser = argparse.ArgumentParser(prog='PROG')
-#     # parser.add_argument('--foo', action='store_true', help='foo help')
-#     # subparsers = parser.add_subparsers(help='sub-command help', dest='subparser_name')
-#     #
-#     # # create the parser for the "command_a" command
-#     # parser_a = subparsers.add_parser('command_a', help='command_a help')
-#     # parser_a.add_argument('bar', type=int, help='bar help')
-#     #
-#     # # create the parser for the "command_b" command
-#     # parser_b = subparsers.add_parser('command_b', help='command_b help')
-#     # parser_b.add_argument('--baz', choices='XYZ', help='baz help')
-#     #
-#     # # parse some argument lists
-#     # argv = ['--foo', 'command_a', '12', 'command_b', '--baz', 'Z']
-#     # while argv:
-#     #     print(argv)
-#     #     options, argv = parser.parse_known_args(argv)
-#     #     print(options)
-#     #     if not options.subparser_name:
-#     #         break
-#
-#     # # Repeatedly call parse on chained commands:
-#     # ### this function takes the 'extra' attribute from global namespace
-#     # parser = argparse.ArgumentParser()
-#     # # Add all subparsers:
-#     # subparsers = parser.add_subparsers(help='sub-command help', dest='subparser_name')
-#     # # Add setup options for each subparser:
-#     # train_use_case_parser = subparsers.add_parser('--scratch', help='Train from scratch')
-#     # namespace = parser.parse_known_args()
-#     # _parse_remaining_chained_commands(parser, namespace)
+    '''
+    Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
+    the proper command line arguments (builds on default argparse). For more information see:
+    https://stackoverflow.com/questions/33703624/how-does-tf-app-run-work
+    '''
+    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
