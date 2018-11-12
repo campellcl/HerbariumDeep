@@ -19,6 +19,15 @@ from urllib.error import HTTPError
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
+    """
+    TFHClassifier
+    A base class bridging the interfaces between Sklearn and TensorFlow.
+    See: https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html
+    NOTE: All estimators should specify all the parameters that can be set at the class level in their __init__ as
+        explicit keyword arguments (no *args or **kwargs).
+    """
+    tf_session = None
+    tf_graph = None     # computational graph
 
     def __init__(self, tfhub_module_url):
         """
@@ -29,9 +38,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Enable visible logging output:
         if tf.logging.get_verbosity() is not tf.logging.INFO:
             tf.logging.set_verbosity(tf.logging.INFO)
-        # Attempt to load the specified TFHub module:
+        ''' Attempt to load the specified TFHub module: '''
         try:
             module_spec = hub.load_module_spec(tfhub_module_url)
+            tf.logging.info(msg='Loaded the provided TensorFlowHub module spec: \'%s\'' % tfhub_module_url)
         except ValueError as val_err:
             tf.logging.error('Unexpected values in the module spec URL:\n%s' % val_err)
         except tf.OpError as op_err:
@@ -41,6 +51,18 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             tf.logging.error('Could not find a valid model at the provided url: \'%s\'. '
                              'No module was found at the TFHub server: \'%s\'. Received the following stack trace: %s'
                              % (tfhub_module_url, tfhub_base_url, urllib_http_err))
+
+    def fit(self, x, y):
+        raise NotImplementedError
+
+    def predict_proba(self, X):
+        raise NotImplementedError
+
+    def predict(self, X):
+        raise NotImplementedError
+
+    def save(self, path):
+        raise NotImplementedError
 
 
 if __name__ == '__main__':
