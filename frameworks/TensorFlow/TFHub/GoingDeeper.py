@@ -6,6 +6,7 @@ import os
 import sys
 import argparse
 import tensorflow as tf
+import pandas as pd
 
 
 def prepare_tensor_board_directories():
@@ -28,6 +29,14 @@ def prepare_tensor_board_directories():
     return
 
 
+def _update_and_retrieve_bottlenecks():
+    """
+    _update_and_retrieve_bottlenecks:
+    :return:
+    """
+    pass
+
+
 def main(_):
     # Enable visible logging output:
     tf.logging.set_verbosity(tf.logging.INFO)
@@ -35,6 +44,19 @@ def main(_):
     prepare_tensor_board_directories()
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
     # Ensure that the declared bottleneck file actually exists, or create it (if it does not):
+    if CMD_ARG_FLAGS.force_bypass_bottleneck_updates:
+        # Cmd arg flag signifies that bottleneck files do not need to be updated, just read in the existing bottlenecks:
+        # First ensure that the bottleneck dataframe exists:
+        if os.path.exists(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path)):
+            try:
+                bottlenecks = pd.read_pickle(CMD_ARG_FLAGS.bottleneck_path)
+            except Exception as err:
+                tf.logging.error(msg='Fatal error. Script invoked with --force_bypass_bottleneck_updates, but was '
+                                     'unable to read the bottlenecks dataframe specified at: %s'
+                                     % CMD_ARG_FLAGS.bottleneck_path)
+    else:
+        # Absence of cmd arg flag signifies that new samples may have been added since last bottleneck generation.
+
     # ON RESUME: add a cmd line flag for overriding image_list generation if user is positive all samples have bottleneck vectors
     # Otherwise, it is computationally expensive to do a full search of the image directory to compare every classes
     # sample count to the uncompressed bottleneck dataframes length.
@@ -369,6 +391,8 @@ if __name__ == '__main__':
                  architecture that is applied). 
         """
     )
+    # Parse 'advanced' usage flags enabling faster execution at the cost of knowledge complexity:
+    _parse_known_advanced_user_args(parser=parser)
     # CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
     # global non-positional arguments go here (use single - prefix instead of double dash --).
 
