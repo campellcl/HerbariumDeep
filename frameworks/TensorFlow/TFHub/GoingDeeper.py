@@ -8,16 +8,36 @@ import argparse
 import tensorflow as tf
 
 
-def main(_):
-    # Ensure required parameters have been provided.
-    if not CMD_ARG_FLAGS.image_dir:
-        tf.logging.error(msg='...')
+def prepare_tensor_board_directories():
+    """
+    prepare_tensor_board_directories: Ensures that if a TensorBoard storage directory is defined in the command line
+        flags, that said directory is purged of old TensorBoard files, and that this program has sufficient permissions
+        to write new TensorBoard summaries to the specified path.
+    :return:
+    """
+    # Check to see if the file exists:
+    if tf.gfile.Exists(CMD_ARG_FLAGS.summaries_dir):
+        # Delete everything in the file recursively:
+        tf.gfile.DeleteRecursively(CMD_ARG_FLAGS.summaries_dir)
+    # Re-create (or create for the first time) the storage directory:
+    tf.gfile.MakeDirs(CMD_ARG_FLAGS.summaries_dir)
+    # Check to see if intermediate computational graphs are to be stored:
+    if CMD_ARG_FLAGS.intermediate_store_frequency > 0:
+        if not os.path.exists(CMD_ARG_FLAGS.intermediate_output_graphs_dir):
+            os.makedirs(CMD_ARG_FLAGS.intermediate_output_graphs_dir)
+    return
 
-# class CommandLineArgumentParser(argparse.ArgumentParser):
-#     def error(self, message):
-#         sys.stderr.write('error: %s\n' % message)
-#         self.print_help()
-#         sys.exit(2)
+
+def main(_):
+    # Enable visible logging output:
+    tf.logging.set_verbosity(tf.logging.INFO)
+    # Delete any TensorBoard summaries left over from previous runs:
+    prepare_tensor_board_directories()
+    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
+    # Ensure that the declared bottleneck file actually exists, or create it (if it does not):
+    # ON RESUME: add a cmd line flag for overriding image_list generation if user is positive all samples have bottleneck vectors
+    # Otherwise, it is computationally expensive to do a full search of the image directory to compare every classes
+    # sample count to the uncompressed bottleneck dataframes length.
 
 
 def _parse_known_evaluation_args(parser):
@@ -259,6 +279,26 @@ def _parse_known_training_args(parser):
         else:
             _parse_train_dynamic_learn_rate_optimizer_known_args(parser=parser)
 
+
+def _parse_known_advanced_user_args(parser):
+    """
+    _parse_known_advanced_user_args: This helper method is executed in the global scope during command line invocation.
+        This helper method parses out advanced command line arguments and warns the user the implications of an improper
+        invocation using an argument of this type.
+    :param parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
+    :return None: Upon completion, the provided argparse object will be updated with the necessary set of required
+        command line flags, and argparse will have ensured that the optional flags were provided properly during
+        invocation.
+    """
+
+    parser.add_argument(
+        '--force_bypass_bottleneck_updates',
+        help="""WARNING: This command line argument belongs to a special class of \'force\' flags used for override 
+        functionality, and only intended for users who really know what they are doing.
+        For this command in particular: An invocation of the script with the \'--force_bypass_bottleneck_updates\' flag
+            enabled will result in 
+        """
+    )
 
 
 if __name__ == '__main__':

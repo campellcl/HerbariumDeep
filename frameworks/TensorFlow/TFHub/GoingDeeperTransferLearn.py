@@ -625,7 +625,7 @@ def cache_all_bottlenecks(sess, image_metadata, image_lists, jpeg_data_tensor, d
     # If the specified bottleneck directory doesn't exist, create it:
     if not os.path.exists(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path)):
         os.mkdir(os.path.dirname(CMD_ARG_FLAGS.bottleneck_path))
-    # TODO: Save dataframe every x bottlenecks. Add logic for restoring bottleneck creation process. Async approach?
+    # TODO: Save dataframe every x bottlenecks. Add logic for restoring an interrupted bottleneck creation process. Async approach?
     bottlenecks_empty = pd.DataFrame(columns=['class', 'path', 'bottleneck'])
     for clss in image_lists.keys():
         for category in ['train', 'val', 'test']:
