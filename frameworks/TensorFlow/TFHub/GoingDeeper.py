@@ -293,10 +293,17 @@ def _parse_known_advanced_user_args(parser):
 
     parser.add_argument(
         '--force_bypass_bottleneck_updates',
+        dest='force_bypass_bottleneck_updates',
+        default=False,
+        action='store_true',
+        nargs='?',
         help="""WARNING: This command line argument belongs to a special class of \'force\' flags used for override 
         functionality, and only intended for users who really know what they are doing.
         For this command in particular: An invocation of the script with the \'--force_bypass_bottleneck_updates\' flag
-            enabled will result in 
+            enabled will result in a bypass of the entire image directory walk while confirming the existence of
+            generated bottlenecks for all samples. That is to say, using this argument tells the program that there were
+            NO new samples added since the last time the bottlenecks have been generated. This allows for a faster
+            initialization step, since the entire parent image directory no longer needs to be fully traversed. 
         """
     )
 
