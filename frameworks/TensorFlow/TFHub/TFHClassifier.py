@@ -44,11 +44,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         :param module_name: <str> The name to use for the key that will later allow this module to be retrieved via a
             Tensorflow variable_scope. This name will be displayed for this module in TensorBoard.
         :return tf_graph: The tf.Graph that was created.
-        :return bottleneck_tensor: <tf.placeholder> A bottleneck tensor representing the bottlneck values output by the
+        :return bottleneck_tensor: <tf.placeholder> A bottleneck tensor representing the bottleneck values output by the
             source module. This layer is the pre-activation layer just prior to the logits layer (the last fully
             connected layer that feeds into the softmax layer). In other words, if the softmax layer is the final layer
             in the neural network, then the logits layer is the dense fully-connected penultimate layer that
-            precedes it, and the bottleneck tensor is the layer that precedes this logits layer.
+            precedes it, and the bottleneck tensor is the layer that precedes this logits layer. For more information
+            on "bottlenecks" see: https://www.tensorflow.org/hub/tutorials/image_retraining#bottlenecks
         """
         # Define the receptive field in accordance with the chosen architecture:
         height, width = hub.get_expected_image_size(tfhub_module_spec)
@@ -71,6 +72,80 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     tf.identity(bottleneck_tensor, name='bottleneck_tensor')
         return graph, bottleneck_tensor
 
+    def _add_final_retrain_ops(self, num_unique_classes, bottleneck_tensor):
+        """
+        add_final_retrain_ops: Adds a new softmax and fully-connected layer for training and model evaluation. In order
+        to use the TFHub model as a fixed feature extractor, we need to retrain the top fully connected layer of the
+        graph that we previously added in the 'create_module_graph' method. This function adds the right ops to the
+        graph, along with some variables to hold the weights, and then sets up all the gradients for the backward pass.
+
+        The set up for the softmax and fully-connected layers is based on:
+            * https://www.tensorflow.org/tutorials/mnist/beginners/index.html
+        Also see the following additional resources section (with custom tags for ease of meta-level code analysis
+            parsing).
+        :resource: https://github.com/tensorflow/hub/blob/master/examples/image_retraining/retrain.py
+        :param num_unique_classes: <int> The number of unique classes in the training, validation, and testing datasets.
+        :param bottleneck_tensor: <tf.Tensor> A bottleneck tensor representing the bottleneck values output by the
+            source module. This layer is the pre-activation layer just prior to the logits layer (the last fully
+            connected layer that feeds into the softmax layer). In other words, if the softmax layer is the final layer
+            in the neural network, then the logits layer is the dense fully-connected penultimate layer that
+            precedes it, and the bottleneck tensor is the layer that precedes this logits layer. For more information
+            on "bottlenecks" see: https://www.tensorflow.org/hub/tutorials/image_retraining#bottlenecks
+        :
+
+        :return:
+        """
+        '''
+        The batch size is determined during runtime depending on the first value passed to the bottleneck tensor 
+        during invocation:
+        '''
+        batch_size, bottleneck_tensor_size = self.bottleneck_tensor.get_shape().as_list()
+        '''
+        This assert statement makes sure that the last layer of the TFHub module was constructed with the first
+        dimension set to None (i.e. the tensor's dimensionality was constructed with mini-batch usage in mind):
+        '''
+        assert batch_size is None
+        ''' Tensor Declarations: '''
+        # For TensorBoard (and ability to retrieve collection by name) this is a variable_scope instead of a name_scope:
+        with tf.variable_scope('retrain_ops'):
+            # Child elements of the retrain_ops/ variable scope are named independently for TensorBoard ease of viz.:
+            with tf.name_scope('input'):
+                # Create a placeholder Tensor of same type as bottleneck_tensor to cache output from TFHub module:
+                bottleneck_input = tf.placeholder_with_default(
+                    bottleneck_tensor,
+                    shape=[batch_size, bottleneck_tensor_size],
+                    name='BottleneckInputPlaceholder'
+                )
+                # Another placeholder Tensor to hold the true class labels:
+                ground_truth_input = tf.placeholder(
+                    tf.int64,
+                    shape=[batch_size],
+                    name='GroundTruthInput'
+                )
+        # Additional organization for TensorBoard:
+        layer_name = 'final_retrain_ops'
+        with tf.name_scope(layer_name):
+            # Every layer has the following items:
+            with tf.name_scope('weights'):
+                # Output random values from truncated normal distribution:
+                # TODO: This method should support xe and xavier init techniques as well as truncated normal.
+                initial_value = tf.truncated_normal(
+                    shape=[bottleneck_tensor_size, num_unique_classes],
+                    stddev=0.001
+                )
+                layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
+                # variable_summaries(layer_weights)
+
+            with tf.name_scope('biases'):
+                layer_biases = tf.Variable(initial_value=tf.zeros([num_unique_classes]), name='final_biases')
+                # variable_summaries(layer_biases)
+
+            # pre-activations:
+            with tf.name_scope('Wx_plus_b'):
+                logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
+                tf.summary.histogram('pre_activations_logits', logits)
+
+        raise NotImplementedError
 
     def __init__(self, tfhub_module_url):
         """
@@ -103,7 +178,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         ''' Perform the actual model instantiation: '''
         module_name = tfhub_module_url[tfhub_module_url.find('imagenet/') + len('imagenet/')::]
         # Actually instantiate the module blueprint and get a reference to the output bottleneck tensor for use later:
-        self.tf_graph, self.bottleneck_tensor = self._instantiate_tfhub_module_computational_graph(tfhub_module_spec=self.tfhub_module_spec, module_name=module_name)
+        self.tf_graph, self.bottleneck_tensor = self._instantiate_tfhub_module_computational_graph(
+            tfhub_module_spec=self.tfhub_module_spec,
+            module_name=module_name
+        )
+        # Add the re-train operations necessary for the model to function in the target domain:
+
 
 
 
