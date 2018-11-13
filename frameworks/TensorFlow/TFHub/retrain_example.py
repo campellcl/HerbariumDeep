@@ -304,6 +304,7 @@ def create_module_graph(module_spec):
     with tf.Graph().as_default() as graph:
         resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3])
         m = hub.Module(module_spec)
+        # TODO: Confusing nomenclature, see: add_final_retrain_ops()
         bottleneck_tensor = m(resized_input_tensor)
         wants_quantization = any(node.op in FAKE_QUANT_OPS
                                  for node in graph.as_graph_def().node)
@@ -765,6 +766,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor,
             variable_summaries(layer_biases)
 
         with tf.name_scope('Wx_plus_b'):
+            # TODO: Confusing nomenclature. See: create_module_graph()
             logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
             tf.summary.histogram('pre_activations', logits)
 
