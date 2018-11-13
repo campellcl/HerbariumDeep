@@ -17,7 +17,7 @@ import tensorflow as tf
 import tensorflow_hub as hub
 from urllib.error import HTTPError
 # Custom decorator methods for ease of use when attaching TensorBoard summaries for visualization:
-from frameworks.TensorFlow.TFHub.CustomTensorBoardDecorators import attach_variable_summaries
+# from frameworks.TensorFlow.TFHub.CustomTensorBoardDecorators import attach_variable_summaries
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
@@ -160,52 +160,29 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     stddev=0.001
                 )
                 layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
-                attach_variable_summaries(layer_weights)
+                self._attach_variable_summaries(layer_weights)
 
             with tf.name_scope('biases'):
                 layer_biases = tf.Variable(initial_value=tf.zeros([num_unique_classes]), name='final_biases')
-                attach_variable_summaries(layer_biases)
+                self._attach_variable_summaries(layer_biases)
 
             # pre-activations (z vector):
             with tf.name_scope('Wx_plus_b'):
                 '''
-                NOTE: The terminology gets a bit tricky right here, as the logits layer is the penultimate layer that
-                feeds directly into the softmax layer. The expression tf.matmul evaluates to z, that is: the weighted 
-                sum of the preceding layer's output (plus a bias term) BEFORE applying the activation function phi. 
-                The 'final_tensor' is the result of applying the activation function phi to the pre-activation layer z.
-                So where exactly are the logits? Normally we think of the logits layer as the result of applying the
-                activation function to z; that is, normally we think of the penultimate layer as the 'logits' layer. 
-                In this case however, the logits layer IS represented by the pre_activations variable, although it
-                appears as though it is only half of the step that makes up the logits layer. Upon applying the 
-                activation function (commonly softmax at this point) the resulting 'final_tensor' is the result of 
-                forward propagating the output from the logits layer directly into the final layer. In this case the
-                traditional 'softmax layer' is not an individual layer, but rather the result of directly applying
-                the activation function (softmax) to the pre-activation/logits layer (which directly precedes it). So,
-                there is a discrepancy from the way the textbook Hands on Machine Learning: ... visually represents the
-                workings of the network, and the actual implementation itself. However, the end result is the same:
-                a Tensor containing the predicted class label based upon the results of applying the chosen activation
-                function to the 
+                NOTE: The "bottleneck layer" is the layer that feeds directly into the 'layer that performs the actual 
+                classification' (in this case the softmax layer). During instantiation, the bottleneck_tensor is 
+                created to hold the output of the bottleneck-layer/logits-layer computation. To be explicitly clear, 
+                the bottleneck tensor is the output of the layer preceding the logits layer. The logits layer is 'z', 
+                that is: the weighted sum of the values in the bottleneck tensor (plus a bias term) BEFORE applying the 
+                activation function phi (in this case softmax). The softmax layer is the result of applying phi to the 
+                preceding logits layer. 
+                The terminology can be a bit confusing, for example see:
+                https://stackoverflow.com/questions/41455101/what-is-the-meaning-of-the-word-logits-in-tensorflow/47010867#47010867
                 '''
-
-                '''
-                NOTE: The logits layer (or in the context of transfer learning, the: "bottleneck layer") is the 
-                penultimate layer that feeds directly into the 'layer that performs the actual classification' 
-                (in this case the softmax layer). During instantiation, the bottleneck_tensor is created to hold the
-                output of the bottleneck-layer/logits-layer computation. To be explicitly clear, the bottleneck tensor
-                is the same as logits tensor?
-                
-                
-                compute the  layer as a dense/fully-connected layer whose input is the so called
-                "bottleneck tensor" (e.g. the layer just before the final output layer that actually performs the 
-                classification). The logits layer 
-                
-                
-                I am confused.... seems like the bottleneck tensor is the logits layer and we are computing it twice...
-                https://www.tensorflow.org/hub/tutorials/image_retraining#bottlenecks
-                '''
-                ON RESUME ^ FINISH ABOVE COMMENT
                 logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
-                tf.summary.histogram('pre_activations', pre_activations)
+                # Logits are the result of calculating z using the bottleneck tensor, BEFORE activation:
+                tf.summary.histogram('logits', logits)
+                final_tensor = tf.nn.softmax(logits, name=final_tensor_name)
 
         raise NotImplementedError
 
