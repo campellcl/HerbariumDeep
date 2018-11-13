@@ -296,7 +296,7 @@ def create_module_graph(module_spec):
     Returns:
       graph: the tf.Graph that was created.
       bottleneck_tensor: the bottleneck values output by the module.
-      resized_input_tensor: the input images, resized as expected by the module.
+      resized_input_tensor: the input images, re-sized as expected by the module.
       wants_quantization: a boolean, whether the module has been instrumented
         with fake quantization ops.
     """
@@ -304,7 +304,8 @@ def create_module_graph(module_spec):
     with tf.Graph().as_default() as graph:
         resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3])
         m = hub.Module(module_spec)
-        # TODO: Confusing nomenclature, see: add_final_retrain_ops()
+        # TODO: Confusing nomenclature, see the method: add_final_retrain_ops() and supporting evidence:
+        # https://stackoverflow.com/questions/41455101/what-is-the-meaning-of-the-word-logits-in-tensorflow/47010867#47010867
         bottleneck_tensor = m(resized_input_tensor)
         wants_quantization = any(node.op in FAKE_QUANT_OPS
                                  for node in graph.as_graph_def().node)
