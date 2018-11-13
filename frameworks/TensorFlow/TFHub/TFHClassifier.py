@@ -30,7 +30,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
     """
     tfhub_module_spec = None
     tf_session = None
-    tf_graph = None     # computational graph
+    graph = None     # TensorFlow computational graph
     bottleneck_tensor = None   # TF Bottleneck Tensor
 
     @staticmethod
@@ -45,7 +45,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             https://www.tensorflow.org/hub/api_docs/python/hub/ModuleSpec
         :param module_name: <str> The name to use for the key that will later allow this module to be retrieved via a
             TensorFlow variable_scope. This name will be displayed for this module in TensorBoard visualizations.
-        :return tf_graph: The tf.Graph that was created.
+        :return graph: The tf.Graph that was created.
         :return bottleneck_tensor: <tf.Tensor> A bottleneck tensor representing the bottleneck values output by the
             source module. This layer is the layer just prior to the logits layer; where the logits layer is defined as
             the last fully-connected/pre-activation layer that feeds directly into the softmax layer. In other words,
@@ -101,8 +101,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """
         add_final_retrain_ops: Adds a new softmax and fully-connected layer for training and model evaluation. In order
         to use the TFHub model as a fixed feature extractor, we need to retrain the top fully connected layer of the
-        graph that we previously added in the 'create_module_graph' method. This function adds the right ops to the
-        graph, along with some variables to hold the weights, and then sets up all the gradients for the backward pass.
+        graph that we previously added in the '_instantiate_tfhub_module_computational_graph' method. This function adds
+        the right ops to the graph, along with some variables to hold the weights, and then sets up all the gradients
+        for the backward pass.
 
         The set up for the softmax and fully-connected layers is based on:
             * https://www.tensorflow.org/tutorials/mnist/beginners/index.html
@@ -114,12 +115,22 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             source module. This layer is the layer just prior to the logits layer; where the logits layer is defined as
             the last fully-connected/pre-activation layer that feeds directly into the softmax layer. In other words,
             if the softmax layer is the final layer in the neural network, then the logits layer is the dense
-            fully-connected penultimate layer that precedes the softmax layer. Proceeding this logits layer, is the
-            "Bottleneck Tensor". For more information on "bottlenecks" see:
+            fully-connected penultimate layer that precedes the softmax layer (pre-activation). Before this logits
+            layer, is the "Bottleneck Tensor" which holds the output from the original source model's forward
+            propagation for every sample in the bottleneck vector. For more information on "bottlenecks" see:
                 https://www.tensorflow.org/hub/tutorials/image_retraining#bottlenecks
-        :
-
-        :return:
+        :returns A series of tf.Tensor objects (symbolic handles to the result of operations) to be used during the main
+            training loop at runtime. See below:
+        :return train_step: <tf.Tensor> A tensor representing the result of a series of operations that constitute a
+            single step during training.
+        :return cross_entropy_mean: <tf.Tensor> A tensor holding the result of the application of the cross_entropy
+            evaluation metric. This can be applied to either training, testing, or validation datasets at runtime.
+        :return bottleneck_input: <tf.Tensor> A placeholder tensor which is provided the current mini-batch during
+            runtime.
+        :return ground_truth_input: <tf.Tensor> A tensor to hold the ground truths of the batch provided at runtime.
+        :return final_tensor: <tf.Tensor> A tensor (symbolic handle) to the computation produced as the result of a
+            forward propagation through the augmented network. This is akin to the softmax layer when using softmax
+            as an activation function 'phi' on the last layer.
         """
         '''
         The batch size is determined during runtime depending on the first value passed to the bottleneck tensor 
@@ -154,11 +165,23 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             # Every layer has the following items:
             with tf.name_scope('weights'):
                 # Output random values from truncated normal distribution:
-                # TODO: This method should support xe and xavier init techniques as well as truncated normal.
-                initial_value = tf.truncated_normal(
-                    shape=[bottleneck_tensor_size, num_unique_classes],
-                    stddev=0.001
-                )
+                if self.init_type == 'he':
+                    # TODO: Add he initialization
+                    tf.logging.error('Requested initialization method \'he\' not supported yet.')
+                    raise NotImplementedError
+                elif self.init_type == 'xavier':
+                    # TODO: Add xavier initialization.
+                    tf.logging.error('Requested initialization method \'xavier\' not supported yet.')
+                    raise NotImplementedError
+                else:
+                    # TODO: Add support for different distributions other than truncated normal.
+                    stddev = 0.001
+                    initial_value = tf.truncated_normal(
+                        shape=[bottleneck_tensor_size, num_unique_classes],
+                        stddev=stddev
+                    )
+                    tf.logging.info(msg='Computational Graph Construction: Defined weight initialization method as '
+                                        'truncated normal distribution with a stddev=%.4f' % stddev)
                 layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
                 self._attach_variable_summaries(layer_weights)
 
@@ -180,21 +203,45 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 https://stackoverflow.com/questions/41455101/what-is-the-meaning-of-the-word-logits-in-tensorflow/47010867#47010867
                 '''
                 logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
-                # Logits are the result of calculating z using the bottleneck tensor, BEFORE activation:
+                # Logits are the result of calculating z using the bottleneck tensor, BEFORE applying phi:
                 tf.summary.histogram('logits', logits)
-                final_tensor = tf.nn.softmax(logits, name=final_tensor_name)
+        ''' Add final layer to TensorBoard histograms to track the histogram values over time '''
+        final_tensor = tf.nn.softmax(logits, name='softmax')
+        tf.summary.histogram('activations', final_tensor)
 
-        raise NotImplementedError
+        ''' Add evaluation metric tensors here: '''
+        # TODO: Patch constructor input here for supporting multiple evaluation metrics.
+        with tf.name_scope('cross_entropy'):
+            cross_entropy_mean = tf.losses.sparse_softmax_cross_entropy(
+                labels=ground_truth_input, logits=logits
+            )
+        tf.summary.scalar('cross_entropy', cross_entropy_mean)
 
-    def __init__(self, tfhub_module_url):
+        ''' Define the series of computations that constitute a single training step in the network '''
+        with tf.name_scope('train'):
+            # TODO: Patch constructor input here for supporting multiple optimization methods.
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
+            train_step = optimizer.minimize(cross_entropy_mean)
+
+        return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
+
+    def __init__(self, tfhub_module_url, init_type, learning_rate, num_unique_classes):
         """
         __init__: Ensures the provided module url is valid, and stores it's hyperparameters for ease of reference.
         NOTE: All estimators should specify all the parameters that can be set at the class level in their __init__ as
             explicit keyword arguments (no *args or **kwargs).
             See: https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html
-        :param tfhub_module_url: Which TensorFlow Hub module to instantiate, see the following url for some publicly
+        :param tfhub_module_url: <str> Which TensorFlow Hub module to instantiate, see the following url for some publicly
             available ones: https://github.com/tensorflow/hub/blob/r0.1/docs/modules/image.md
+        :param init_type: <str> The chosen weight initialization technique: {he, xavier, random}.
+        :param learning_rate: <float> The chosen learning rate (eta), range [0,1] inclusive.
+        :param num_unique_classes: <int> The number of unique classes in the training, validation, and testing datasets.
         """
+        # Make the important operations available easily through instance variables:
+        self.init_type = init_type
+        self.learning_rate = learning_rate
+        self.num_unique_classes = num_unique_classes
+
         # Enable visible logging output:
         if tf.logging.get_verbosity() is not tf.logging.INFO:
             tf.logging.set_verbosity(tf.logging.INFO)
@@ -217,14 +264,34 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                              % (tfhub_module_url, tfhub_base_url, urllib_http_err))
             exit(-1)
 
-        ''' Perform the actual model instantiation: '''
+        ''' Perform the actual module instantiation from the blueprint: '''
         module_name = tfhub_module_url[tfhub_module_url.find('imagenet/') + len('imagenet/')::]
         # Actually instantiate the module blueprint and get a reference to the output bottleneck tensor for use later:
-        self.tf_graph, self.bottleneck_tensor = self._instantiate_tfhub_module_computational_graph(
+        self.graph, self.bottleneck_tensor = self._instantiate_tfhub_module_computational_graph(
             tfhub_module_spec=self.tfhub_module_spec,
             module_name=module_name
         )
-        # Add the re-train operations necessary for the model to function in the target domain:
+        tf.logging.info(msg='Defined computational graph from the TensorFlow Hub module spec.')
+        ''' Add the re-train operations necessary for the model to function in the target domain. Get back tf.Tensor 
+            objects that provide a handle to the result of the corresponding operation in the computational graph during
+            runtime: 
+        '''
+        with self.graph.as_default():
+            (train_step, cross_entropy, bottleneck_input,
+             ground_truth_input, final_tensor) = self._add_final_retrain_ops(
+                num_unique_classes=self.num_unique_classes, bottleneck_tensor=self.bottleneck_tensor)
+
+        # Add more important operations to the list of easily available instance variables:
+        self._init = tf.global_variables_initializer()
+        self._saver = tf.train.Saver()
+
+        #
+
+
+
+        # self._fine_tune_and_train_model(num_unique_classes,)
+
+
 
 
 
@@ -243,7 +310,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
 
 if __name__ == '__main__':
-    inception_v3 = TFHClassifier(tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1')
+
+    inception_v3 = TFHClassifier(tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1', init_type='random', learning_rate=0.01, num_unique_classes=)
 
 
 
