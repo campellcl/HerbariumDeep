@@ -297,6 +297,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
         # Add more important operations to the list of easily available instance variables:
         self._init = tf.global_variables_initializer()
+        ON RESUME, CANT INIT SAVER OBJECT:
         self._saver = tf.train.Saver()
         self._training_op, self._eval_metric = train_step, eval_metric
 
