@@ -9,6 +9,7 @@ import tensorflow as tf
 import collections
 from sklearn import model_selection
 import time
+from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
 import pandas as pd
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
@@ -190,8 +191,14 @@ def main(_):
                         'all sample images' % (num_train_images, num_images, ((num_train_images*100)/num_images),
                                                num_val_images, num_images, ((num_val_images*100)/num_images),
                                                num_test_images, num_images, ((num_test_images*100)/num_images)))
+    tfh_classifier = TFHClassifier(
+        tfhub_module_url=CMD_ARG_FLAGS.tfhub_module,
+        init_type=CMD_ARG_FLAGS.init_type,
+        learning_rate_type=CMD_ARG_FLAGS.learning_rate_type,
+        learning_rate=CMD_ARG_FLAGS.learning_rate,
+        num_unique_classes=num_classes)
 
-
+    # tfh_classifier.fit(...)
 
 
 
@@ -345,10 +352,11 @@ def _parse_known_training_args(parser):
     if CMD_ARG_FLAGS.train_state[0] == 'new_model':
         # _parse_known_train_new_model_args(parser=parser)
         parser.add_argument(
-            '-tfhub_module',
+            '--tfhub_module',
             type=str,
             default='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
-            nargs='?',
+            nargs=1,
+            required=True,
             help="""\
                     Which TensorFlow Hub module to use.
                     See https://github.com/tensorflow/hub/blob/r0.1/docs/modules/image.md
@@ -358,6 +366,7 @@ def _parse_known_training_args(parser):
         parser.add_argument(
             '--init_type',
             choices=('he', 'xavier', 'random'),
+            type=str,
             nargs=1,
             required=True,
             help='Initialization technique {he, xavier, random}. URL resources to be added soon.'
@@ -366,38 +375,20 @@ def _parse_known_training_args(parser):
         print('Error: Support for resuming training of a previous model has not been implemented yet.')
         raise NotImplementedError
     parser.add_argument(
-        '-train_batch_size',
-        dest='train_batch_size',
-        type=int,
-        default=-1,
-        nargs='?',
-        help='The number of images per mini-batch during training. If -1 (default) is provided the entire training '
-             'dataset will be used.'
-    )
-    parser.add_argument(
-        '-val_batch_size',
-        dest='val_batch_size',
-        type=int,
-        default=-1,
-        nargs='?',
-        help='The number of images to use during an evaluation step on the validation dataset while training. By default'
-             ' this value is -1, the size of the entire validation datset.'
-    )
-    parser.add_argument(
         '--num_epochs',
         dest='num_epochs',
         type=int,
-        default=10000,
         nargs=1,
         required=True,
         help='The number of training epochs (the number of passes over the entire training dataset during training).'
     )
-    _parse_train_tensorflow_related_hyperparameter_known_args(parser=parser)
+    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
     parser.add_argument(
-        '--learning_rate_type',
+        '-learning_rate_type',
         choices=('static', 'dynamic'),
-        default='static',
+        type=str,
         nargs=1,
+        required=True,
         dest='learning_rate_type',
         help='Specify the type of learning rate as either static {static} (e.g. fixed) or dynamic {dynamic} (e.g. '
              'learning rate schedule, learning rate optimization technique).'
@@ -407,7 +398,7 @@ def _parse_known_training_args(parser):
         parser.add_argument(
             '--learning_rate',
             dest='learning_rate',
-            default=0.01,
+            # default=0.01,
             nargs=1,
             type=float,
             required=True,
@@ -433,6 +424,25 @@ def _parse_known_training_args(parser):
             raise NotImplementedError
         else:
             _parse_train_dynamic_learn_rate_optimizer_known_args(parser=parser)
+    parser.add_argument(
+        '-train_batch_size',
+        dest='train_batch_size',
+        type=int,
+        default=-1,
+        nargs='?',
+        help='The number of images per mini-batch during training. If -1 (default) is provided the entire training '
+             'dataset will be used.'
+    )
+    parser.add_argument(
+        '-val_batch_size',
+        dest='val_batch_size',
+        type=int,
+        default=-1,
+        nargs='?',
+        help='The number of images to use during an evaluation step on the validation dataset while training. By default'
+             ' this value is -1, the size of the entire validation datset.'
+    )
+    _parse_train_tensorflow_related_hyperparameter_known_args(parser=parser)
 
 
 def _parse_known_advanced_user_args(parser):
@@ -461,6 +471,7 @@ def _parse_known_advanced_user_args(parser):
         """
     )
 
+
 def _force_type_coercion_of_argparse_cmd_arg_flags():
     """
     _force_type_coercion_of_argparse_cmd_arg_flags: Ensures that the argparse read arguments are the types that
@@ -480,7 +491,15 @@ def _force_type_coercion_of_argparse_cmd_arg_flags():
         CMD_ARG_FLAGS.init_type = CMD_ARG_FLAGS.init_type[0]
     if CMD_ARG_FLAGS.learning_rate_type:
         CMD_ARG_FLAGS.learning_rate_type = CMD_ARG_FLAGS.learning_rate_type[0]
+    if CMD_ARG_FLAGS.learning_rate:
+        CMD_ARG_FLAGS.learning_rate = CMD_ARG_FLAGS.learning_rate[0]
+    if CMD_ARG_FLAGS.num_epochs:
+        if type(CMD_ARG_FLAGS.num_epochs) is list:
+            CMD_ARG_FLAGS.num_epochs = CMD_ARG_FLAGS.num_epochs[0]
+    if CMD_ARG_FLAGS.tfhub_module:
+        CMD_ARG_FLAGS.tfhub_module = CMD_ARG_FLAGS.tfhub_module[0]
     print('Application Executed with the following parsed command line arguments:\n\t%s' % CMD_ARG_FLAGS)
+
 
 if __name__ == '__main__':
     """
