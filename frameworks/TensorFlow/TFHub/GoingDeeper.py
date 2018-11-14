@@ -5,11 +5,13 @@ Implementation of Pipelined TensorFlow Transfer Learning.
 import os
 import sys
 import argparse
-from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.exceptions import NotFittedError
 import tensorflow as tf
+import collections
+from sklearn import model_selection
+import time
 import pandas as pd
 
+MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 
 def _prepare_tensor_board_directories():
     """
@@ -39,7 +41,96 @@ def _update_and_retrieve_bottlenecks():
     pass
 
 
+def _get_image_lists(image_dir):
+    """
+    _get_image_lists: Creates a dictionary of file paths to images on the hard drive indexed by class label.
+    :param image_dir: <str> The file path pointing to the parent directory housing a series of sample images partitioned
+        into their respective subdirectories by class label.
+    :return image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
+        list of file paths for images belonging to the chosen key/species/class-label.
+    """
+    '''
+    Check to see if the root directory exists. We use tf.gfile which is a C++ FileSystem API wrapper for the Python
+        file API that also supports Google Cloud Storage and HDFS. For more information see:
+        https://stackoverflow.com/questions/42256938/what-does-tf-gfile-do-in-tensorflow
+    '''
+    if not tf.gfile.Exists(image_dir):
+        tf.logging.error("Root image directory '" + image_dir + "' not found.")
+        return None
 
+    accepted_extensions = ['jpg', 'jpeg']   # Note: Includes JPG and JPEG b/c the glob is case insensitive
+    image_lists = collections.OrderedDict()
+
+    sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
+    # The root directory comes first, so skip it.
+    is_root_dir = True
+    for sub_dir in sub_dirs:
+        file_list = []
+        dir_name = os.path.basename(sub_dir)
+        if is_root_dir:
+            is_root_dir = False
+            # Skip the root_dir:
+            continue
+        if dir_name == image_dir:
+            # Return control to beginning of for-loop:
+            continue
+        tf.logging.info("Looking for images in '" + dir_name + "'")
+        for extension in accepted_extensions:
+            # Get a list of all accepted file extensions and the targeted file_name:
+            file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
+            # Append all items from the file_glob to the list of files (if extension exists):
+            file_list.extend(tf.gfile.Glob(file_glob))
+        if not file_list:
+            tf.logging.warning(msg='No files found in \'%s\'. Class label omitted from data sets.' % dir_name)
+            # Return control to beginning of for-loop:
+            continue
+        if len(file_list) < 20:
+            tf.logging.warning('WARNING: Folder has less than 20 images, which may cause issues. See: %s for info.'
+                               % 'https://stackoverflow.com/questions/38175673/critical-tensorflowcategory-has-no-images-validation')
+        elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
+            tf.logging.warning(
+                'WARNING: Folder {} has more than {} images. Some images will '
+                'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
+        # label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+        label_name = dir_name.lower()
+        if label_name not in image_lists:
+            image_lists[label_name] = file_list
+    return image_lists
+
+
+def _partition_image_lists(image_lists, train_percent, val_percent, test_percent, random_state):
+    """
+    _partition_image_lists: Partitions the provided dict of class labels and file paths into training, validation, and
+        testing datasets.
+    :param image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
+        list of file paths for images belonging to the chosen key/species/class-label.
+    :param train_percent: What percentage of the training data is to remain in the training set.
+    :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
+        for a validation set.
+    :param test_percent: What percentage of the training data is to be allocated to a testing set.
+    :param random_state: A seed for the random number generator controlling the stratified partitioning.
+    :return partitioned_image_lists: <collections.OrderedDict> A dictionary indexed by class label which returns another
+        dictionary indexed by the dataset type {'train','val','test'} which in turn, returns the list of image file
+        paths that correspond to the chosen class label and that reside in the chosen dataset.
+    """
+    partitioned_image_lists = collections.OrderedDict()
+    for class_label, image_paths in image_lists.items():
+        class_label_train_images, class_label_test_images = model_selection.train_test_split(
+            image_paths, train_size=train_percent,
+            test_size=test_percent, shuffle=True,
+            random_state=random_state
+        )
+        class_label_train_images, class_label_val_images = model_selection.train_test_split(
+            class_label_train_images, train_size=train_percent,
+            test_size=val_percent, shuffle=True,
+            random_state=random_state
+        )
+        partitioned_image_lists[class_label] = {
+            'train': class_label_train_images,
+            'val': class_label_val_images,
+            'test': class_label_test_images
+        }
+    return partitioned_image_lists
 
 
 def main(_):
@@ -48,7 +139,59 @@ def main(_):
     # Delete any TensorBoard summaries left over from previous runs:
     _prepare_tensor_board_directories()
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
-    # Partition images into train, test, validate sets:
+    # TODO: could add an advanced cmd-line flag here to bypass image directory walk if user knows bottlenecks are up-to-date.
+    ''' Recursively walk the image directory and build up a dict of all images and their associated class names and 
+        file paths. 
+    '''
+    tf.logging.info(msg='Recursively walking the provided image directory and aggregating image paths by class '
+                        'label...')
+    ts = time.time()
+    image_lists = _get_image_lists(image_dir=CMD_ARG_FLAGS.image_dir)
+    tf.logging.info(msg='Recursive image directory walk performed in: %s seconds (%.2f minutes).'
+                        % ((time.time() - ts), (time.time() - ts)/60))
+    # TODO: Do we really need to partition images again with the bottlenecks already generated?
+    # Partition images into training, validation, and testing sets:
+    # TODO: add support for user specified test set proportions? Right now constrained to numbers given in paper.
+    train_percent = .80
+    val_percent = .20
+    test_percent = .20
+    tf.logging.info(msg='Partitioning each classes\' list of images into training (n=%.2f%%), validation (n=%.2f%%), '
+                        'and testing (n=%.2f%%) datasets.'
+                        % (train_percent * 100, val_percent * 100, test_percent * 100))
+    ts = time.time()
+    image_lists = _partition_image_lists(
+        image_lists=image_lists, train_percent=0.80,
+        val_percent=.20, test_percent=.20,
+        random_state=0
+    )
+    tf.logging.info(msg='Performed this partitioning of sample images in: %s seconds (%.2f minutes).'
+                        % ((time.time() - ts), (time.time() - ts)/60))
+    num_classes = len(list(image_lists.keys()))
+    num_images = 0
+    num_train_images = 0
+    num_test_images = 0
+    num_val_images = 0
+    for class_label, datasets in image_lists.items():
+        if 'train' in datasets:
+            num_train_images += len(datasets['train'])
+            num_images += len(datasets['train'])
+        if 'val' in datasets:
+            num_val_images += len(datasets['val'])
+            num_images += len(datasets['val'])
+        if 'test' in datasets:
+            num_test_images += len(datasets['test'])
+            num_images += len(datasets['test'])
+    tf.logging.info(msg='Found %d total images. Found %d unique classes. Partitioned into %d total training images, '
+                        '%d total validation images, and %d total testing images.'
+                        % (num_images, num_classes, num_train_images, num_val_images, num_test_images))
+    tf.logging.info(msg='This partitioning was performed on a class-by-class basis. The sampled distribution of '
+                        'class labels is:\n\ttraining (%d/%d) = %.2f%% of all sample images'
+                        '\n\tvalidation (%d/%d) = %.2f%% of all sample images\n\ttesting (%d/%d) = %.2f%% of '
+                        'all sample images' % (num_train_images, num_images, ((num_train_images*100)/num_images),
+                                               num_val_images, num_images, ((num_val_images*100)/num_images),
+                                               num_test_images, num_images, ((num_test_images*100)/num_images)))
+
+
 
 
 
@@ -131,7 +274,7 @@ def _parse_train_tensorflow_related_hyperparameter_known_args(parser):
     parser.add_argument(
         '--intermediate_store_frequency',
         type=int,
-        default=CMD_ARG_FLAGS.eval_step_interval[0],
+        default=CMD_ARG_FLAGS.eval_step_interval,
         nargs='?',
         help="""Specifies how many epochs should be run (during training) before storing an intermediate checkpoint of 
                 the computational graph. If 0 is provided, then no checkpoints of the computational graph will be stored 
@@ -308,7 +451,6 @@ def _parse_known_advanced_user_args(parser):
         dest='force_bypass_bottleneck_updates',
         default=False,
         action='store_true',
-        nargs='?',
         help="""WARNING: This command line argument belongs to a special class of \'force\' flags used for override 
         functionality, and only intended for users who really know what they are doing.
         For this command in particular: An invocation of the script with the \'--force_bypass_bottleneck_updates\' flag
@@ -319,6 +461,26 @@ def _parse_known_advanced_user_args(parser):
         """
     )
 
+def _force_type_coercion_of_argparse_cmd_arg_flags():
+    """
+    _force_type_coercion_of_argparse_cmd_arg_flags: Ensures that the argparse read arguments are the types that
+        argparse was instructed to ensure. Variable length input arguments are stored in arrays regardless if the
+        input type was specified as a scalar. This method converts all arrays with one element into the respective
+        element, modifying the type in the globally scoped CMD_ARG_FLAGS. Care must be taken to run this method after
+        all parsing has been completed, so that the cmd argument types match what the rest of the program is expecting.
+    :return None: see above^
+    """
+    if CMD_ARG_FLAGS.summaries_dir:
+        CMD_ARG_FLAGS.summaries_dir = CMD_ARG_FLAGS.summaries_dir[0]
+    if CMD_ARG_FLAGS.image_dir:
+        CMD_ARG_FLAGS.image_dir = CMD_ARG_FLAGS.image_dir[0]
+    if CMD_ARG_FLAGS.bottleneck_path:
+        CMD_ARG_FLAGS.bottleneck_path = CMD_ARG_FLAGS.bottleneck_path[0]
+    if CMD_ARG_FLAGS.init_type:
+        CMD_ARG_FLAGS.init_type = CMD_ARG_FLAGS.init_type[0]
+    if CMD_ARG_FLAGS.learning_rate_type:
+        CMD_ARG_FLAGS.learning_rate_type = CMD_ARG_FLAGS.learning_rate_type[0]
+    print('Application Executed with the following parsed command line arguments:\n\t%s' % CMD_ARG_FLAGS)
 
 if __name__ == '__main__':
     """
@@ -391,7 +553,14 @@ if __name__ == '__main__':
     # CMD_ARG_FLAGS, unparsed = parser.parse_known_args(['--train', '--init', 'random', '--train_batch_size 0'])
     # CMD_ARG_FLAGS, unknown = parser.parse_known_args(['--train', '--image_dir', 'C:\\sample_images\\root_dir'])
     CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
-    print(CMD_ARG_FLAGS)
+    ''' Force conversions to the correct type (argparse supports chained arguments so need to convert singleton 
+        lists to actual singletons, etc...). 
+        NOTE: This method MUST be executed after the very last call to parser.parse_known_args(), or otherwise great
+              care must be taken to prevent an override of the global command argument flags array while parsing. After
+              this method enforces a type coercion of the argparse flags, this will not be performed again without
+              a repeated manual invocation. 
+    '''
+    _force_type_coercion_of_argparse_cmd_arg_flags()
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
