@@ -220,12 +220,15 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         ''' Define the series of computations that constitute a single training step in the network '''
         with tf.name_scope('train'):
             # TODO: Patch constructor input here for supporting multiple optimization methods.
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
-            train_step = optimizer.minimize(cross_entropy_mean)
-
+            if self.learning_rate_type == 'static':
+                optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
+                train_step = optimizer.minimize(cross_entropy_mean)
+            elif self.learning_rate_type == 'dynamic':
+                tf.logging.error('TFHClassifier: Dynamic learning rate not yet supported.')
+                raise NotImplementedError
         return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
 
-    def __init__(self, tfhub_module_url, init_type, learning_rate, num_unique_classes):
+    def __init__(self, tfhub_module_url, init_type, num_unique_classes, learning_rate_type, learning_rate=None):
         """
         __init__: Ensures the provided module url is valid, and stores it's hyperparameters for ease of reference.
         NOTE: All estimators should specify all the parameters that can be set at the class level in their __init__ as
@@ -234,12 +237,23 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         :param tfhub_module_url: <str> Which TensorFlow Hub module to instantiate, see the following url for some publicly
             available ones: https://github.com/tensorflow/hub/blob/r0.1/docs/modules/image.md
         :param init_type: <str> The chosen weight initialization technique: {he, xavier, random}.
-        :param learning_rate: <float> The chosen learning rate (eta), range [0,1] inclusive.
         :param num_unique_classes: <int> The number of unique classes in the training, validation, and testing datasets.
+        :param learning_rate_type: <str> {'dynamic', 'static'} The learning rate type, either fixed or dynamic.
+        :param learning_rate: <float> The chosen learning rate (eta), range [0,1] inclusive.
+
         """
         # Make the important operations available easily through instance variables:
         self.init_type = init_type
+        self.learning_rate_type = learning_rate_type
         self.learning_rate = learning_rate
+
+        if self.learning_rate_type == 'static':
+            if self.learning_rate is None:
+                tf.logging.error('TFHClassifier: You must provide a learning rate when instantiating a TFHClassifier '
+                                 'object since a static learning rate was specified during invocation.')
+                exit(-1)
+            else:
+                self.learning_rate = learning_rate
         self.num_unique_classes = num_unique_classes
 
         # Enable visible logging output:
@@ -277,24 +291,14 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             runtime: 
         '''
         with self.graph.as_default():
-            (train_step, cross_entropy, bottleneck_input,
+            (train_step, eval_metric, bottleneck_input,
              ground_truth_input, final_tensor) = self._add_final_retrain_ops(
                 num_unique_classes=self.num_unique_classes, bottleneck_tensor=self.bottleneck_tensor)
 
         # Add more important operations to the list of easily available instance variables:
         self._init = tf.global_variables_initializer()
         self._saver = tf.train.Saver()
-
-        #
-
-
-
-        # self._fine_tune_and_train_model(num_unique_classes,)
-
-
-
-
-
+        self._training_op, self._eval_metric = train_step, eval_metric
 
     def fit(self, x, y):
         raise NotImplementedError
@@ -307,12 +311,3 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
     def save(self, path):
         raise NotImplementedError
-
-
-if __name__ == '__main__':
-
-    inception_v3 = TFHClassifier(tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1', init_type='random', learning_rate=0.01, num_unique_classes=)
-
-
-
-
