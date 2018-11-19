@@ -8,6 +8,7 @@ import argparse
 import tensorflow as tf
 import collections
 from sklearn import model_selection
+from sklearn.metrics import accuracy_score
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
 import pandas as pd
@@ -34,11 +35,61 @@ def _prepare_tensor_board_directories():
     return
 
 
-def _update_and_retrieve_bottlenecks():
+def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
+    train_image_paths = []
+    val_image_paths = []
+    test_image_paths = []
+    for species, datasets in image_lists.items():
+        # Training set images:
+        species_train_image_paths = datasets['train']
+        for species_train_image_path in species_train_image_paths:
+            train_image_paths.append(species_train_image_path)
+        # Validation set images:
+        species_val_image_paths = datasets['val']
+        for species_val_image_path in species_val_image_paths:
+            val_image_paths.append(species_val_image_path)
+        # Testing set images:
+        species_test_image_paths = datasets['test']
+        for species_test_image_path in species_test_image_paths:
+            test_image_paths.append(species_test_image_path)
+    # Ensure every training image has a bottleneck:
+    for train_image_path in train_image_paths:
+        if train_image_path not in bottlenecks['path'].values:
+            return False
+    # Ensure every validation image has a bottleneck tensor in bottlenecks:
+    for val_image_path in val_image_paths:
+        if val_image_path not in bottlenecks['path'].values:
+            return False
+    # Ensure every test image has a bottleneck tensor in the bottlenecks dataframe:
+    for test_image_path in test_image_paths:
+        if test_image_path not in bottlenecks['path'].values:
+            return False
+    return True
+
+
+def _update_and_retrieve_bottlenecks(image_lists):
     """
     _update_and_retrieve_bottlenecks:
     :return:
     """
+    bottleneck_path = CMD_ARG_FLAGS.bottleneck_path
+    if os.path.isfile(os.path.basename(CMD_ARG_FLAGS.bottleneck_path)):
+        # Bottlenecks file exists, read from disk:
+        tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'.'
+                            % CMD_ARG_FLAGS.bottleneck_path)
+        bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+        tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
+                            % os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+        if _is_bottleneck_for_every_sample(image_lists, bottlenecks):
+            # Partition the bottleneck dataframe:
+            ON RESUME: Why even have image_list partitions? It seems the only point is for bottleneck creation.
+            once the bottlenecks are created then they are loaded in and partitioned regardless. So no partition of
+            training images, just load them in and run the existance check, then get the bottlenecks and partition those.
+            Reference back to the image to get the label is in the bottlenecks dataframe already.
+        # TODO: use the command line 'advanced' flags to override this check:
+
+
+
     pass
 
 
@@ -191,6 +242,7 @@ def main(_):
                         'all sample images' % (num_train_images, num_images, ((num_train_images*100)/num_images),
                                                num_val_images, num_images, ((num_val_images*100)/num_images),
                                                num_test_images, num_images, ((num_test_images*100)/num_images)))
+
     tfh_classifier = TFHClassifier(
         tfhub_module_url=CMD_ARG_FLAGS.tfhub_module,
         init_type=CMD_ARG_FLAGS.init_type,
@@ -198,7 +250,13 @@ def main(_):
         learning_rate=CMD_ARG_FLAGS.learning_rate,
         num_unique_classes=num_classes)
 
-    # tfh_classifier.fit(...)
+
+    bottlenecks = _update_and_retrieve_bottlenecks(image_lists)
+
+    print()
+    pass
+
+    # tfh_classifier.fit(X=image_lists['train'], y=image_lists[])
 
 
 
