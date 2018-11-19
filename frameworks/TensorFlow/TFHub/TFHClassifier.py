@@ -29,7 +29,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         explicit keyword arguments (no *args or **kwargs).
     """
     tfhub_module_spec = None
-    tf_session = None
+    _session = None
     graph = None     # TensorFlow computational graph
     bottleneck_tensor = None   # TF Bottleneck Tensor
 
@@ -174,7 +174,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     tf.logging.error('Requested initialization method \'xavier\' not supported yet.')
                     raise NotImplementedError
                 else:
-                    # TODO: Add support for different distributions other than truncated normal.
+                    # TODO: Add support for different distributions other than truncated normal (such as Normal).
                     stddev = 0.001
                     initial_value = tf.truncated_normal(
                         shape=[bottleneck_tensor_size, num_unique_classes],
@@ -224,13 +224,15 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
                 train_step = optimizer.minimize(cross_entropy_mean)
             elif self.learning_rate_type == 'dynamic':
+                train_step = None
                 tf.logging.error('TFHClassifier: Dynamic learning rate not yet supported.')
                 raise NotImplementedError
         return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
 
     def __init__(self, tfhub_module_url, init_type, num_unique_classes, learning_rate_type, learning_rate=None):
         """
-        __init__: Ensures the provided module url is valid, and stores it's hyperparameters for ease of reference.
+        __init__: Ensures the provided module url is valid, and stores it's hyperparameters for ease of reference. This
+        method obtains a tfHub module blueprint, then instantiates it, and adds-retrain ops for the target domain.
         NOTE: All estimators should specify all the parameters that can be set at the class level in their __init__ as
             explicit keyword arguments (no *args or **kwargs).
             See: https://scikit-learn.org/stable/modules/generated/sklearn.base.BaseEstimator.html
@@ -295,13 +297,37 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
              ground_truth_input, final_tensor) = self._add_final_retrain_ops(
                 num_unique_classes=self.num_unique_classes, bottleneck_tensor=self.bottleneck_tensor)
 
+
         # Add more important operations to the list of easily available instance variables:
         self._init = tf.global_variables_initializer()
-        ON RESUME, CANT INIT SAVER OBJECT:
-        self._saver = tf.train.Saver()
+        # self._saver = tf.train.Saver()
         self._training_op, self._eval_metric = train_step, eval_metric
 
-    def fit(self, x, y):
+    def _close_session(self):
+        """
+        _close_session: Closes the tf.Session instance associated with this object.
+        :return None: Upon completion, if self._session was instantiated, close it.
+        """
+        if self._session:
+            self._session.close()
+
+    def fit(self, X, y, n_epochs=10000):
+        """
+        fit: Fit the model to the training set. Must adhere to
+        :param x: <array-like or sparse matrix> Must be shape (n_samples, n_features).
+        :param y:
+        :param n_epochs:
+        :return:
+        """
+        # Ensure the session is closed:
+        self._close_session()
+        # infer n_inputs and n_outputs from training set:
+        n_inputs = X.shape[1]
+        n_outputs = self.num_unique_classes
+
+        # Translate the labels vector to a vector of sorted class indices, containing integers from 0 to n_outputs - 1.
+        raise NotImplementedError
+
         raise NotImplementedError
 
     def predict_proba(self, X):
