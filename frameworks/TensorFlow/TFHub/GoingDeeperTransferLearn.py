@@ -180,7 +180,7 @@ def create_module_graph(module_spec):
                 # Create another place holder tensor to catch the output of the pre-activation layer:
                 bottleneck_tensor = m(resized_input_tensor)
                 # Give a name to this tensor:
-                tf.identity(bottleneck_tensor, name='bottleneck-pre-activation')
+                tf.identity(bottleneck_tensor, name='bottleneck_pre_activation')
                 # This is a boolean flag indicating whether the module has been put through TensorFlow Light and optimized.
                 wants_quantization = any(node.op in FAKE_QUANT_OPS
                                          for node in graph.as_graph_def().node)
@@ -733,10 +733,11 @@ def save_graph_to_file(graph_file_name, module_spec, class_count):
         that the model is not evaluated on classes it hasn't seen).
     :return:
     """
+    # We need a tf.Session object to do any kind of saving, this call
     sess, _, _, _, _, _, _ = build_eval_session(module_spec, class_count)
     graph = sess.graph
 
-    tf.train.write_graph(sess.graph_def, logdir='tmp/summaries', name='session_graph_def', as_text=True)
+    tf.train.write_graph(sess.graph_def, logdir='tmp/summaries', name='session_graph_def.meta', as_text=True)
 
     # TODO: Currently hardcoding the namescope because it will be a pain to get it otherwise. Come back and fix this.
     # graph_name_scope = graph.get_name_scope()
@@ -747,6 +748,35 @@ def save_graph_to_file(graph_file_name, module_spec, class_count):
     with tf.gfile.FastGFile(graph_file_name, 'wb') as f:
         f.write(output_graph_def.SerializeToString())
 
+
+# def simple_save_graph_to_file(graph_file_name, module_spec, class_count):
+#     eval_sess, resized_input_tensor, bottleneck_input_tensor, ground_truth_input_tensor, acc_eval_step_tensor, \
+#         top5_acc_eval_step, prediction_tensor = build_eval_session(module_spec=module_spec, class_count=class_count)
+#     export_dir = graph_file_name
+#     graph = eval_sess.graph
+#     # For debugging tensors:
+#     print([tensor.name for tensor in graph.as_graph_def().node])
+#     tf.saved_model.simple_save(eval_sess, export_dir,
+#                                inputs={
+#                                    'resized_input_tensor': resized_input_tensor,
+#                                    'bottleneck_input_tensor': bottleneck_input_tensor,
+#                                    'ground_truth_input_tensor': ground_truth_input_tensor,
+#                                },
+#                                outputs={
+#                                    'acc_eval_step_tensor': acc_eval_step_tensor,
+#                                    'top5_acc_eval_step': top5_acc_eval_step,
+#                                    'prediction_tensor': prediction_tensor
+#                                }
+#     )
+#     # This code below didn't work:
+#     # builder = tf.saved_model.builder.SavedModelBuilder('tmp/intermediate_graphs/')
+#     # builder.add_meta_graph_and_variables(
+#     #     sess=eval_sess, tags=[tag_constants.SERVING],
+#     #     signature_def_map={
+#     #         'predict_images': prediction_tensor,
+#     #         sig
+#     #     }
+#     # )
 
 # def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
 #                                   bottleneck_dir, image_dir, jpeg_data_tensor,
@@ -1084,6 +1114,7 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
                                 intermediate_file_name)
 
                 save_graph_to_file(intermediate_file_name, module_spec, class_count)
+                # simple_save_graph_to_file(intermediate_file_name, module_spec, class_count)
 
         # After training is complete, force one last save of the train checkpoint.
         train_saver.save(sess, CHECKPOINT_DIR)
@@ -1096,6 +1127,8 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
         if wants_quantization:
             tf.logging.info('The model is instrumented for quantization with TF-Lite')
         save_graph_to_file(CMD_ARG_FLAGS.output_graph, module_spec, class_count)
+        # simple_save_graph_to_file(CMD_ARG_FLAGS.output_graph, module_spec, class_count)
+
         # TODO: Export saved model:
         # with tf.gfile.FastGFile(CMD_ARG_FLAGS.output_labels, 'w') as f:
         #     f.write('\n'.join(image_lists.keys())+ '\n')
@@ -1303,7 +1336,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--intermediate_output_graphs_dir',
         type=str,
-        default='tmp/intermediate_graph/',
+        default='tmp/intermediate_graphs/',
         help='Directory to save the intermediate graphs.'
     )
     # Parse command line args and identify unknown flags:
