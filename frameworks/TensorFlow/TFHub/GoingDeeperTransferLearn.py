@@ -174,7 +174,7 @@ def create_module_graph(module_spec):
         with tf.variable_scope('source_model'):
             # Create a placeholder tensor for input to the model.
             resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
-            with tf.variable_scope('pre-trained_hub_module'):
+            with tf.variable_scope('pre_trained_hub_module'):
                 # Declare the model in accordance with the chosen architecture:
                 m = hub.Module(module_spec, name='inception_v3_hub')
                 # Create another place holder tensor to catch the output of the pre-activation layer:
@@ -228,7 +228,7 @@ def add_final_retrain_ops(class_count, final_tensor_name, bottleneck_tensor, qua
                                'constructing fully-connected and softmax layers for fine-tuning.'
 
     # Tensor declarations:
-    with tf.variable_scope('re-train_ops'):
+    with tf.variable_scope('retrain_ops'):
         with tf.name_scope('input'):
             # Create a placeholder Tensor of same type as bottleneck_tensor to cache output from TFHub module:
             bottleneck_input = tf.placeholder_with_default(
@@ -743,40 +743,40 @@ def save_graph_to_file(graph_file_name, module_spec, class_count):
     # graph_name_scope = graph.get_name_scope()
 
     output_graph_def = tf.graph_util.convert_variables_to_constants(
-        sess, graph.as_graph_def(), ['re-train_ops/' + CMD_ARG_FLAGS.final_tensor_name])
+        sess, graph.as_graph_def(), ['retrain_ops/' + CMD_ARG_FLAGS.final_tensor_name])
 
     with tf.gfile.FastGFile(graph_file_name, 'wb') as f:
         f.write(output_graph_def.SerializeToString())
 
 
-# def simple_save_graph_to_file(graph_file_name, module_spec, class_count):
-#     eval_sess, resized_input_tensor, bottleneck_input_tensor, ground_truth_input_tensor, acc_eval_step_tensor, \
-#         top5_acc_eval_step, prediction_tensor = build_eval_session(module_spec=module_spec, class_count=class_count)
-#     export_dir = graph_file_name
-#     graph = eval_sess.graph
-#     # For debugging tensors:
-#     print([tensor.name for tensor in graph.as_graph_def().node])
-#     tf.saved_model.simple_save(eval_sess, export_dir,
-#                                inputs={
-#                                    'resized_input_tensor': resized_input_tensor,
-#                                    'bottleneck_input_tensor': bottleneck_input_tensor,
-#                                    'ground_truth_input_tensor': ground_truth_input_tensor,
-#                                },
-#                                outputs={
-#                                    'acc_eval_step_tensor': acc_eval_step_tensor,
-#                                    'top5_acc_eval_step': top5_acc_eval_step,
-#                                    'prediction_tensor': prediction_tensor
-#                                }
-#     )
-#     # This code below didn't work:
-#     # builder = tf.saved_model.builder.SavedModelBuilder('tmp/intermediate_graphs/')
-#     # builder.add_meta_graph_and_variables(
-#     #     sess=eval_sess, tags=[tag_constants.SERVING],
-#     #     signature_def_map={
-#     #         'predict_images': prediction_tensor,
-#     #         sig
-#     #     }
-#     # )
+def simple_save_graph_to_file(graph_file_name, module_spec, class_count):
+    eval_sess, resized_input_tensor, bottleneck_input_tensor, ground_truth_input_tensor, acc_eval_step_tensor, \
+        top5_acc_eval_step, prediction_tensor = build_eval_session(module_spec=module_spec, class_count=class_count)
+    export_dir = graph_file_name
+    graph = eval_sess.graph
+    # For debugging tensors:
+    # print([tensor.name for tensor in graph.as_graph_def().node])
+    tf.saved_model.simple_save(eval_sess, export_dir,
+                               inputs={
+                                   'resized_input_tensor': resized_input_tensor,
+                                   'bottleneck_input_tensor': bottleneck_input_tensor,
+                                   'ground_truth_input_tensor': ground_truth_input_tensor,
+                               },
+                               outputs={
+                                   'acc_eval_step_tensor': acc_eval_step_tensor,
+                                   'top5_acc_eval_step': top5_acc_eval_step,
+                                   'prediction_tensor': prediction_tensor
+                               }
+    )
+    # This code below didn't work:
+    # builder = tf.saved_model.builder.SavedModelBuilder('tmp/intermediate_graphs/')
+    # builder.add_meta_graph_and_variables(
+    #     sess=eval_sess, tags=[tag_constants.SERVING],
+    #     signature_def_map={
+    #         'predict_images': prediction_tensor,
+    #         sig
+    #     }
+    # )
 
 # def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
 #                                   bottleneck_dir, image_dir, jpeg_data_tensor,
@@ -930,6 +930,46 @@ def resume_training(checkpoint_path):
 #     return bottlenecks, ground_truths, filenames
 
 
+def export_model(module_spec, class_count, saved_model_dir):
+    """Exports model for serving.
+
+    Args:
+      module_spec: The hub.ModuleSpec for the image module being used.
+      class_count: The number of classes.
+      saved_model_dir: Directory in which to save exported model and variables.
+    """
+    # The SavedModel should hold the eval graph.
+    eval_sess, resized_input_image, bottleneck_input, ground_truth_input, acc_evaluation_step, \
+        top5_acc_eval_step, prediction = build_eval_session(module_spec, class_count)
+    graph = eval_sess.graph
+    with graph.as_default():
+        inputs = {'image': tf.saved_model.utils.build_tensor_info(resized_input_image)}
+
+        out_classes = eval_sess.graph.get_tensor_by_name('retrain_ops/final_result:0')
+        outputs = {
+            'prediction': tf.saved_model.utils.build_tensor_info(out_classes)
+        }
+
+        signature = tf.saved_model.signature_def_utils.build_signature_def(
+            inputs=inputs,
+            outputs=outputs,
+            method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
+
+        legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
+
+        # Save out the SavedModel.
+        builder = tf.saved_model.builder.SavedModelBuilder(saved_model_dir)
+        builder.add_meta_graph_and_variables(
+            eval_sess, [tf.saved_model.tag_constants.SERVING],
+            signature_def_map={
+                tf.saved_model.signature_constants.
+                    DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+                    signature
+            },
+            legacy_init_op=legacy_init_op)
+        builder.save()
+
+
 def fine_tune_and_train_model(class_count, image_lists, image_metadata):
     """
     fine_tune_and_train_model: Transfer Learning with the source model as a tfhub module provided as a command line
@@ -970,7 +1010,7 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
         init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         sess.run(init)
 
-        with tf.name_scope('re-train_ops'):
+        with tf.name_scope('retrain_ops'):
             # Set up the image decoding sub-graph.
             jpeg_data_tensor, decoded_image_tensor = add_jpeg_decoding(module_spec)
 
@@ -1129,9 +1169,12 @@ def fine_tune_and_train_model(class_count, image_lists, image_metadata):
         save_graph_to_file(CMD_ARG_FLAGS.output_graph, module_spec, class_count)
         # simple_save_graph_to_file(CMD_ARG_FLAGS.output_graph, module_spec, class_count)
 
-        # TODO: Export saved model:
-        # with tf.gfile.FastGFile(CMD_ARG_FLAGS.output_labels, 'w') as f:
-        #     f.write('\n'.join(image_lists.keys())+ '\n')
+        # Export saved model:
+        export_model(module_spec=module_spec, class_count=class_count, saved_model_dir='tmp/trained_model/')
+
+        # Export labels as text file for use in inference:
+        with tf.gfile.FastGFile(CMD_ARG_FLAGS.output_labels, 'w') as f:
+            f.write('\n'.join(image_lists.keys())+ '\n')
         #
         # if CMD_ARG_FLAGS.saved_model_export_dir:
         #     export_model(module_spec, class_count, CMD_ARG_FLAGS.saved_model_dir)
@@ -1338,6 +1381,12 @@ if __name__ == '__main__':
         type=str,
         default='tmp/intermediate_graphs/',
         help='Directory to save the intermediate graphs.'
+    )
+    parser.add_argument(
+        '--output_labels',
+        type=str,
+        default='tmp/output_labels.txt',
+        help='Where to save the trained graph\'s labels.'
     )
     # Parse command line args and identify unknown flags:
     CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
