@@ -481,8 +481,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
     def predict_proba(self, X):
         if not self._session:
             raise NotFittedError('This %s instance has not been fitted yet!' % self.__class__.__name__)
-        with self._session.as_default():
-            return self._Y_proba.eval(feed_dict={self._input_operation: X})
+        with self._session.as_default() as sess:
+            return self._Y_proba.eval(feed_dict={self._input_operation: X}, session=sess)
+
+        # return self._Y_proba.eval(feed_dict={self._input_operation: X}, session=self._session)
 
         # with self.graph.as_default():
         #     with self._session as sess:
