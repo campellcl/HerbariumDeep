@@ -16,6 +16,7 @@ from sklearn.exceptions import NotFittedError
 import tensorflow as tf
 import tensorflow_hub as hub
 import numpy as np
+from datetime import datetime
 from urllib.error import HTTPError
 # Custom decorator methods for ease of use when attaching TensorBoard summaries for visualization:
 # from frameworks.TensorFlow.TFHub.CustomTensorBoardDecorators import attach_variable_summaries
@@ -49,6 +50,42 @@ def load_labels(label_file):
     for l in proto_as_ascii_lines:
         label.append(l.rstrip())
     return label
+
+
+def get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
+    """
+    get_random_cached_bottlenecks: Retrieve a random sample of rows from the bottlenecks dataframe of size 'how_many'.
+        Performs random sampling with replacement.
+    :param bottlenecks: The dataframe containing pre-computed bottleneck values.
+    :param how_many: The number of bottleneck samples to retrieve.
+    :param category: Which subset of dataframes to partition.
+    :param class_labels: <list> A list of all unique class labels in the training and testing datasets.
+    :returns bottleneck_values, bottleneck_ground_truth_labels:
+        :return bottleneck_values: <list> A Python array of size 'how_many' by 2048 (the size of the penultimate output
+            layer).
+        :return bottleneck_ground_truth_indices: <list> A Python list of size 'how_many' by one, containing the index
+            into the class_labels array that corresponds with the ground truth label name associated with each
+            bottlneck array.
+    """
+    bottleneck_dataframe = bottleneck_dataframes[category]
+    # TODO: Get size of output layer from module itself.
+    penultimate_output_layer_size = 2048
+    if how_many >= 0:
+        random_mini_batch_indices = np.random.randint(low=0, high=bottleneck_dataframe.shape[0], size=(how_many, ))
+        minibatch_samples = bottleneck_dataframe.iloc[random_mini_batch_indices]
+        bottleneck_values = minibatch_samples['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = minibatch_samples['class'].values
+
+    else:
+        bottleneck_values = bottleneck_dataframe['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = bottleneck_dataframe['class'].values
+
+    # Convert to index (encoded int class label):
+    bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                       for ground_truth_label in bottleneck_ground_truth_labels])
+    return bottleneck_values, bottleneck_ground_truth_indices
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
@@ -260,6 +297,40 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 raise NotImplementedError
         return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
 
+    @staticmethod
+    def _add_evaluation_step(result_tensor, ground_truth_tensor):
+        """Inserts the operations needed to evaluate the accuracy of the results.
+
+          Args:
+            result_tensor: The new final node that produces results.
+            ground_truth_tensor: The node we feed ground truth data into.
+
+          Returns:
+            Tuple of (evaluation step, prediction).
+        """
+        with tf.name_scope('accuracy'):
+            with tf.name_scope('correct_prediction'):
+                # tf.logging.info(msg='result_tensor: %s' % result_tensor)
+                # tf.logging.info(msg='result_tensor_shape: %s' % result_tensor.shape)
+                # tf.logging.info(msg='ground_truth_tensor: %s' % ground_truth_tensor)
+                prediction = tf.argmax(result_tensor, 1)
+                # tf.logging.info(msg='prediction tensor: %s' % prediction)
+                # Returns the truth value of (prediction == ground_truth_tensor) element-wise.
+                correct_prediction = tf.equal(prediction, ground_truth_tensor)
+                # tf.logging.info(msg='correct_prediction: %s' % correct_prediction)
+            with tf.name_scope('accuracy'):
+                # Compute the mean of the elements along the given axis:
+                acc_evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            # Now compute the top-k accuracy:
+            with tf.name_scope('top5_accuracy'):
+                top5_acc_eval_step = tf.reduce_mean(tf.cast(tf.nn.in_top_k(predictions=result_tensor, targets=ground_truth_tensor, k=5), tf.float32))
+
+        # Export the accuracy of the model for use with TensorBoard:
+        tf.summary.scalar('accuracy', acc_evaluation_step)
+        tf.summary.scalar('top5_accuracy', top5_acc_eval_step)
+
+        return acc_evaluation_step, top5_acc_eval_step, prediction
+
     def __init__(self, tfhub_module_url, init_type, num_unique_classes, learning_rate_type, train_batch_size, learning_rate=None):
         """
         __init__: Ensures the provided module url is valid, and stores it's hyperparameters for ease of reference. This
@@ -328,8 +399,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             (train_step, eval_metric, bottleneck_input,
              ground_truth_input, final_tensor) = self._add_final_retrain_ops(
                 num_unique_classes=self.num_unique_classes, bottleneck_tensor=self.bottleneck_tensor)
-
-
+            tf.logging.info('Added final retrain Ops to the module source graph.')
+            # Create operations to evaluate the accuracy of the new layer (called during validation during training):
+            acc_evaluation_step, top5_acc_eval_step, _ = self._add_evaluation_step(final_tensor, ground_truth_input)
+            tf.logging.info('Added evaluation Ops to the module source graph.')
         # Add more important operations to the list of easily available instance variables:
         self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         # Maintain some references to the computational graph as instance variables for ease of access:
@@ -339,6 +412,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # self._output_operation = self.graph.get_operation_by_name('retrain_ops/final_result')
         # self._saver = tf.train.Saver()
         self._training_op, self._eval_metric = train_step, eval_metric
+        self._acc_evaluation_step = acc_evaluation_step
+        self._top5_acc_eval_step = top5_acc_eval_step
+        self._ground_truth_input = ground_truth_input
 
     def _close_session(self):
         """
@@ -348,7 +424,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         if self._session:
             self._session.close()
 
-    def fit(self, X, y, n_epochs=10000):
+    def fit(self, X, y, n_epochs=10000, eval_step_interval=None):
         """
         fit: Fit the model to the training set. Must adhere to
         :param x: <array-like or sparse matrix> Must be shape (n_samples, n_features).
@@ -370,6 +446,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.class_to_index_ = {label: index for index, label in enumerate(self.classes_)}
         y = np.array([self.class_to_index_[label] for label in y], dtype=np.int32)
 
+        if eval_step_interval is not None:
+            self._eval_step_interval = eval_step_interval
+        else:
+            self._eval_step_interval = n_epochs // len(str(n_epochs))
+
         # This should already be handled during instantiation (that is adding additional re-train ops):
         # with self._graph.as_default():
         #     self._build_graph(n_inputs, n_outputs)
@@ -390,7 +471,14 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     results = sess.run(self._output_operation, {
                         self._input_operation: X_batch
                     })
-                    print()
+                    is_last_step = (epoch + 1 == n_epochs)
+                    if (epoch % self._eval_step_interval) == 0 or is_last_step:
+                        train_accuracy, top5_accuracy, cross_entropy_value = sess.run(
+                            [self._acc_evaluation_step, self._top5_acc_eval_step, self._eval_metric],
+                            feed_dict={self._input_operation: X_batch, self._ground_truth_input: y_batch}
+                        )
+                        tf.logging.info('%s: Step %d: Mini-batch train accuracy = %.1f%% (N=%d)' % (datetime.now(), epoch, train_accuracy * 100, len(X)))
+                        tf.logging.info('%s: Step %d: Mini-batch cross entropy = %f (N=%d)' % (datetime.now(), epoch, cross_entropy_value, len(X)))
                     # loss_train, acc_train = sess.run([self._eval_metric])
         # Remove single-dimensional
         # results = np.squeeze(results)
