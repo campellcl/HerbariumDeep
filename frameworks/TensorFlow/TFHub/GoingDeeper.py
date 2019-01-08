@@ -325,9 +325,16 @@ def main(_):
         category='train',
         class_labels=list(image_lists.keys())
     )
+    minibatch_val_bottlenecks, minibatch_val_ground_truth_indices = _get_random_cached_bottlenecks(
+        bottleneck_dataframes=bottleneck_dataframes,
+        how_many=CMD_ARG_FLAGS.val_batch_size,
+        category='val',
+        class_labels=list(image_lists.keys())
+    )
 
     tfh_classifier.fit(X=minibatch_train_bottlenecks, y=minibatch_train_ground_truth_indices, n_epochs=100)
-
+    y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
+    accuracy_score(minibatch_train_ground_truth_indices, y_pred)
     # tfh_classifier.fit(X=image_lists['train'], y=image_lists[])
 
 

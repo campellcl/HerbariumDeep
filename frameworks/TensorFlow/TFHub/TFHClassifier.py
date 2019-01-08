@@ -22,6 +22,7 @@ from urllib.error import HTTPError
 # from frameworks.TensorFlow.TFHub.CustomTensorBoardDecorators import attach_variable_summaries
 
 
+
 def read_tensor_from_image_file(file_name, input_height=299, input_width=299, input_mean=0, input_std=255):
     input_name = "file_reader"
     output_name = "normalized"
@@ -395,16 +396,17 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             objects that provide a handle to the result of the corresponding operation in the computational graph during
             runtime: 
         '''
+        # self._session = tf.Session(graph=self.graph)
         with self.graph.as_default():
             (train_step, eval_metric, bottleneck_input,
              ground_truth_input, final_tensor) = self._add_final_retrain_ops(
                 num_unique_classes=self.num_unique_classes, bottleneck_tensor=self.bottleneck_tensor)
             tf.logging.info('Added final retrain Ops to the module source graph.')
             # Create operations to evaluate the accuracy of the new layer (called during validation during training):
-            acc_evaluation_step, top5_acc_eval_step, _ = self._add_evaluation_step(final_tensor, ground_truth_input)
+            acc_evaluation_step, top5_acc_eval_step, probabilities = self._add_evaluation_step(final_tensor, ground_truth_input)
             tf.logging.info('Added evaluation Ops to the module source graph.')
         # Add more important operations to the list of easily available instance variables:
-        self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+        # self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         # Maintain some references to the computational graph as instance variables for ease of access:
         self._input_operation = bottleneck_input
         self._output_operation = final_tensor
@@ -415,6 +417,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._acc_evaluation_step = acc_evaluation_step
         self._top5_acc_eval_step = top5_acc_eval_step
         self._ground_truth_input = ground_truth_input
+        self._Y_proba = probabilities
 
     def _close_session(self):
         """
@@ -451,12 +454,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         else:
             self._eval_step_interval = n_epochs // len(str(n_epochs))
 
-        # This should already be handled during instantiation (that is adding additional re-train ops):
-        # with self._graph.as_default():
-        #     self._build_graph(n_inputs, n_outputs)
-        #     # extra ops for batch normalization
-        #     extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-
         # TODO: Early stopping logic.
 
         # Train the model:
@@ -479,20 +476,21 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         )
                         tf.logging.info('%s: Step %d: Mini-batch train accuracy = %.1f%% (N=%d)' % (datetime.now(), epoch, train_accuracy * 100, len(X)))
                         tf.logging.info('%s: Step %d: Mini-batch cross entropy = %f (N=%d)' % (datetime.now(), epoch, cross_entropy_value, len(X)))
-                    # loss_train, acc_train = sess.run([self._eval_metric])
-        # Remove single-dimensional
-        # results = np.squeeze(results)
-        # top_k = results.argsort()[-5:][::-1]
-        labels = load_labels('tmp/output_labels.txt')
-        # for i in top_k:
-        #     tf.logging.info('label: %s, %.2f%%' % (labels[i], results[i] * 100))
-        return self
+            return self
 
     def predict_proba(self, X):
-        raise NotImplementedError
+        if not self._session:
+            raise NotFittedError('This %s instance has not been fitted yet!' % self.__class__.__name__)
+        with self._session.as_default():
+            return self._Y_proba.eval(feed_dict={self._input_operation: X})
+
+        # with self.graph.as_default():
+        #     with self._session as sess:
+        #         return self._Y_proba.eval(feed_dict={self._input_operation: X})
 
     def predict(self, X):
-        raise NotImplementedError
+        class_indices = np.argmax(self.predict_proba(X), axis=1)
+        return np.array([[self.classes_[class_index]] for class_index in class_indices], np.int32)
 
     def save(self, path):
         raise NotImplementedError
