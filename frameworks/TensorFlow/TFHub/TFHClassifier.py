@@ -15,9 +15,40 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 import tensorflow as tf
 import tensorflow_hub as hub
+import numpy as np
 from urllib.error import HTTPError
 # Custom decorator methods for ease of use when attaching TensorBoard summaries for visualization:
 # from frameworks.TensorFlow.TFHub.CustomTensorBoardDecorators import attach_variable_summaries
+
+
+def read_tensor_from_image_file(file_name, input_height=299, input_width=299, input_mean=0, input_std=255):
+    input_name = "file_reader"
+    output_name = "normalized"
+    file_reader = tf.read_file(file_name, input_name)
+    if file_name.endswith(".png"):
+        image_reader = tf.image.decode_png(file_reader, channels=3, name="png_reader")
+    elif file_name.endswith(".gif"):
+        image_reader = tf.squeeze(tf.image.decode_gif(file_reader, name="gif_reader"))
+    elif file_name.endswith(".bmp"):
+        image_reader = tf.image.decode_bmp(file_reader, name="bmp_reader")
+    else:
+        image_reader = tf.image.decode_jpeg(
+            file_reader, channels=3, name="jpeg_reader")
+    float_caster = tf.cast(image_reader, tf.float32)
+    dims_expander = tf.expand_dims(float_caster, 0)
+    resized = tf.image.resize_bilinear(dims_expander, [input_height, input_width])
+    normalized = tf.divide(tf.subtract(resized, [input_mean]), [input_std])
+    sess = tf.Session()
+    result = sess.run(normalized)
+    return result
+
+
+def load_labels(label_file):
+    label = []
+    proto_as_ascii_lines = tf.gfile.GFile(label_file).readlines()
+    for l in proto_as_ascii_lines:
+        label.append(l.rstrip())
+    return label
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
@@ -229,7 +260,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 raise NotImplementedError
         return train_step, cross_entropy_mean, bottleneck_input, ground_truth_input, final_tensor
 
-    def __init__(self, tfhub_module_url, init_type, num_unique_classes, learning_rate_type, learning_rate=None):
+    def __init__(self, tfhub_module_url, init_type, num_unique_classes, learning_rate_type, train_batch_size, learning_rate=None):
         """
         __init__: Ensures the provided module url is valid, and stores it's hyperparameters for ease of reference. This
         method obtains a tfHub module blueprint, then instantiates it, and adds-retrain ops for the target domain.
@@ -241,13 +272,14 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         :param init_type: <str> The chosen weight initialization technique: {he, xavier, random}.
         :param num_unique_classes: <int> The number of unique classes in the training, validation, and testing datasets.
         :param learning_rate_type: <str> {'dynamic', 'static'} The learning rate type, either fixed or dynamic.
+        :param train_batch_size: <int> The size of the minibatch during training.
         :param learning_rate: <float> The chosen learning rate (eta), range [0,1] inclusive.
-
         """
         # Make the important operations available easily through instance variables:
         self.init_type = init_type
         self.learning_rate_type = learning_rate_type
         self.learning_rate = learning_rate
+        self.train_batch_size = train_batch_size
 
         if self.learning_rate_type == 'static':
             if self.learning_rate is None:
@@ -299,7 +331,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
 
         # Add more important operations to the list of easily available instance variables:
-        self._init = tf.global_variables_initializer()
+        self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+        # Maintain some references to the computational graph as instance variables for ease of access:
+        self._input_operation = bottleneck_input
+        self._output_operation = final_tensor
+        # self._out_classes = self.graph.get_tensor_by_name('retrain_ops/final_result:0')
+        # self._output_operation = self.graph.get_operation_by_name('retrain_ops/final_result')
         # self._saver = tf.train.Saver()
         self._training_op, self._eval_metric = train_step, eval_metric
 
@@ -324,11 +361,44 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # infer n_inputs and n_outputs from training set:
         n_inputs = X.shape[1]
         n_outputs = self.num_unique_classes
+        self.classes_ = np.unique(y)
 
         # Translate the labels vector to a vector of sorted class indices, containing integers from 0 to n_outputs - 1.
-        raise NotImplementedError
+        # For example, if y is equal to [8, 8, 9, 5, 7, 6, 6, 6], then the sorted class
+        # labels (self.classes_) will be equal to [5, 6, 7, 8, 9], and the labels vector
+        # will be translated to [3, 3, 4, 0, 2, 1, 1, 1]
+        self.class_to_index_ = {label: index for index, label in enumerate(self.classes_)}
+        y = np.array([self.class_to_index_[label] for label in y], dtype=np.int32)
 
-        raise NotImplementedError
+        # This should already be handled during instantiation (that is adding additional re-train ops):
+        # with self._graph.as_default():
+        #     self._build_graph(n_inputs, n_outputs)
+        #     # extra ops for batch normalization
+        #     extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
+        # TODO: Early stopping logic.
+
+        # Train the model:
+        self._session = tf.Session(graph=self.graph)
+        with self._session as sess:
+            init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+            sess.run(init)
+            for epoch in range(n_epochs):
+                rnd_idx = np.random.permutation(len(X))
+                for rnd_indices in np.array_split(rnd_idx, len(X) // self.train_batch_size):
+                    X_batch, y_batch = X[rnd_indices], y[rnd_indices]
+                    results = sess.run(self._output_operation, {
+                        self._input_operation: X_batch
+                    })
+                    print()
+                    # loss_train, acc_train = sess.run([self._eval_metric])
+        # Remove single-dimensional
+        # results = np.squeeze(results)
+        # top_k = results.argsort()[-5:][::-1]
+        labels = load_labels('tmp/output_labels.txt')
+        # for i in top_k:
+        #     tf.logging.info('label: %s, %.2f%%' % (labels[i], results[i] * 100))
+        return self
 
     def predict_proba(self, X):
         raise NotImplementedError

@@ -12,8 +12,10 @@ from sklearn.metrics import accuracy_score
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
 import pandas as pd
+import numpy as np
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
+
 
 def _prepare_tensor_board_directories():
     """
@@ -67,6 +69,67 @@ def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
     return True
 
 
+def _partition_bottlenecks_dataframe(bottlenecks, train_percent=.80, val_percent=.20, test_percent=.20, random_state=0):
+    """
+    _partition_bottlenecks_dataframe: Partitions the bottlenecks dataframe into training, testing, and validation
+        dataframes.
+    :param bottlenecks: <pd.DataFrame> The bottlenecks dataframe containing image-labels, paths, and bottleneck values.
+    :param train_percent: What percentage of the training data is to remain in the training set.
+    :param test_percent: What percentage of the training data is to be allocated to a testing set.
+    :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
+        for a validation set.
+    :param random_state: A seed for the random number generator controlling the stratified partitioning.
+    :return:
+    """
+    train_bottlenecks, test_bottlenecks = model_selection.train_test_split(
+        bottlenecks, train_size=train_percent,
+        test_size=test_percent, shuffle=True,
+        random_state=random_state
+    )
+    train_bottlenecks, val_bottlenecks = model_selection.train_test_split(
+        train_bottlenecks, train_size=train_percent,
+        test_size=val_percent, shuffle=True,
+        random_state=random_state
+    )
+    return train_bottlenecks, val_bottlenecks, test_bottlenecks
+
+
+def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
+    """
+    get_random_cached_bottlenecks: Retrieve a random sample of rows from the bottlenecks dataframe of size 'how_many'.
+        Performs random sampling with replacement.
+    :param bottlenecks: The dataframe containing pre-computed bottleneck values.
+    :param how_many: The number of bottleneck samples to retrieve.
+    :param category: Which subset of dataframes to partition.
+    :param class_labels: <list> A list of all unique class labels in the training and testing datasets.
+    :returns bottleneck_values, bottleneck_ground_truth_labels:
+        :return bottleneck_values: <list> A Python array of size 'how_many' by 2048 (the size of the penultimate output
+            layer).
+        :return bottleneck_ground_truth_indices: <list> A Python list of size 'how_many' by one, containing the index
+            into the class_labels array that corresponds with the ground truth label name associated with each
+            bottlneck array.
+    """
+    bottleneck_dataframe = bottleneck_dataframes[category]
+    # TODO: Get size of output layer from module itself.
+    penultimate_output_layer_size = 2048
+    if how_many >= 0:
+        random_mini_batch_indices = np.random.randint(low=0, high=bottleneck_dataframe.shape[0], size=(how_many, ))
+        minibatch_samples = bottleneck_dataframe.iloc[random_mini_batch_indices]
+        bottleneck_values = minibatch_samples['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = minibatch_samples['class'].values
+
+    else:
+        bottleneck_values = bottleneck_dataframe['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = bottleneck_dataframe['class'].values
+
+    # Convert to index (encoded int class label):
+    bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                       for ground_truth_label in bottleneck_ground_truth_labels])
+    return bottleneck_values, bottleneck_ground_truth_indices
+
+
 def _update_and_retrieve_bottlenecks(image_lists):
     """
     _update_and_retrieve_bottlenecks:
@@ -74,7 +137,7 @@ def _update_and_retrieve_bottlenecks(image_lists):
     """
     bottleneck_path = CMD_ARG_FLAGS.bottleneck_path
     if os.path.isfile(os.path.basename(CMD_ARG_FLAGS.bottleneck_path)):
-        # Bottlenecks file exists, read from disk:
+        # Bottlenecks .pkl file exists, read from disk:
         tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'.'
                             % CMD_ARG_FLAGS.bottleneck_path)
         bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
@@ -82,15 +145,18 @@ def _update_and_retrieve_bottlenecks(image_lists):
                             % os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
         if _is_bottleneck_for_every_sample(image_lists, bottlenecks):
             # Partition the bottleneck dataframe:
-            ON RESUME: Why even have image_list partitions? It seems the only point is for bottleneck creation.
-            once the bottlenecks are created then they are loaded in and partitioned regardless. So no partition of
-            training images, just load them in and run the existance check, then get the bottlenecks and partition those.
-            Reference back to the image to get the label is in the bottlenecks dataframe already.
-        # TODO: use the command line 'advanced' flags to override this check:
-
-
-
-    pass
+            train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
+                bottlenecks=bottlenecks,
+                random_state=0
+            )
+            bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
+            tf.logging.info('Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), '
+                        'and testing (N=%d) datasets.'
+                        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0]))
+            return bottleneck_dataframes
+        else:
+            tf.logging.error('ERROR: Not a bottleneck for every sample. Implement logic to fix this.')
+            return None
 
 
 def _get_image_lists(image_dir):
@@ -248,13 +314,19 @@ def main(_):
         init_type=CMD_ARG_FLAGS.init_type,
         learning_rate_type=CMD_ARG_FLAGS.learning_rate_type,
         learning_rate=CMD_ARG_FLAGS.learning_rate,
-        num_unique_classes=num_classes)
+        num_unique_classes=num_classes,
+        train_batch_size=num_train_images
+    )
 
+    bottleneck_dataframes = _update_and_retrieve_bottlenecks(image_lists=image_lists)
+    minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
+        bottleneck_dataframes=bottleneck_dataframes,
+        how_many=CMD_ARG_FLAGS.train_batch_size,
+        category='train',
+        class_labels=list(image_lists.keys())
+    )
 
-    bottlenecks = _update_and_retrieve_bottlenecks(image_lists)
-
-    print()
-    pass
+    tfh_classifier.fit(X=minibatch_train_bottlenecks, y=minibatch_train_ground_truth_indices, n_epochs=100)
 
     # tfh_classifier.fit(X=image_lists['train'], y=image_lists[])
 
