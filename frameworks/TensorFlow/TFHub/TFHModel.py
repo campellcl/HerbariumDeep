@@ -279,8 +279,16 @@ class TFHModel(BaseEstimator, ClassifierMixin):
             # TODO: Calling the above ^ with is_training=True is wasteful. Should have two separate graphs.
             tf.logging.info('Added final retrain Ops to the module source graph.')
 
-        # TODO: Add train_saver instance here for TensorBoard.
-        self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+            # TODO: Add train_saver instance here for TensorBoard.
+
+            '''
+            CRITICAL NOTE: The initializer below must be declared within self._graph scope (e.g. within the scope of 
+                'with ... as graph' context manager), or it will apply to a new default computational graph. DO NOT
+                under any circumstances un-indent the following declaration of the initializer (self._init) unless you
+                are absolutely sure of the implied change in scoping. This initializer will no longer be valid for use
+                with 'self._graph' if removed from the containing context manager's scope. 
+            '''
+            self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         self._training_op, self._cross_entropy = train_step, eval_metric
         self._bottleneck_input, self._ground_truth_input = bottleneck_input, ground_truth_input
         self._output = final_tensor
@@ -311,7 +319,15 @@ class TFHModel(BaseEstimator, ClassifierMixin):
             self._eval_step_interval = eval_step_interval
         else:
             self._eval_step_interval = n_epochs // len(str(n_epochs))
+        # Construct the computational graph:
         self._build_graph(n_inputs=n_inputs, n_outputs=n_outputs)
+        # Use the constructed graph in a session:
+        self._session = tf.Session(graph=self._graph)
+        with self._session as sess:
+            self._init.run(session=sess)
+
+
+
         raise NotImplementedError
 
 
