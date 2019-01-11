@@ -289,9 +289,10 @@ class TFHModel(BaseEstimator, ClassifierMixin):
                 with 'self._graph' if removed from the containing context manager's scope. 
             '''
             self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-        self._training_op, self._cross_entropy = train_step, eval_metric
+        self._train_step, self._cross_entropy = train_step, eval_metric
         self._bottleneck_input, self._ground_truth_input = bottleneck_input, ground_truth_input
         self._output = final_tensor
+        self._training = False
 
     def fit(self, X, y, n_epochs=10, eval_step_interval=None):
         """
@@ -308,7 +309,7 @@ class TFHModel(BaseEstimator, ClassifierMixin):
             7) Data is fed via feedict into the necessary Tensors and the prediction is captured in an output
                 Tensor (previously added during step 4).
         :param self:
-        :param X:
+        :param X: Bottlenecks! Not image data.
         :return:
         """
         # The session will not have been initialized yet, so no need to close it.
@@ -325,11 +326,30 @@ class TFHModel(BaseEstimator, ClassifierMixin):
         self._session = tf.Session(graph=self._graph)
         with self._session as sess:
             self._init.run(session=sess)
+            for epoch in range(n_epochs):
+                rnd_idx = np.random.permutation(len(X))
+                for rnd_indices in np.array_split(rnd_idx, len(X) // self.train_batch_size):
+                    X_batch, y_batch = X[rnd_indices], y[rnd_indices]
+                    # TODO: ON RESUME: Need to revisit the code that attaches the image pre-processing pipeline. I cannot
+                    # directly feed an image into the bottleneck_input tensor without pre-computation.
+                    feed_dict = {self._bottleneck_input: X_batch, self._ground_truth_input: y_batch}
+                    # TODO: self._training was not integrated into _add_final_retrain_ops() properly. Fix this:
+                    if not self._training:
+                        self._training = True
+                    # Feed the bottlenecks and ground truth into the graph, run a training step. Capture the result.
+                    sess.run([self._train_step], feed_dict=feed_dict)
+            return self
 
+    def predict_proba(self, X):
+        if not self._session:
+            raise NotFittedError("This %s instance is not fitted yet" % self.__class__.__name__)
+        with self._session as sess:
+            return self._output.eval(feed_dict={self._bottleneck_input: X})
 
-
-        raise NotImplementedError
-
+    def predict(self, X):
+        class_indices = np.argmax(self.predict_proba(X), axis=1)
+        return np.array([[self.classes_[class_index]]
+                         for class_index in class_indices], np.int32)
 
 if __name__ == '__main__':
     pass

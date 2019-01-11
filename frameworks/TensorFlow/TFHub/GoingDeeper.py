@@ -11,6 +11,7 @@ from sklearn import model_selection
 from sklearn.metrics import accuracy_score
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
+from frameworks.TensorFlow.TFHub.TFHModel import TFHModel
 import pandas as pd
 import numpy as np
 
@@ -54,11 +55,11 @@ def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
         species_test_image_paths = datasets['test']
         for species_test_image_path in species_test_image_paths:
             test_image_paths.append(species_test_image_path)
-    # Ensure every training image has a bottleneck:
+    # Ensure every training image has a bottleneck entry in the bottlenecks dataframe:
     for train_image_path in train_image_paths:
         if train_image_path not in bottlenecks['path'].values:
             return False
-    # Ensure every validation image has a bottleneck tensor in bottlenecks:
+    # Ensure every validation image has a bottleneck tensor in bottlenecks dataframe:
     for val_image_path in val_image_paths:
         if val_image_path not in bottlenecks['path'].values:
             return False
@@ -309,12 +310,19 @@ def main(_):
                                                num_val_images, num_images, ((num_val_images*100)/num_images),
                                                num_test_images, num_images, ((num_test_images*100)/num_images)))
 
-    tfh_classifier = TFHClassifier(
+    # tfh_classifier = TFHClassifier(
+    #     tfhub_module_url=CMD_ARG_FLAGS.tfhub_module,
+    #     init_type=CMD_ARG_FLAGS.init_type,
+    #     learning_rate_type=CMD_ARG_FLAGS.learning_rate_type,
+    #     learning_rate=CMD_ARG_FLAGS.learning_rate,
+    #     num_unique_classes=num_classes,
+    #     train_batch_size=num_train_images
+    # )
+
+    tfh_classifier = TFHModel(
         tfhub_module_url=CMD_ARG_FLAGS.tfhub_module,
-        init_type=CMD_ARG_FLAGS.init_type,
-        learning_rate_type=CMD_ARG_FLAGS.learning_rate_type,
-        learning_rate=CMD_ARG_FLAGS.learning_rate,
         num_unique_classes=num_classes,
+        learning_rate=CMD_ARG_FLAGS.learning_rate,
         train_batch_size=num_train_images
     )
 
