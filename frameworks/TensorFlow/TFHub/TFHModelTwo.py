@@ -24,22 +24,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self._session = None
 
-    # def _dnn(self, inputs):
-    #     """Build the hidden layers, with support for batch normalization and dropout."""
-    #     for layer in range(self.n_hidden_layers):
-    #         if self.dropout_rate:
-    #             inputs = tf.layers.dropout(inputs, self.dropout_rate, training=self._training)
-    #         inputs = tf.layers.dense(inputs, self.n_neurons,
-    #                                  kernel_initializer=self.initializer,
-    #                                  name="hidden%d" % (layer + 1))
-    #         if self.batch_norm_momentum:
-    #             inputs = tf.layers.batch_normalization(inputs, momentum=self.batch_norm_momentum,
-    #                                                    training=self._training)
-    #         inputs = self.activation(inputs, name="hidden%d_out" % (layer + 1))
-    #     return inputs
-
     def _build_graph(self, n_inputs, n_outputs):
-        """Build the same model as earlier"""
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
             np.random.seed(self.random_state)
@@ -145,7 +130,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         feed_dict = {init_values[gvar_name]: model_params[gvar_name] for gvar_name in gvar_names}
         self._session.run(assign_ops, feed_dict=feed_dict)
 
-
     def fit(self, X, y, n_epochs=10, X_valid=None, y_valid=None):
         """Fit the model to the training set. If X_valid and y_valid are provided, use early stopping."""
         self.close_session()
@@ -154,16 +138,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         n_inputs = X.shape[1]
         self.classes_ = np.unique(y)
         n_outputs = len(self.classes_)
-
-        # Translate the labels vector to a vector of sorted class indices, containing
-        # integers from 0 to n_outputs - 1.
-        # For example, if y is equal to [8, 8, 9, 5, 7, 6, 6, 6], then the sorted class
-        # labels (self.classes_) will be equal to [5, 6, 7, 8, 9], and the labels vector
-        # will be translated to [3, 3, 4, 0, 2, 1, 1, 1]
-        # self.class_to_index_ = {label: index
-        #                         for index, label in enumerate(self.classes_)}
-        # y = np.array([self.class_to_index_[label]
-        #               for label in y], dtype=np.int32)
 
         self._graph = tf.Graph()
         with self._graph.as_default():
