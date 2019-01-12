@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 
 class TFHModel(BaseEstimator, ClassifierMixin):
 
-    def __init__(self, tfhub_module_url, num_unique_classes, learning_rate, train_batch_size):
+    def __init__(self, tfhub_module_url, num_unique_classes, learning_rate, train_batch_size, tensor_board_summaries_dir=None):
         self.tfhub_module_url = tfhub_module_url
         self.num_unique_classes = num_unique_classes
         self.learning_rate = learning_rate
@@ -19,6 +19,10 @@ class TFHModel(BaseEstimator, ClassifierMixin):
         self._graph = None
         self._session = None
         self._init = None
+        if tensor_board_summaries_dir is not None:
+            self.tb_summaries_dir = tensor_board_summaries_dir
+        else:
+            self.tb_summaries_dir = 'tmp/summaries/'
         # Enable visible logging output:
         if tf.logging.get_verbosity() is not tf.logging.INFO:
             tf.logging.set_verbosity(tf.logging.INFO)
@@ -289,6 +293,7 @@ class TFHModel(BaseEstimator, ClassifierMixin):
                 with 'self._graph' if removed from the containing context manager's scope. 
             '''
             self._init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+
         self._train_step, self._cross_entropy = train_step, eval_metric
         self._bottleneck_input, self._ground_truth_input = bottleneck_input, ground_truth_input
         self._output = final_tensor
@@ -325,7 +330,20 @@ class TFHModel(BaseEstimator, ClassifierMixin):
         # Use the constructed graph in a session:
         self._session = tf.Session(graph=self._graph)
         with self._session as sess:
+            # Run session initializer:
             self._init.run(session=sess)
+            '''
+            TensorBoard setup for debugging purposes:
+            '''
+            # Merge all TensorBoard summaries
+            merged = tf.summary.merge_all()
+            # TODO: Hyperstring describing the hyperparameters used in this particular run for distinguishing in TB.
+            train_writer = tf.summary.FileWriter(self.tb_summaries_dir + 'train/', sess.graph)
+            # TODO: Validation writer
+            train_saver = tf.train.Saver()
+            '''
+            Main training loop:
+            '''
             for epoch in range(n_epochs):
                 rnd_idx = np.random.permutation(len(X))
                 for rnd_indices in np.array_split(rnd_idx, len(X) // self.train_batch_size):
@@ -336,14 +354,17 @@ class TFHModel(BaseEstimator, ClassifierMixin):
                     # TODO: self._training was not integrated into _add_final_retrain_ops() properly. Fix this:
                     if not self._training:
                         self._training = True
-                    # Feed the bottlenecks and ground truth into the graph, run a training step. Capture the result.
-                    sess.run([self._train_step], feed_dict=feed_dict)
+                    # Feed the bottlenecks and ground truth into the graph, run a training step. Capture training
+                    # summaries for TensorBoard with the 'merged' op.
+                    train_summary, _ = sess.run([merged, self._train_step], feed_dict=feed_dict)
+                    # Tell the FileWriter to add the captured summaries:
+                    train_writer.add_summary(train_summary, epoch)
             return self
 
     def predict_proba(self, X):
         if not self._session:
             raise NotFittedError("This %s instance is not fitted yet" % self.__class__.__name__)
-        with self._session as sess:
+        with self._session.as_default() as sess:
             return self._output.eval(feed_dict={self._bottleneck_input: X})
 
     def predict(self, X):
