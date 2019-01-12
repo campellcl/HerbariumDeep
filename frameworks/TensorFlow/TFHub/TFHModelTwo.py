@@ -8,12 +8,10 @@ import numpy as np
 he_init = tf.variance_scaling_initializer()
 
 class DNNClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, n_hidden_layers=5, n_neurons=100, optimizer_class=tf.train.AdamOptimizer,
+    def __init__(self, optimizer_class=tf.train.AdamOptimizer,
                  learning_rate=0.01, batch_size=20, activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None):
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
-        self.n_hidden_layers = n_hidden_layers
-        self.n_neurons = n_neurons
         self.optimizer_class = optimizer_class
         self.learning_rate = learning_rate
         self.batch_size = batch_size
@@ -24,19 +22,19 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self._session = None
 
-    def _dnn(self, inputs):
-        """Build the hidden layers, with support for batch normalization and dropout."""
-        for layer in range(self.n_hidden_layers):
-            if self.dropout_rate:
-                inputs = tf.layers.dropout(inputs, self.dropout_rate, training=self._training)
-            inputs = tf.layers.dense(inputs, self.n_neurons,
-                                     kernel_initializer=self.initializer,
-                                     name="hidden%d" % (layer + 1))
-            if self.batch_norm_momentum:
-                inputs = tf.layers.batch_normalization(inputs, momentum=self.batch_norm_momentum,
-                                                       training=self._training)
-            inputs = self.activation(inputs, name="hidden%d_out" % (layer + 1))
-        return inputs
+    # def _dnn(self, inputs):
+    #     """Build the hidden layers, with support for batch normalization and dropout."""
+    #     for layer in range(self.n_hidden_layers):
+    #         if self.dropout_rate:
+    #             inputs = tf.layers.dropout(inputs, self.dropout_rate, training=self._training)
+    #         inputs = tf.layers.dense(inputs, self.n_neurons,
+    #                                  kernel_initializer=self.initializer,
+    #                                  name="hidden%d" % (layer + 1))
+    #         if self.batch_norm_momentum:
+    #             inputs = tf.layers.batch_normalization(inputs, momentum=self.batch_norm_momentum,
+    #                                                    training=self._training)
+    #         inputs = self.activation(inputs, name="hidden%d_out" % (layer + 1))
+    #     return inputs
 
     def _build_graph(self, n_inputs, n_outputs):
         """Build the same model as earlier"""
@@ -44,8 +42,8 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
             tf.set_random_seed(self.random_state)
             np.random.seed(self.random_state)
 
-        X = tf.placeholder(tf.float32, shape=(None, n_inputs), name="X")
-        y = tf.placeholder(tf.int32, shape=(None), name="y")
+        # X = tf.placeholder(tf.float32, shape=(None, n_inputs), name="X")
+        # y = tf.placeholder(tf.int32, shape=(None), name="y")
 
         if self.batch_norm_momentum or self.dropout_rate:
             self._training = tf.placeholder_with_default(False, shape=(), name='training')
@@ -57,14 +55,14 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
         height, width = hub.get_expected_image_size(tfhub_module_spec)
         tf.logging.info(msg='Loaded the provided TensorFlowHub module spec: \'%s\'' % tfhub_module_spec)
 
-        # Create a placeholder tensor for input to the model (recall that None = minibatch size at runtime)
-        # X = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
+        # Create a placeholder tensor for image input to the model (when bottleneck has not been pre-computed).
+        resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
 
         # Declare the model in accordance with the chosen architecture:
         m = hub.Module(tfhub_module_spec)
 
         # Create a placeholder tensor to catch the output of the pre-activation layer:
-        bottleneck_tensor = m(X)
+        bottleneck_tensor = m(resized_input_tensor)
 
         '''
         Add re-train operations:
@@ -73,6 +71,16 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
         assert batch_size is None, 'We want to work with arbitrary batch size when ' \
                                'constructing fully-connected and softmax layers for fine-tuning.'
 
+        X = tf.placeholder_with_default(
+            bottleneck_tensor,
+            shape=[batch_size, bottleneck_tensor_size],
+            name='X'
+        )
+        y = tf.placeholder(
+            tf.int64,
+            shape=[batch_size],
+            name='y'
+        )
 
         ''' Add transfer learning target domain final retrain operations: '''
         final_layer_name = 'final_retrain_ops'
@@ -91,7 +99,7 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
 
             # pre-activations:
             with tf.name_scope('Wx_plus_b'):
-                logits = tf.matmul(bottleneck_tensor, layer_weights) + layer_biases
+                logits = tf.matmul(X, layer_weights) + layer_biases
                 tf.summary.histogram('pre_activation_logits', logits)
 
         # logits = tf.layers.dense(dnn_outputs, n_outputs, kernel_initializer=he_init, name="logits")
@@ -135,6 +143,7 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
         feed_dict = {init_values[gvar_name]: model_params[gvar_name] for gvar_name in gvar_names}
         self._session.run(assign_ops, feed_dict=feed_dict)
 
+
     def fit(self, X, y, n_epochs=10, X_valid=None, y_valid=None):
         """Fit the model to the training set. If X_valid and y_valid are provided, use early stopping."""
         self.close_session()
@@ -149,10 +158,10 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
         # For example, if y is equal to [8, 8, 9, 5, 7, 6, 6, 6], then the sorted class
         # labels (self.classes_) will be equal to [5, 6, 7, 8, 9], and the labels vector
         # will be translated to [3, 3, 4, 0, 2, 1, 1, 1]
-        self.class_to_index_ = {label: index
-                                for index, label in enumerate(self.classes_)}
-        y = np.array([self.class_to_index_[label]
-                      for label in y], dtype=np.int32)
+        # self.class_to_index_ = {label: index
+        #                         for index, label in enumerate(self.classes_)}
+        # y = np.array([self.class_to_index_[label]
+        #               for label in y], dtype=np.int32)
 
         self._graph = tf.Graph()
         with self._graph.as_default():
@@ -171,15 +180,17 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
         with self._session.as_default() as sess:
             self._init.run()
             for epoch in range(n_epochs):
-                rnd_idx = np.random.permutation(len(X))
-                for rnd_indices in np.array_split(rnd_idx, len(X) // self.batch_size):
-                    X_batch, y_batch = X[rnd_indices], y[rnd_indices]
-                    feed_dict = {self._X: X_batch, self._y: y_batch}
-                    if self._training is not None:
-                        feed_dict[self._training] = True
-                    sess.run(self._training_op, feed_dict=feed_dict)
-                    if extra_update_ops:
-                        sess.run(extra_update_ops, feed_dict=feed_dict)
+
+                sess.run(self._training_op, feed_dict={self._X: X, self._y: y})
+                # rnd_idx = np.random.permutation(len(X))
+                # for rnd_indices in np.array_split(rnd_idx, len(X) // self.batch_size):
+                #     X_batch, y_batch = X[rnd_indices], y[rnd_indices]
+                #     feed_dict = {self._X: X_batch, self._y: y_batch}
+                #     if self._training is not None:
+                #         feed_dict[self._training] = True
+                #     sess.run(self._training_op, feed_dict=feed_dict)
+                #     if extra_update_ops:
+                #         sess.run(extra_update_ops, feed_dict=feed_dict)
                 if X_valid is not None and y_valid is not None:
                     loss_val, acc_val = sess.run([self._loss, self._accuracy],
                                                  feed_dict={self._X: X_valid,
@@ -197,8 +208,8 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
                         break
                 else:
                     loss_train, acc_train = sess.run([self._loss, self._accuracy],
-                                                     feed_dict={self._X: X_batch,
-                                                                self._y: y_batch})
+                                                     feed_dict={self._X: X,
+                                                                self._y: y})
                     print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
                         epoch, loss_train, acc_train * 100))
             # If we used early stopping then rollback to the best model found
@@ -221,6 +232,8 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
         self._saver.save(self._session, path)
 
 if __name__ == '__main__':
+
+
     n_inputs = 28 * 28 # MNIST
     n_outputs = 5
     (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()

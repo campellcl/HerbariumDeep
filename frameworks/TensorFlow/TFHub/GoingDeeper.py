@@ -11,7 +11,8 @@ from sklearn import model_selection
 from sklearn.metrics import accuracy_score
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
-from frameworks.TensorFlow.TFHub.TFHModel import TFHModel
+# from frameworks.TensorFlow.TFHub.TFHModel import TFHModel
+from frameworks.TensorFlow.TFHub.TFHModelTwo import DNNClassifier
 import pandas as pd
 import numpy as np
 
@@ -319,12 +320,14 @@ def main(_):
     #     train_batch_size=num_train_images
     # )
 
-    tfh_classifier = TFHModel(
-        tfhub_module_url=CMD_ARG_FLAGS.tfhub_module,
-        num_unique_classes=num_classes,
-        learning_rate=CMD_ARG_FLAGS.learning_rate,
-        train_batch_size=num_train_images
-    )
+    # tfh_classifier = TFHModel(
+    #     tfhub_module_url=CMD_ARG_FLAGS.tfhub_module,
+    #     num_unique_classes=num_classes,
+    #     learning_rate=CMD_ARG_FLAGS.learning_rate,
+    #     train_batch_size=num_train_images
+    # )
+
+    tfh_classifier = DNNClassifier()
 
     bottleneck_dataframes = _update_and_retrieve_bottlenecks(image_lists=image_lists)
     minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
@@ -342,7 +345,7 @@ def main(_):
 
     tfh_classifier.fit(X=minibatch_train_bottlenecks, y=minibatch_train_ground_truth_indices, n_epochs=100)
     y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
-    accuracy_score(minibatch_train_ground_truth_indices, y_pred)
+    print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
     # tfh_classifier.fit(X=image_lists['train'], y=image_lists[])
 
 
