@@ -5,9 +5,11 @@ import tensorflow as tf
 import tensorflow_hub as hub
 import numpy as np
 
+
 he_init = tf.variance_scaling_initializer()
 
-class DNNClassifier(BaseEstimator, ClassifierMixin):
+
+class TFHClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, optimizer_class=tf.train.AdamOptimizer,
                  learning_rate=0.01, batch_size=20, activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None):
@@ -181,16 +183,9 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
             self._init.run()
             for epoch in range(n_epochs):
 
+                # Run a training step and capture the results in self._training_op
                 sess.run(self._training_op, feed_dict={self._X: X, self._y: y})
-                # rnd_idx = np.random.permutation(len(X))
-                # for rnd_indices in np.array_split(rnd_idx, len(X) // self.batch_size):
-                #     X_batch, y_batch = X[rnd_indices], y[rnd_indices]
-                #     feed_dict = {self._X: X_batch, self._y: y_batch}
-                #     if self._training is not None:
-                #         feed_dict[self._training] = True
-                #     sess.run(self._training_op, feed_dict=feed_dict)
-                #     if extra_update_ops:
-                #         sess.run(extra_update_ops, feed_dict=feed_dict)
+
                 if X_valid is not None and y_valid is not None:
                     loss_val, acc_val = sess.run([self._loss, self._accuracy],
                                                  feed_dict={self._X: X_valid,
@@ -231,9 +226,8 @@ class DNNClassifier(BaseEstimator, ClassifierMixin):
     def save(self, path):
         self._saver.save(self._session, path)
 
+
 if __name__ == '__main__':
-
-
     n_inputs = 28 * 28 # MNIST
     n_outputs = 5
     (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
@@ -249,7 +243,7 @@ if __name__ == '__main__':
     y_valid1 = y_valid[y_valid < 5]
     X_test1 = X_test[y_test < 5]
     y_test1 = y_test[y_test < 5]
-    dnn_clf = DNNClassifier(random_state=42)
+    dnn_clf = TFHClassifier(random_state=42)
     dnn_clf.fit(X_train1, y_train1, n_epochs=10, X_valid=X_valid1, y_valid=y_valid1)
     y_pred = dnn_clf.predict(X_test1)
     # accuracy_score(y_test1, y_pred)

@@ -10,9 +10,9 @@ import collections
 from sklearn import model_selection
 from sklearn.metrics import accuracy_score
 import time
-from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
+# from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
 # from frameworks.TensorFlow.TFHub.TFHModel import TFHModel
-from frameworks.TensorFlow.TFHub.TFHModelTwo import DNNClassifier
+from frameworks.TensorFlow.TFHub.TFHModelTwo import TFHClassifier
 import pandas as pd
 import numpy as np
 
@@ -327,7 +327,7 @@ def main(_):
     #     train_batch_size=num_train_images
     # )
 
-    tfh_classifier = DNNClassifier()
+    tfh_classifier = TFHClassifier()
 
     bottleneck_dataframes = _update_and_retrieve_bottlenecks(image_lists=image_lists)
     minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
