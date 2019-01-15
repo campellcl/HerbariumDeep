@@ -112,20 +112,25 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             # pre-activations:
             with tf.name_scope('Wx_plus_b'):
                 logits = tf.matmul(X, layer_weights) + layer_biases
-                tf.summary.histogram('pre_activation_logits', logits)
+                # For TensorBoard histograms:
+                tf.summary.histogram('Wx_plus_b', logits)
 
         # logits = tf.layers.dense(dnn_outputs, n_outputs, kernel_initializer=he_init, name="logits")
         Y_proba = tf.nn.softmax(logits, name="Y_proba")
 
         xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y,
                                                                   logits=logits)
+        tf.summary.histogram('xentropy', xentropy)
+
         loss = tf.reduce_mean(xentropy, name="loss")
+        tf.summary.scalar('loss', loss)
 
         optimizer = self.optimizer_class(learning_rate=self.learning_rate)
         training_op = optimizer.minimize(loss)
 
         correct = tf.nn.in_top_k(logits, y, 1)
         accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name="accuracy")
+        tf.summary.scalar('accuracy', accuracy)
 
         init = tf.global_variables_initializer()
 
@@ -239,7 +244,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         n_inputs = X.shape[1]
         self.classes_ = np.unique(y)
         n_outputs = len(self.classes_)
-
         self._graph = tf.Graph()
         with self._graph.as_default():
             self._build_graph(n_inputs, n_outputs)
@@ -271,7 +275,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
                     # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
                     # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
-
 
                 if X_valid is not None and y_valid is not None:
                     loss_val, acc_val = sess.run([self._loss, self._accuracy],
