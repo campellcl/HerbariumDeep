@@ -325,7 +325,7 @@ def main(_):
         class_labels=list(image_lists.keys())
     )
 
-    tfh_classifier.fit(X=minibatch_train_bottlenecks, y=minibatch_train_ground_truth_indices, n_epochs=100)
+    tfh_classifier.fit(X=minibatch_train_bottlenecks, y=minibatch_train_ground_truth_indices, n_epochs=100, ckpt_freq=25)
     y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
     print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
     # tfh_classifier.fit(X=image_lists['train'], y=image_lists[])

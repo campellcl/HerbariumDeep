@@ -4,7 +4,7 @@ from sklearn.metrics import accuracy_score
 import tensorflow as tf
 import tensorflow_hub as hub
 import numpy as np
-
+import os
 
 he_init = tf.variance_scaling_initializer()
 
@@ -12,8 +12,23 @@ he_init = tf.variance_scaling_initializer()
 class TFHClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, optimizer_class=tf.train.AdamOptimizer,
                  learning_rate=0.01, batch_size=20, activation=tf.nn.elu, initializer=he_init,
-                 batch_norm_momentum=None, dropout_rate=None, random_state=None):
+                 batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir=None,
+                 ckpt_dir=None, saved_model_dir=None):
+        """
+        __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
+        :param optimizer_class: The type of optimizer to use during training (AdamOptimizer by default)
+        :param learning_rate:
+        :param batch_size:
+        :param activation:
+        :param initializer:
+        :param batch_norm_momentum:
+        :param dropout_rate:
+        :param random_state:
+        :param tb_logdir: <str> The directory to export training and validation summaries to for tensorboard analysis.
+        :param ckpt_dir: <str> The directory to export model snapshots (checkpoints) during training to.
+        """
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
+        self._module_spec = None
         self.optimizer_class = optimizer_class
         self.learning_rate = learning_rate
         self.batch_size = batch_size
@@ -23,6 +38,15 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.dropout_rate = dropout_rate
         self.random_state = random_state
         self._session = None
+        # Create a FileWriter object to export tensorboard information:
+        self._train_writer = None
+        # TensorBoard directory assignments:
+        if tb_logdir is None:
+            self.tb_logdir = 'tmp/summaries/'
+        if ckpt_dir is None:
+            self.ckpt_dir = 'tmp/'
+        if saved_model_dir is None:
+            self.saved_model_dir = 'tmp/trained_model/'
 
     def _build_graph(self, n_inputs, n_outputs):
         if self.random_state is not None:
@@ -39,6 +63,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
         # Load module spec/blueprint:
         tfhub_module_spec = hub.load_module_spec('https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1')
+        self._module_spec = tfhub_module_spec
         height, width = hub.get_expected_image_size(tfhub_module_spec)
         tf.logging.info(msg='Loaded the provided TensorFlowHub module spec: \'%s\'' % tfhub_module_spec)
 
@@ -103,13 +128,19 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name="accuracy")
 
         init = tf.global_variables_initializer()
-        saver = tf.train.Saver()
+
+        # Merge all tensorboard summaries into one object:
+        tb_merged_summaries = tf.summary.merge_all()
+
+        # Create a saver for checkpoint file creation and restore:
+        train_saver = tf.train.Saver()
 
         # Make the important operations available easily through instance variables
         self._X, self._y = X, y
         self._Y_proba, self._loss = Y_proba, loss
         self._training_op, self._accuracy = training_op, accuracy
-        self._init, self._saver = init, saver
+        self._init, self._train_saver = init, train_saver
+        self._merged = tb_merged_summaries
 
     def close_session(self):
         if self._session:
@@ -130,7 +161,77 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         feed_dict = {init_values[gvar_name]: model_params[gvar_name] for gvar_name in gvar_names}
         self._session.run(assign_ops, feed_dict=feed_dict)
 
-    def fit(self, X, y, n_epochs=10, X_valid=None, y_valid=None):
+    # def export_model(self, module_spec, class_count, saved_model_dir):
+    #     """Exports model for serving.
+    #
+    # Args:
+    #   module_spec: The hub.ModuleSpec for the image module being used.
+    #   class_count: The number of classes.
+    #   saved_model_dir: Directory in which to save exported model and variables.
+    # """
+    #     # The SavedModel should hold the eval graph.
+    #     eval_sess, resized_input_image, bottleneck_input, ground_truth_input, acc_evaluation_step, \
+    #         top5_acc_eval_step, prediction = build_eval_session(module_spec, class_count)
+    #     graph = eval_sess.graph
+    #     with graph.as_default():
+    #         inputs = {'image': tf.saved_model.utils.build_tensor_info(resized_input_image)}
+    #
+    #         out_classes = eval_sess.graph.get_tensor_by_name('retrain_ops/final_result:0')
+    #         outputs = {
+    #             'prediction': tf.saved_model.utils.build_tensor_info(out_classes)
+    #         }
+    #
+    #         signature = tf.saved_model.signature_def_utils.build_signature_def(
+    #             inputs=inputs,
+    #             outputs=outputs,
+    #             method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
+    #
+    #         legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
+    #
+    #         # Save out the SavedModel.
+    #         builder = tf.saved_model.builder.SavedModelBuilder(saved_model_dir)
+    #         builder.add_meta_graph_and_variables(
+    #             eval_sess, [tf.saved_model.tag_constants.SERVING],
+    #             signature_def_map={
+    #                 tf.saved_model.signature_constants.
+    #                     DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+    #                     signature
+    #             },
+    #             legacy_init_op=legacy_init_op)
+    #         builder.save()
+
+    def save_graph_to_file(self, graph_file_name, module_spec, class_count):
+        """
+        save_graph_to_file: Saves a tensorflow computational graph to a file for use in tensorboard.
+        :param graph_file_name: The file name that will be used when saving the resulting graph.
+        :param module_spec: The TFHub module specification (i.e. blueprint).
+        :param class_count: The number of unique classes in the training and testing datasets (assumed to be identical so
+            that the model is not evaluated on classes it hasn't seen).
+        :return:
+        """
+        graph = self._session.graph
+        tf.train.write_graph(self._session.graph_def, logdir=self.tb_logdir, name='session_graph_def.meta', as_text=True)
+
+        # Convert variables to constants:
+        output_graph_def = tf.graph_util.convert_variables_to_constants(
+            self._session, graph.as_graph_def(), ['Y_proba']
+        )
+
+        with tf.gfile.GFile(graph_file_name, 'wb') as fp:
+            fp.write(output_graph_def.SerializeToString())
+
+    def fit(self, X, y, n_epochs=10, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
+        """
+        fit: Fits the model to the training data.
+        :param X:
+        :param y:
+        :param n_epochs: The number of passes over the entire training dataset during fitting.
+        :param X_valid:
+        :param y_valid:
+        :param eval_freq: How many epochs to train for, before running and displaying the results of an evaluation step.
+        :param ckpt_freq: How many epochs to train for, before saving a model checkpoint.
+        :return:
+        """
         """Fit the model to the training set. If X_valid and y_valid are provided, use early stopping."""
         self.close_session()
 
@@ -154,11 +255,23 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Now train the model!
         self._session = tf.Session(graph=self._graph)
         with self._session.as_default() as sess:
+            self._train_writer = tf.summary.FileWriter(self.tb_logdir + '/train', sess.graph)
             self._init.run()
             for epoch in range(n_epochs):
-
+                is_last_step = (epoch + 1 == n_epochs)
                 # Run a training step and capture the results in self._training_op
-                sess.run(self._training_op, feed_dict={self._X: X, self._y: y})
+                train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X, self._y: y})
+                # Export the results to the TensorBoard logging directory:
+                self._train_writer.add_summary(train_summary, epoch)
+
+                # Check to see if a checkpoint should be recorded this epoch:
+                if epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
+                    tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
+                    self._train_saver.save(sess, self.ckpt_dir)
+                    # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
+                    # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
+                    # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
+
 
                 if X_valid is not None and y_valid is not None:
                     loss_val, acc_val = sess.run([self._loss, self._accuracy],
@@ -176,14 +289,20 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         print("Early stopping!")
                         break
                 else:
-                    loss_train, acc_train = sess.run([self._loss, self._accuracy],
-                                                     feed_dict={self._X: X,
-                                                                self._y: y})
-                    print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
-                        epoch, loss_train, acc_train * 100))
+                    if (epoch % eval_freq) == 0 or is_last_step:
+                        loss_train, acc_train = sess.run([self._loss, self._accuracy],
+                                                         feed_dict={self._X: X,
+                                                                    self._y: y})
+                        print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
+                            epoch, loss_train, acc_train * 100))
+
             # If we used early stopping then rollback to the best model found
             if best_params:
                 self._restore_model_params(best_params)
+
+            # Export the trained model for use with serving:
+            # export_model(module_spec=self._module_spec, class_count=n_outputs, saved_model_dir=self.saved_model_dir)
+
             return self
 
     def predict_proba(self, X):
@@ -198,7 +317,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                          for class_index in class_indices], np.int32)
 
     def save(self, path):
-        self._saver.save(self._session, path)
+        self._train_saver.save(self._session, path)
 
 
 if __name__ == '__main__':
