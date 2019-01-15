@@ -40,6 +40,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._session = None
         # Create a FileWriter object to export tensorboard information:
         self._train_writer = None
+        self._val_writer = None
         # TensorBoard directory assignments:
         if tb_logdir is None:
             self.tb_logdir = 'tmp/summaries/'
@@ -260,6 +261,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._session = tf.Session(graph=self._graph)
         with self._session.as_default() as sess:
             self._train_writer = tf.summary.FileWriter(self.tb_logdir + '/train', sess.graph)
+            self._val_writer = tf.summary.FileWriter(self.tb_logdir + '/val')
             self._init.run()
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
@@ -277,9 +279,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
 
                 if X_valid is not None and y_valid is not None:
-                    loss_val, acc_val = sess.run([self._loss, self._accuracy],
+                    val_summary, loss_val, acc_val = sess.run([self._merged, self._loss, self._accuracy],
                                                  feed_dict={self._X: X_valid,
                                                             self._y: y_valid})
+                    self._val_writer.add_summary(val_summary, epoch)
                     if loss_val < best_loss:
                         best_params = self._get_model_params()
                         best_loss = loss_val
