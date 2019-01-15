@@ -6,14 +6,14 @@ import tensorflow_hub as hub
 import numpy as np
 import os
 
-he_init = tf.variance_scaling_initializer()
-
+# he_init = tf.variance_scaling_initializer()
+he_init = tf.initializers.he_normal
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, optimizer_class=tf.train.AdamOptimizer,
                  learning_rate=0.01, batch_size=20, activation=tf.nn.elu, initializer=he_init,
-                 batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir=None,
-                 ckpt_dir=None, saved_model_dir=None):
+                 batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp/summaries/',
+                 ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/'):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
         :param optimizer_class: The type of optimizer to use during training (AdamOptimizer by default)
@@ -42,12 +42,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._train_writer = None
         self._val_writer = None
         # TensorBoard directory assignments:
+        self.ckpt_dir = ckpt_dir
+        self.saved_model_dir = saved_model_dir
+        self.tb_logdir = tb_logdir
         if tb_logdir is None:
             self.tb_logdir = 'tmp/summaries/'
-        if ckpt_dir is None:
-            self.ckpt_dir = 'tmp/'
-        if saved_model_dir is None:
-            self.saved_model_dir = 'tmp/trained_model/'
 
     def _build_graph(self, n_inputs, n_outputs):
         if self.random_state is not None:
@@ -100,11 +99,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         with tf.variable_scope(final_layer_name):
             # The final layer of target domain re-train Operations is composed of the following:
             with tf.name_scope('weights'):
-                # Output random values from truncated normal distribution:
-                initial_value = tf.truncated_normal(
+                # Output random values from the initializer:
+                initial_value = self.initializer(
                     shape=[bottleneck_tensor_size, n_outputs],
                     stddev=0.001
                 )
+                # Output random values from truncated normal distribution:
+                # initial_value = tf.truncated_normal(
+                #     shape=[bottleneck_tensor_size, n_outputs],
+                #     stddev=0.001
+                # )
                 layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
 
             with tf.name_scope('biases'):
@@ -226,6 +230,20 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         with tf.gfile.GFile(graph_file_name, 'wb') as fp:
             fp.write(output_graph_def.SerializeToString())
 
+    def get_hyperparameter_string(self):
+        if self.initializer == tf.random_normal:
+            hyper_string = 'INIT_rand_norm,'
+        elif self.initializer == tf.random_uniform:
+            hyper_string = 'INIT_rand_unif,'
+        elif self.initializer == tf.truncated_normal:
+            hyper_string = 'INIT_trunc_norm,'
+        elif self.initializer == tf.initializers.he_normal:
+        # elif 'tf.python.ops.init_ops.VarianceScaling' in str(self.initializer):
+            hyper_string = 'INIT_he_norm,'
+        else:
+            hyper_string = 'INIT_unknown,'
+        return hyper_string
+
     def fit(self, X, y, n_epochs=10, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
         """
         fit: Fits the model to the training data.
@@ -260,8 +278,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Now train the model!
         self._session = tf.Session(graph=self._graph)
         with self._session.as_default() as sess:
-            self._train_writer = tf.summary.FileWriter(self.tb_logdir + '/train', sess.graph)
-            self._val_writer = tf.summary.FileWriter(self.tb_logdir + '/val')
+            # self._hyper_string = str(self._get_model_params())
+            self._hyper_string = self.get_hyperparameter_string()
+            self._train_writer = tf.summary.FileWriter(self.tb_logdir + '/train/' + self._hyper_string, sess.graph)
+            self._val_writer = tf.summary.FileWriter(self.tb_logdir + '/val/' + self._hyper_string)
             self._init.run()
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)

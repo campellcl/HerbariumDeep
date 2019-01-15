@@ -9,6 +9,7 @@ import tensorflow as tf
 import collections
 from sklearn import model_selection
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
 import pandas as pd
@@ -308,9 +309,6 @@ def main(_):
                         'all sample images' % (num_train_images, num_images, ((num_train_images*100)/num_images),
                                                num_val_images, num_images, ((num_val_images*100)/num_images),
                                                num_test_images, num_images, ((num_test_images*100)/num_images)))
-
-    tfh_classifier = TFHClassifier()
-
     bottleneck_dataframes = _update_and_retrieve_bottlenecks(image_lists=image_lists)
     minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
         bottleneck_dataframes=bottleneck_dataframes,
@@ -324,7 +322,22 @@ def main(_):
         category='val',
         class_labels=list(image_lists.keys())
     )
-    tfh_classifier.fit(
+
+    # GridSearchCV
+    ''' Weight Initialization Methods (see: https://www.tensorflow.org/api_docs/python/tf/initializers): '''
+    # xavier_and_he_init = tf.variance_scaling_initializer()
+    he_normal = tf.initializers.he_normal
+    he_uniform = tf.initializers.he_uniform
+    truncated_normal = tf.truncated_normal
+    random_normal_dist = tf.random_normal
+    uniform_normal_dist = tf.random_uniform
+
+    param_distribs = {
+        'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform]
+    }
+    tfh_classifier = TFHClassifier(random_state=42)
+    grid_search_cv = GridSearchCV(tfh_classifier, param_distribs, cv=2, verbose=2)
+    grid_search_cv.fit(
         X=minibatch_train_bottlenecks,
         y=minibatch_train_ground_truth_indices,
         X_valid=minibatch_val_bottlenecks,
@@ -334,6 +347,8 @@ def main(_):
     )
     y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
     print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
+    # y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
+    # print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
     # tfh_classifier.fit(X=image_lists['train'], y=image_lists[])
 
 
