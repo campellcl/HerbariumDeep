@@ -6,6 +6,7 @@ import numpy as np
 
 he_init = tf.variance_scaling_initializer()
 
+
 class DNNClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, n_hidden_layers=5, n_neurons=100, optimizer_class=tf.train.AdamOptimizer,
                  learning_rate=0.01, batch_size=20, activation=tf.nn.elu, initializer=he_init,
