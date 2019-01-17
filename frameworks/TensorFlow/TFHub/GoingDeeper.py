@@ -325,8 +325,8 @@ def main(_):
 
     # GridSearchCV
     ''' Weight Initialization Methods (see: https://www.tensorflow.org/api_docs/python/tf/initializers): '''
-    # xavier_and_he_init = tf.variance_scaling_initializer()
-    he_normal = tf.initializers.he_normal
+    he_normal = tf.variance_scaling_initializer()
+    # he_normal = tf.initializers.he_normal
     he_uniform = tf.initializers.he_uniform
     truncated_normal = tf.truncated_normal
     random_normal_dist = tf.random_normal
@@ -335,6 +335,9 @@ def main(_):
     param_distribs = {
         'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform]
     }
+    # param_distribs = {
+    #     'initializer': [he_normal]
+    # }
     tfh_classifier = TFHClassifier(random_state=42)
     grid_search_cv = GridSearchCV(tfh_classifier, param_distribs, cv=2, verbose=2)
     grid_search_cv.fit(
@@ -345,7 +348,7 @@ def main(_):
         n_epochs=100,
         ckpt_freq=25
     )
-    y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
+    y_pred = grid_search_cv.predict(X=minibatch_val_bottlenecks)
     print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
     # y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
     # print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
