@@ -5,6 +5,7 @@ import tensorflow as tf
 import tensorflow_hub as hub
 import numpy as np
 import os
+import shutil
 
 he_init = tf.variance_scaling_initializer()
 # he_init = tf.initializers.he_normal
@@ -14,7 +15,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, optimizer_class=tf.train.AdamOptimizer,
                  learning_rate=0.01, batch_size=20, activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp/summaries/',
-                 ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/'):
+                 ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
         :param optimizer_class: The type of optimizer to use during training (AdamOptimizer by default)
@@ -27,6 +28,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         :param random_state:
         :param tb_logdir: <str> The directory to export training and validation summaries to for tensorboard analysis.
         :param ckpt_dir: <str> The directory to export model snapshots (checkpoints) during training to.
+         :param refit: <bool> True if this is the second time fitting a TFHClassifier with the same ParameterGrid, False
+            otherwise. This flag is particularly useful when utilizing SKLearn's GridSearchCV, which involves refitting
+            the model using the most successful hyperparameter combination from the GridSearch. This boolean flag can
+            be used to ensure the TensorBoard logging directories previously populated during the GridSearch are wiped
+            clean, before being repopulated with results pertaining exactly to the final refit operation.
         """
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
         self._module_spec = None
@@ -39,6 +45,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.dropout_rate = dropout_rate
         self.random_state = random_state
         self._session = None
+        self._graph = None
         # Create a FileWriter object to export tensorboard information:
         self._train_writer = None
         self._val_writer = None
@@ -46,6 +53,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.ckpt_dir = ckpt_dir
         self.saved_model_dir = saved_model_dir
         self.tb_logdir = tb_logdir
+        self.refit = refit
 
     @staticmethod
     def _get_initializer_repr(initializer):
@@ -65,6 +73,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             return 'INIT_UNKNOWN'
 
     def _build_graph(self, n_inputs, n_outputs):
+        # I added this to control TB writting, not sure session persistance is the issue depends on SKLearn inner workings.
+        # if self._session is not None:
+        #     self.close_session()
+
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
             np.random.seed(self.random_state)
@@ -291,6 +303,21 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """Fit the model to the training set. If X_valid and y_valid are provided, use early stopping."""
         self.close_session()
 
+        # TB TrainWriter logging directory:
+        tb_log_path_train = self.tb_logdir + '/train/' + self.__repr__()
+        # TB ValidationWriter logging directory:
+        tb_log_path_val = self.tb_logdir + '/val/' + self.__repr__()
+
+        # If this is a refit of an existing hyperparameter combination, purge TB logging directories:
+        if self.refit:
+            # Remove the TB logging directory from the first training fit with these parameters:
+            shutil.rmtree(tb_log_path_train, ignore_errors=True)
+            # Remove the TB logging directory from the first validation fit with these parameters:
+            shutil.rmtree(tb_log_path_val, ignore_errors=True)
+            # Re-create both directories:
+            # os.mkdir(tb_log_path_train)
+            # os.mkdir(tb_log_path_val)
+
         # infer n_inputs and n_outputs from the training set.
         n_inputs = X.shape[1]
         self.classes_ = np.unique(y)
@@ -311,8 +338,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._session = tf.Session(graph=self._graph)
         with self._session.as_default() as sess:
             # self._hyper_string = str(self._get_model_params())
-            self._train_writer = tf.summary.FileWriter(self.tb_logdir + '/train/' + self.__repr__(), sess.graph)
-            self._val_writer = tf.summary.FileWriter(self.tb_logdir + '/val/' + self.__repr__())
+            self._train_writer = tf.summary.FileWriter(tb_log_path_train, sess.graph)
+            self._val_writer = tf.summary.FileWriter(tb_log_path_val)
             self._init.run()
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
@@ -322,14 +349,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 self._train_writer.add_summary(train_summary, epoch)
 
                 # Check to see if a checkpoint should be recorded this epoch:
-                if epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
+                if ckpt_freq != 0 and epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
                     tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
                     self._train_saver.save(sess, self.ckpt_dir)
+                    # Constant OP for tf.Serving export code goes here:
                     # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
                     # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
                     # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
 
                 if X_valid is not None and y_valid is not None:
+                    # Run eval metrics, and write the result.
                     val_summary, loss_val, acc_val = sess.run([self._merged, self._loss, self._accuracy],
                                                  feed_dict={self._X: X_valid,
                                                             self._y: y_valid})
@@ -346,6 +375,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         print("Early stopping!")
                         break
                 else:
+                    # Report on training accuracy since no validation dataset
                     if (epoch % eval_freq) == 0 or is_last_step:
                         loss_train, acc_train = sess.run([self._loss, self._accuracy],
                                                          feed_dict={self._X: X,
