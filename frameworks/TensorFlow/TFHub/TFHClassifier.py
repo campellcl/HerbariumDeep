@@ -72,6 +72,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         else:
             return 'INIT_UNKNOWN'
 
+    @staticmethod
+    def _get_optimizer_repr(optimizer):
+        class_repr = str(optimizer)
+        if 'GradientDescentOptimizer' in class_repr:
+            return 'OPTIM_GRAD_DESCENT'
+        elif 'AdamOptimizer' in class_repr:
+            return 'OPTIM_ADAM'
+        else:
+            return 'OPTIM_UNKNOWN'
+
     def _build_graph(self, n_inputs, n_outputs):
         # I added this to control TB writting, not sure session persistance is the issue depends on SKLearn inner workings.
         # if self._session is not None:
@@ -407,7 +417,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._train_saver.save(self._session, path)
 
     def __repr__(self):
-        tfh_repr = '%s' % self._get_initializer_repr(self.initializer)
+        tfh_repr = '%s,%s' % (self._get_initializer_repr(self.initializer), self._get_optimizer_repr(self.optimizer_class))
         # tfh_repr = '%s,' % str(self.initializer)
         return tfh_repr
 

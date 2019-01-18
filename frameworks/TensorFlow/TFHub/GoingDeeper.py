@@ -333,8 +333,13 @@ def main(_):
     random_normal_dist = tf.random_normal
     uniform_normal_dist = tf.random_uniform
 
+    ''' Optimizer Classes (see: https://www.tensorflow.org/api_docs/python/tf/train): '''
+    gradient_descent = tf.train.GradientDescentOptimizer
+    adam = tf.train.AdamOptimizer
+
     params = {
-        'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform]
+        'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
+        'optimizer_class': [gradient_descent, adam]
     }
     tfh_classifier = TFHClassifier(random_state=42)
 
