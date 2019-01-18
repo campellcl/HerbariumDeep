@@ -10,6 +10,7 @@ import collections
 from sklearn import model_selection
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV
+# from sklearn.model_selection import ParameterGrid
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
 import pandas as pd
@@ -332,24 +333,74 @@ def main(_):
     random_normal_dist = tf.random_normal
     uniform_normal_dist = tf.random_uniform
 
-    param_distribs = {
-        'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform]
+    params = {
+        'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
     }
-    # param_distribs = {
-    #     'initializer': [he_normal]
+    # params = {
+    #     'initializer': [random_normal_dist]
     # }
     tfh_classifier = TFHClassifier(random_state=42)
-    grid_search_cv = GridSearchCV(tfh_classifier, param_distribs, cv=2, verbose=2)
-    grid_search_cv.fit(
+
+    # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
+    cv = [(slice(None), slice(None))]
+    grid_search = GridSearchCV(tfh_classifier, params, cv=cv, verbose=2, refit=False)
+    grid_search.fit(
         X=minibatch_train_bottlenecks,
         y=minibatch_train_ground_truth_indices,
         X_valid=minibatch_val_bottlenecks,
         y_valid=minibatch_val_ground_truth_indices,
         n_epochs=100,
-        ckpt_freq=25
+        ckpt_freq=0
     )
-    y_pred = grid_search_cv.predict(X=minibatch_val_bottlenecks)
+    best_params = grid_search.best_params_
+    # best_params = grid_search.cv_results_['params'][grid_search.best_index_]
+    # This is a refit operation, notify TensorBoard to replace the previous run's logging data:
+    best_params['refit'] = True
+    # Replace the current model parameters with the best combination from the GridSearch:
+    current_params = tfh_classifier.get_params()
+    current_params.update(best_params)
+    tfh_classifier.set_params(**current_params)
+    # Re-fit the model using the best parameter combination from the GridSearch:
+    tfh_classifier.fit(
+        X=minibatch_train_bottlenecks,
+        y=minibatch_train_ground_truth_indices,
+        X_valid=minibatch_val_bottlenecks,
+        y_valid=minibatch_val_ground_truth_indices,
+        n_epochs=100,
+        ckpt_freq=0
+    )
+    y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
     print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
+    # print('waka')
+
+
+    # for grid in ParameterGrid(params):
+    #     tfh_classifier.set_params(**grid)
+    #     tfh_classifier.fit(
+    #         X=minibatch_train_bottlenecks,
+    #         y=minibatch_train_ground_truth_indices,
+    #         X_valid=minibatch_val_bottlenecks,
+    #         y_valid=minibatch_val_ground_truth_indices,
+    #         n_epochs=100,
+    #         ckpt_freq=25
+    #     )
+
+    # param_distribs = {
+    #     'initializer': [he_normal]
+    # }
+
+
+    # grid_search_cv = GridSearchCV(tfh_classifier, params, cv=2, verbose=2)
+    # grid_search_cv.fit(
+    #     X=minibatch_train_bottlenecks,
+    #     y=minibatch_train_ground_truth_indices,
+    #     X_valid=minibatch_val_bottlenecks,
+    #     y_valid=minibatch_val_ground_truth_indices,
+    #     n_epochs=100,
+    #     ckpt_freq=25
+    # )
+    # y_pred = grid_search.predict(X=minibatch_val_bottlenecks)
+    # print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
     # y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
     # print(accuracy_score(minibatch_val_ground_truth_indices, y_pred))
     # tfh_classifier.fit(X=image_lists['train'], y=image_lists[])
