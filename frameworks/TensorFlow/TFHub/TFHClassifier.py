@@ -184,7 +184,13 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         loss = tf.reduce_mean(xentropy, name="loss")
         tf.summary.scalar('loss', loss)
 
-        optimizer = self.optimizer_class(learning_rate=self.learning_rate)
+        optim_class_repr = str(self.optimizer_class)
+        if 'momentum.MomentumOptimizer' in optim_class_repr:
+            # optimizer = self.optimizer_class(learning_rate=self.learning_rate, momentum=)
+            # Optimizer is an already instantiated MomentumOptimizer, do not attempt to re-instantiate:
+            optimizer = self.optimizer_class
+        else:
+            optimizer = self.optimizer_class(learning_rate=self.learning_rate)
         training_op = optimizer.minimize(loss)
 
         correct = tf.nn.in_top_k(logits, y, 1)

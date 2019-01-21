@@ -336,10 +336,20 @@ def main(_):
     ''' Optimizer Classes (see: https://www.tensorflow.org/api_docs/python/tf/train): '''
     gradient_descent = tf.train.GradientDescentOptimizer
     adam = tf.train.AdamOptimizer
+    momentum_low = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.1)
+    momentum_high = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9)
+    nesterov_low = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.1, use_nesterov=True)
+    nesterov_high = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9, use_nesterov=True)
 
+
+
+    # params = {
+    #     'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
+    #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
+    # }
     params = {
-        'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
-        'optimizer_class': [gradient_descent, adam]
+        'initializer': [truncated_normal],
+        'optimizer_class': [nesterov_low, nesterov_high]
     }
     tfh_classifier = TFHClassifier(random_state=42)
 
