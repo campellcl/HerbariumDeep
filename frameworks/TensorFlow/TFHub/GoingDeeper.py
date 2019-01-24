@@ -142,9 +142,13 @@ def _update_and_retrieve_bottlenecks(image_lists):
         # Bottlenecks .pkl file exists, read from disk:
         tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'.'
                             % CMD_ARG_FLAGS.bottleneck_path)
-        bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
-        tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
-                            % os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+        try:
+            bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+            tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
+                                % os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+        except Exception as err:
+            tf.logging.error(msg=err)
+
         if _is_bottleneck_for_every_sample(image_lists, bottlenecks):
             # Partition the bottleneck dataframe:
             train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
@@ -324,6 +328,9 @@ def main(_):
         class_labels=list(image_lists.keys())
     )
 
+    # Hyperparameters
+    learning_rate = 0.01
+
     # GridSearchCV
     ''' Weight Initialization Methods (see: https://www.tensorflow.org/api_docs/python/tf/initializers): '''
     he_normal = tf.variance_scaling_initializer()
@@ -336,11 +343,12 @@ def main(_):
     ''' Optimizer Classes (see: https://www.tensorflow.org/api_docs/python/tf/train): '''
     gradient_descent = tf.train.GradientDescentOptimizer
     adam = tf.train.AdamOptimizer
-    momentum_low = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.1)
-    momentum_high = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9)
-    nesterov_low = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.1, use_nesterov=True)
-    nesterov_high = tf.train.MomentumOptimizer(learning_rate=CMD_ARG_FLAGS.learning_rate, momentum=0.9, use_nesterov=True)
-
+    momentum_low = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.1)
+    momentum_high = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
+    nesterov_low = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.1, use_nesterov=True)
+    nesterov_high = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9, use_nesterov=True)
+    adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate, name='Adagrad')
+    adadelta = tf.train.AdadeltaOptimizer(learning_rate=learning_rate, rho=0.95, epsilon=1e-08, name='Adadelta')
 
 
     # params = {
@@ -348,14 +356,17 @@ def main(_):
     #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
     # }
     params = {
-        'initializer': [truncated_normal],
-        'optimizer_class': [nesterov_low, nesterov_high]
+        'initializer': [he_normal, he_uniform],
+        'optimizer_class': [adadelta]
     }
+    tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     tfh_classifier = TFHClassifier(random_state=42)
+    tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
 
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(tfh_classifier, params, cv=cv, verbose=2, refit=False)
+    tf.logging.info(msg='Fitting model...')
     grid_search.fit(
         X=minibatch_train_bottlenecks,
         y=minibatch_train_ground_truth_indices,
@@ -673,8 +684,8 @@ def _force_type_coercion_of_argparse_cmd_arg_flags():
         CMD_ARG_FLAGS.init_type = CMD_ARG_FLAGS.init_type[0]
     if CMD_ARG_FLAGS.learning_rate_type:
         CMD_ARG_FLAGS.learning_rate_type = CMD_ARG_FLAGS.learning_rate_type[0]
-    if CMD_ARG_FLAGS.learning_rate:
-        CMD_ARG_FLAGS.learning_rate = CMD_ARG_FLAGS.learning_rate[0]
+    # if CMD_ARG_FLAGS.learning_rate:
+    #     CMD_ARG_FLAGS.learning_rate = CMD_ARG_FLAGS.learning_rate[0]
     if CMD_ARG_FLAGS.num_epochs:
         if type(CMD_ARG_FLAGS.num_epochs) is list:
             CMD_ARG_FLAGS.num_epochs = CMD_ARG_FLAGS.num_epochs[0]
