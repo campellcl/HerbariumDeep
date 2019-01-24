@@ -249,6 +249,11 @@ MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 #                 # No provided image directory. No provided bottleneck file. Nothing to do.
 #                 exit(0)
 
+def _add_batch_jpeg_decoding(module_spec):
+    input_height, input_width = hub.get_expected_image_size(module_spec)
+    input_depth = hub.get_num_image_channels(module_spec)
+    # placeholder tensor of any size, capable of taking input.size = [?, image_height, image_width, num_channels=3]
+    jpeg_data = tf.placeholder(tf.string, name='DecodeJPGInput')
 
 def _add_jpeg_decoding(module_spec):
     """Adds operations that perform JPEG decoding and resizing to the graph..
@@ -261,17 +266,27 @@ def _add_jpeg_decoding(module_spec):
         preprocessing steps.
     """
     input_height, input_width = hub.get_expected_image_size(module_spec)
-    input_depth = hub.get_num_image_channels(module_spec)
+    input_depth = hub.get_num_image_channels(module_spec)   # 3
+    # placeholder Tensor of any size, capable of taking current input.shape() = [?, image_height, image_width, num_channels=3]
     jpeg_data = tf.placeholder(tf.string, name='DecodeJPGInput')
+    # Decode a single JPEG-encoded image to a unit8 tensor, with the desired number of color channels (3 in this case) for decoded img:
     decoded_image = tf.image.decode_jpeg(jpeg_data, channels=input_depth)
     # Convert from full range of uint8 to range [0,1] of float32.
-    decoded_image_as_float = tf.image.convert_image_dtype(decoded_image,
-                                                          tf.float32)
+    decoded_image_as_float = tf.image.convert_image_dtype(decoded_image, tf.float32)
+    # Insert a "batch dimension" of 1 to the existing decoded_image_as_float tensor so size is now: [1, ?, image_height, image_width, 3]
     decoded_image_4d = tf.expand_dims(decoded_image_as_float, 0)
+    ''' 
+    Tensors are decoded and represented as 3-d unit8 tensors of shape [height, width, channels], that is shape=(3,)
+    (see: https://www.tensorflow.org/api_guides/python/image). This tf.stack call seems to go from:
+        [input_height=299, input_width=299] -> [input_height=299, input_width=299] with .shape == (2,) e.g. row vector
+    I don't see why this call is here:
+    '''
     resize_shape = tf.stack([input_height, input_width])
+    # Switch back to int32, not sure why we do this, probably to save memory space? Float precision for [0-255] is unnecessary.
     resize_shape_as_int = tf.cast(resize_shape, dtype=tf.int32)
-    resized_image = tf.image.resize_bilinear(decoded_image_4d,
-                                             resize_shape_as_int)
+    # resize the decoded image using bilinear interpolation, this produces shape (1, 299, 299, 3) at runtime for a single image.
+    #   I am not sure why this is needed for a scalar decoded image, although I see how this might be needed for a batch of images:
+    resized_image = tf.image.resize_bilinear(decoded_image_4d, resize_shape_as_int)
     return jpeg_data, resized_image
 
 
@@ -406,6 +421,41 @@ def _calculate_bottleneck_value(sess, image_path, image_data, image_data_tensor,
     return bottleneck_tensor_value
 
 
+def _calculate_bottleneck_values_in_batch(sess, images_data, image_data_tensor, decoded_image_tensor,
+                                          resized_input_tensor, bottleneck_tensor):
+    """
+    _calculate_bottleneck_values_in_batch: Forward propagates the list of provided images thorugh the original source
+        network to produce the output tensor associated with the penultimate layer (pre-softmax).
+    :param sess: <tf.Session> The current active TensorFlow session.
+    :param images_data: A list of decoded images corresponding to the list of image paths.
+    :param image_data_tensor: The placeholder tensor which takes full sized input images and performs resize operations
+        in the target domain for compatibility with the source classifier.
+    :param decoded_image_tensor: A placeholder tensor to store the result of the resize operations.
+    :param resized_input_tensor: A placeholder tensor which takes resized and decoded images and then feeds them into
+        the computational graph.
+    :param bottleneck_tensor: A placeholder tensor storing the results of the forward propagation.
+    :return:
+    """
+    # tf.logging.info('Creating bottleneck images for class: %s' % os.path.dirname(image_paths[0]).split('\\')[-1])
+    resized_input_values = []
+    for image_data in images_data:
+        resized_input_value = sess.run(decoded_image_tensor, {image_data_tensor: image_data})
+        resized_input_values.append(resized_input_value)
+    try:
+        resized_input_values = np.squeeze(resized_input_values)
+        bottleneck_values = sess.run(bottleneck_tensor, {resized_input_tensor: resized_input_values})
+        # bottleneck_values = np.squeeze(bottleneck_values)
+        return bottleneck_values
+    except Exception as err:
+        tf.logging.error(msg=err)
+
+
+def _decode_image_from_path(image_path):
+    image_string = tf.read_file(image_path)
+    image_decoded = tf.image.decode_jpeg(image_string)
+    return image_decoded
+
+
 def _cache_all_bottlenecks(sess, image_lists, jpeg_data_tensor, decoded_image_tensor, resized_image_tensor, bottleneck_tensor):
     """
     cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
@@ -434,37 +484,57 @@ def _cache_all_bottlenecks(sess, image_lists, jpeg_data_tensor, decoded_image_te
     # If the specified bottleneck directory doesn't exist, create it:
     if not os.path.exists(os.path.dirname(bottleneck_path)):
         os.mkdir(os.path.dirname(bottleneck_path))
-    tf.logging.info(msg='Generating empty bottleneck dataframe...')
-    bottlenecks_empty = pd.DataFrame(columns=['class', 'path', 'bottleneck'])
-    for clss in image_lists.keys():
+    col_names = ['class', 'path', 'bottleneck']
+    df_bottlenecks = pd.DataFrame(columns=col_names)
+    df_bottlenecks['class'] = df_bottlenecks['class'].astype('category')
+    num_classes = len(image_lists.keys())
+    for i, clss in enumerate(image_lists.keys()):
+        image_paths = image_lists[clss]
+        tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\'' % (i, num_classes, len(image_paths), clss))
+        images_data = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_paths]
+        bottlenecks = _calculate_bottleneck_values_in_batch(
+            sess=sess, images_data=images_data, image_data_tensor=jpeg_data_tensor,
+            decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
+            bottleneck_tensor=bottleneck_tensor
+        )
+        for j, img_path in enumerate(image_paths):
+            df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[j]}
+        tf.logging.info(msg='\tFinished computing class bottlenecks. Backing up dataframe to: \'%s\'' % bottleneck_path)
+        df_bottlenecks.to_pickle(bottleneck_path)
+
+        # file_paths = tf.constant(image_paths)
+        # image_tf_dataset = tf.data.Dataset.from_tensor_slices((file_paths))
+        # image_tf_dataset = image_tf_dataset.map(_decode_image_from_path).batch(2)
+        # iterator = image_tf_dataset.make_one_shot_iterator()
+        # next_image_batch = iterator.get_next()
         # TODO: Get batches of images to feed forward
 
-        for image_path in image_lists[clss]:
-            new_bottleneck_entry = pd.Series([clss, image_path, None], index=['class', 'path', 'bottleneck'])
-            bottlenecks_empty = bottlenecks_empty.append(new_bottleneck_entry, ignore_index=True)
-    bottlenecks = bottlenecks_empty.copy(deep=True)
+    #     for image_path in image_lists[clss]:
+    #         new_bottleneck_entry = pd.Series([clss, image_path, None], index=['class', 'path', 'bottleneck'])
+    #         bottlenecks_empty = bottlenecks_empty.append(new_bottleneck_entry, ignore_index=True)
+    # bottlenecks = bottlenecks_empty.copy(deep=True)
 
-    tf.logging.info(msg='Generated empty bottleneck dataframe. Propagating with bottleneck values...')
-    num_bottlenecks = 0
-    for i, (clss, series) in enumerate(bottlenecks_empty.iterrows()):
-        image_path = series['path']
-        if not tf.gfile.Exists(image_path):
-            tf.logging.fatal('File does not exist %s', image_path)
-        image_data = tf.gfile.FastGFile(image_path, 'rb').read()
-        bottleneck_tensor_values = _calculate_bottleneck_value(sess=sess, image_path=image_path, image_data=image_data,
-                                                              image_data_tensor=jpeg_data_tensor,
-                                                              decoded_image_tensor=decoded_image_tensor,
-                                                              resized_input_tensor=resized_image_tensor,
-                                                              bottleneck_tensor=bottleneck_tensor)
-        bottlenecks.iat[i, 2] = bottleneck_tensor_values
-        num_bottlenecks += 1
-        if num_bottlenecks % 1000 == 0:
-            tf.logging.info(msg='Computed %d bottleneck arrays.' % num_bottlenecks)
-            bottlenecks.to_pickle(os.path.basename(bottleneck_path))
-
+    # tf.logging.info(msg='Generated empty bottleneck dataframe. Propagating with bottleneck values...')
+    # num_bottlenecks = 0
+    # for i, (clss, series) in enumerate(bottlenecks_empty.iterrows()):
+    #     image_path = series['path']
+    #     if not tf.gfile.Exists(image_path):
+    #         tf.logging.fatal('File does not exist %s', image_path)
+    #     image_data = tf.gfile.FastGFile(image_path, 'rb').read()
+    #     bottleneck_tensor_values = _calculate_bottleneck_value(sess=sess, image_path=image_path, image_data=image_data,
+    #                                                           image_data_tensor=jpeg_data_tensor,
+    #                                                           decoded_image_tensor=decoded_image_tensor,
+    #                                                           resized_input_tensor=resized_image_tensor,
+    #                                                           bottleneck_tensor=bottleneck_tensor)
+    #     bottlenecks.iat[i, 2] = bottleneck_tensor_values
+    #     num_bottlenecks += 1
+    #     if num_bottlenecks % 1000 == 0:
+    #         tf.logging.info(msg='Computed %d bottleneck arrays.' % num_bottlenecks)
+    #         bottlenecks.to_pickle(os.path.basename(bottleneck_path))
+    #
     tf.logging.info(msg='Finished computing bottlenecks. Saving dataframe to: \'%s\'' % bottleneck_path)
-    bottlenecks.to_pickle(os.path.basename(bottleneck_path))
-    return bottlenecks
+    df_bottlenecks.to_pickle(os.path.basename(bottleneck_path))
+    return df_bottlenecks
 
 
 def _resume_caching_bottlenecks(sess, bottlenecks, jpeg_data_tensor, decoded_image_tensor, resized_image_tensor, bottleneck_tensor):
@@ -506,6 +576,18 @@ def main():
     # Build computational graph for bottleneck generation:
     tfhub_module_url = 'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'
     graph, bottleneck_tensor, resized_input_tensor, jpeg_data_tensor, decoded_image_tensor = _build_graph(tfhub_module_url=tfhub_module_url)
+
+    # Build computational graph for batch bottleneck generation:
+    tfhub_module_url = 'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'
+    #   - Iterator construction:
+    # for clss in image_lists.keys():
+    #     image_paths = image_lists[clss]
+    #     file_paths = tf.constant(image_paths)
+    #     image_tf_dataset = tf.data.Dataset.from_tensor_slices((file_paths))
+    #     image_tf_dataset = image_tf_dataset.map(_decode_image_from_path).batch(2)
+    #     iterator = image_tf_dataset.make_one_shot_iterator()
+    #     next_image_batch = iterator.get_next()
+
     # Run the graph in a session to generate bottleneck tensors:
     with tf.Session(graph=graph) as sess:
         init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
