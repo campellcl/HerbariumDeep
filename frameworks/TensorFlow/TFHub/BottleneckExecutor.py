@@ -9,9 +9,10 @@ import tensorflow as tf
 import tensorflow_hub as hub
 import collections
 import numpy as np
+import time
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
-
+MAX_IMAGE_BATCH_SIZE = 100  # With more than 555 sized: [299, 299, 3] images per forward pass, hitting OOM GPU? errors
 
 # class BottleneckExecutor(object):
 #     def __init__(self, bottlenecks_compressed_file_path, image_dir=None):
@@ -488,19 +489,32 @@ def _cache_all_bottlenecks(sess, image_lists, jpeg_data_tensor, decoded_image_te
     df_bottlenecks = pd.DataFrame(columns=col_names)
     df_bottlenecks['class'] = df_bottlenecks['class'].astype('category')
     num_classes = len(image_lists.keys())
+    bottleneck_counts_and_time_stamps = []
     for i, clss in enumerate(image_lists.keys()):
         image_paths = image_lists[clss]
-        tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\'' % (i, num_classes, len(image_paths), clss))
         images_data = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_paths]
-        bottlenecks = _calculate_bottleneck_values_in_batch(
-            sess=sess, images_data=images_data, image_data_tensor=jpeg_data_tensor,
-            decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
-            bottleneck_tensor=bottleneck_tensor
-        )
-        for j, img_path in enumerate(image_paths):
-            df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[j]}
-        tf.logging.info(msg='\tFinished computing class bottlenecks. Backing up dataframe to: \'%s\'' % bottleneck_path)
-        df_bottlenecks.to_pickle(bottleneck_path)
+        '''
+        Have to use batch size for the forward propagation with images, because OOM RAM errors occur otherwise. 
+        '''
+        image_data_batches = [images_data[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
+        tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\''
+                        % (i, num_classes, len(image_paths), clss))
+        for j, image_data_batch in enumerate(image_data_batches):
+            tf.logging.info('\tComputing batch [%d/%d]...' % (j, len(image_data_batches)))
+            ts = time.time()
+            bottlenecks = _calculate_bottleneck_values_in_batch(
+                sess=sess, images_data=image_data_batch, image_data_tensor=jpeg_data_tensor,
+                decoded_image_tensor=decoded_image_tensor, resized_input_tensor=resized_image_tensor,
+                bottleneck_tensor=bottleneck_tensor
+            )
+            bottleneck_counts_and_time_stamps.append((len(image_data_batch), time.time() - ts))
+            for k, img_path in enumerate(image_paths):
+                df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
+        average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
+        tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
+        if i % 100 == 0:
+            tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % bottleneck_path)
+            df_bottlenecks.to_pickle(bottleneck_path)
 
         # file_paths = tf.constant(image_paths)
         # image_tf_dataset = tf.data.Dataset.from_tensor_slices((file_paths))
