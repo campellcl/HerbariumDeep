@@ -189,6 +189,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             # optimizer = self.optimizer_class(learning_rate=self.learning_rate, momentum=)
             # Optimizer is an already instantiated MomentumOptimizer, do not attempt to re-instantiate:
             optimizer = self.optimizer_class
+        elif 'adagrad.AdagradOptimizer' in optim_class_repr:
+            # Optimizer is an already instantiated AdagradOptimizer, do not attempt to re-instantiate:
+            optimizer = self.optimizer_class
+        elif 'adadelta.AdadeltaOptimizer' in optim_class_repr:
+            # Optimizer is an already instantiated AdadeltaOptimizer, do not attempt to re-instantiate:
+            optimizer = self.optimizer_class
         else:
             optimizer = self.optimizer_class(learning_rate=self.learning_rate)
         training_op = optimizer.minimize(loss)
