@@ -139,18 +139,15 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             with tf.name_scope('weights'):
                 # Output random values from the initializer:
                 if 'random_uniform' in str(self.initializer):
-                # if self.initializer_repr == 'INIT_UNIFORM':
                     # Random uniform distribution initializer doesn't need stddev:
                     initial_value = self.initializer(
                         shape=[bottleneck_tensor_size, n_outputs]
                     )
                 elif 'he_normal' in str(self.initializer) or 'init_ops.VarianceScaling' in str(self.initializer):
-                # elif self.initializer_repr == 'INIT_HE_NORMAL':
                     # He normal initializer doesn't need a stddev:
                     initial_value = self.initializer(
                         shape=[bottleneck_tensor_size, n_outputs]
                     )
-                # elif self.initializer_repr == 'INIT_HE_UNIFORM':
                 elif 'he_uniform' in str(self.initializer):
                     initial_value = self.initializer()(shape=[bottleneck_tensor_size, n_outputs])
                 else:
@@ -435,8 +432,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
 
 if __name__ == '__main__':
-    n_inputs = 28 * 28 # MNIST
-    n_outputs = 5
+    testing_n_inputs = 28 * 28 # MNIST
+    testing_n_outputs = 5
     (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
     X_train = X_train.astype(np.float32).reshape(-1, 28*28) / 255.0
     X_test = X_test.astype(np.float32).reshape(-1, 28*28) / 255.0
