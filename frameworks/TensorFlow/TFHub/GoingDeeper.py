@@ -39,38 +39,6 @@ def _prepare_tensor_board_directories():
     return
 
 
-def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
-    train_image_paths = []
-    val_image_paths = []
-    test_image_paths = []
-    for species, datasets in image_lists.items():
-        # Training set images:
-        species_train_image_paths = datasets['train']
-        for species_train_image_path in species_train_image_paths:
-            train_image_paths.append(species_train_image_path)
-        # Validation set images:
-        species_val_image_paths = datasets['val']
-        for species_val_image_path in species_val_image_paths:
-            val_image_paths.append(species_val_image_path)
-        # Testing set images:
-        species_test_image_paths = datasets['test']
-        for species_test_image_path in species_test_image_paths:
-            test_image_paths.append(species_test_image_path)
-    # Ensure every training image has a bottleneck entry in the bottlenecks dataframe:
-    for train_image_path in train_image_paths:
-        if train_image_path not in bottlenecks['path'].values:
-            return False
-    # Ensure every validation image has a bottleneck tensor in bottlenecks dataframe:
-    for val_image_path in val_image_paths:
-        if val_image_path not in bottlenecks['path'].values:
-            return False
-    # Ensure every test image has a bottleneck tensor in the bottlenecks dataframe:
-    for test_image_path in test_image_paths:
-        if test_image_path not in bottlenecks['path'].values:
-            return False
-    return True
-
-
 def _partition_bottlenecks_dataframe(bottlenecks, train_percent=.80, val_percent=.20, test_percent=.20, random_state=0):
     """
     _partition_bottlenecks_dataframe: Partitions the bottlenecks dataframe into training, testing, and validation
@@ -163,96 +131,96 @@ def _partition_and_retrieve_bottlenecks():
         return bottleneck_dataframes
 
 
-def _get_image_lists(image_dir):
-    """
-    _get_image_lists: Creates a dictionary of file paths to images on the hard drive indexed by class label.
-    :param image_dir: <str> The file path pointing to the parent directory housing a series of sample images partitioned
-        into their respective subdirectories by class label.
-    :return image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
-        list of file paths for images belonging to the chosen key/species/class-label.
-    """
-    '''
-    Check to see if the root directory exists. We use tf.gfile which is a C++ FileSystem API wrapper for the Python
-        file API that also supports Google Cloud Storage and HDFS. For more information see:
-        https://stackoverflow.com/questions/42256938/what-does-tf-gfile-do-in-tensorflow
-    '''
-    if not tf.gfile.Exists(image_dir):
-        tf.logging.error("Root image directory '" + image_dir + "' not found.")
-        return None
+# def _get_image_lists(image_dir):
+#     """
+#     _get_image_lists: Creates a dictionary of file paths to images on the hard drive indexed by class label.
+#     :param image_dir: <str> The file path pointing to the parent directory housing a series of sample images partitioned
+#         into their respective subdirectories by class label.
+#     :return image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
+#         list of file paths for images belonging to the chosen key/species/class-label.
+#     """
+#     '''
+#     Check to see if the root directory exists. We use tf.gfile which is a C++ FileSystem API wrapper for the Python
+#         file API that also supports Google Cloud Storage and HDFS. For more information see:
+#         https://stackoverflow.com/questions/42256938/what-does-tf-gfile-do-in-tensorflow
+#     '''
+#     if not tf.gfile.Exists(image_dir):
+#         tf.logging.error("Root image directory '" + image_dir + "' not found.")
+#         return None
+#
+#     accepted_extensions = ['jpg', 'jpeg']   # Note: Includes JPG and JPEG b/c the glob is case insensitive
+#     image_lists = collections.OrderedDict()
+#
+#     sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
+#     # The root directory comes first, so skip it.
+#     is_root_dir = True
+#     for sub_dir in sub_dirs:
+#         file_list = []
+#         dir_name = os.path.basename(sub_dir)
+#         if is_root_dir:
+#             is_root_dir = False
+#             # Skip the root_dir:
+#             continue
+#         if dir_name == image_dir:
+#             # Return control to beginning of for-loop:
+#             continue
+#         tf.logging.info("Looking for images in '" + dir_name + "'")
+#         for extension in accepted_extensions:
+#             # Get a list of all accepted file extensions and the targeted file_name:
+#             file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
+#             # Append all items from the file_glob to the list of files (if extension exists):
+#             file_list.extend(tf.gfile.Glob(file_glob))
+#         if not file_list:
+#             tf.logging.warning(msg='No files found in \'%s\'. Class label omitted from data sets.' % dir_name)
+#             # Return control to beginning of for-loop:
+#             continue
+#         if len(file_list) < 20:
+#             tf.logging.warning('WARNING: Folder has less than 20 images, which may cause issues. See: %s for info.'
+#                                % 'https://stackoverflow.com/questions/38175673/critical-tensorflowcategory-has-no-images-validation')
+#         elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
+#             tf.logging.warning(
+#                 'WARNING: Folder {} has more than {} images. Some images will '
+#                 'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
+#         # label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+#         label_name = dir_name.lower()
+#         if label_name not in image_lists:
+#             image_lists[label_name] = file_list
+#     return image_lists
 
-    accepted_extensions = ['jpg', 'jpeg']   # Note: Includes JPG and JPEG b/c the glob is case insensitive
-    image_lists = collections.OrderedDict()
 
-    sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
-    # The root directory comes first, so skip it.
-    is_root_dir = True
-    for sub_dir in sub_dirs:
-        file_list = []
-        dir_name = os.path.basename(sub_dir)
-        if is_root_dir:
-            is_root_dir = False
-            # Skip the root_dir:
-            continue
-        if dir_name == image_dir:
-            # Return control to beginning of for-loop:
-            continue
-        tf.logging.info("Looking for images in '" + dir_name + "'")
-        for extension in accepted_extensions:
-            # Get a list of all accepted file extensions and the targeted file_name:
-            file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
-            # Append all items from the file_glob to the list of files (if extension exists):
-            file_list.extend(tf.gfile.Glob(file_glob))
-        if not file_list:
-            tf.logging.warning(msg='No files found in \'%s\'. Class label omitted from data sets.' % dir_name)
-            # Return control to beginning of for-loop:
-            continue
-        if len(file_list) < 20:
-            tf.logging.warning('WARNING: Folder has less than 20 images, which may cause issues. See: %s for info.'
-                               % 'https://stackoverflow.com/questions/38175673/critical-tensorflowcategory-has-no-images-validation')
-        elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
-            tf.logging.warning(
-                'WARNING: Folder {} has more than {} images. Some images will '
-                'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
-        # label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
-        label_name = dir_name.lower()
-        if label_name not in image_lists:
-            image_lists[label_name] = file_list
-    return image_lists
-
-
-def _partition_image_lists(image_lists, train_percent, val_percent, test_percent, random_state):
-    """
-    _partition_image_lists: Partitions the provided dict of class labels and file paths into training, validation, and
-        testing datasets.
-    :param image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
-        list of file paths for images belonging to the chosen key/species/class-label.
-    :param train_percent: What percentage of the training data is to remain in the training set.
-    :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
-        for a validation set.
-    :param test_percent: What percentage of the training data is to be allocated to a testing set.
-    :param random_state: A seed for the random number generator controlling the stratified partitioning.
-    :return partitioned_image_lists: <collections.OrderedDict> A dictionary indexed by class label which returns another
-        dictionary indexed by the dataset type {'train','val','test'} which in turn, returns the list of image file
-        paths that correspond to the chosen class label and that reside in the chosen dataset.
-    """
-    partitioned_image_lists = collections.OrderedDict()
-    for class_label, image_paths in image_lists.items():
-        class_label_train_images, class_label_test_images = model_selection.train_test_split(
-            image_paths, train_size=train_percent,
-            test_size=test_percent, shuffle=True,
-            random_state=random_state
-        )
-        class_label_train_images, class_label_val_images = model_selection.train_test_split(
-            class_label_train_images, train_size=train_percent,
-            test_size=val_percent, shuffle=True,
-            random_state=random_state
-        )
-        partitioned_image_lists[class_label] = {
-            'train': class_label_train_images,
-            'val': class_label_val_images,
-            'test': class_label_test_images
-        }
-    return partitioned_image_lists
+# def _partition_image_lists(image_lists, train_percent, val_percent, test_percent, random_state):
+#     """
+#     _partition_image_lists: Partitions the provided dict of class labels and file paths into training, validation, and
+#         testing datasets.
+#     :param image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
+#         list of file paths for images belonging to the chosen key/species/class-label.
+#     :param train_percent: What percentage of the training data is to remain in the training set.
+#     :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
+#         for a validation set.
+#     :param test_percent: What percentage of the training data is to be allocated to a testing set.
+#     :param random_state: A seed for the random number generator controlling the stratified partitioning.
+#     :return partitioned_image_lists: <collections.OrderedDict> A dictionary indexed by class label which returns another
+#         dictionary indexed by the dataset type {'train','val','test'} which in turn, returns the list of image file
+#         paths that correspond to the chosen class label and that reside in the chosen dataset.
+#     """
+#     partitioned_image_lists = collections.OrderedDict()
+#     for class_label, image_paths in image_lists.items():
+#         class_label_train_images, class_label_test_images = model_selection.train_test_split(
+#             image_paths, train_size=train_percent,
+#             test_size=test_percent, shuffle=True,
+#             random_state=random_state
+#         )
+#         class_label_train_images, class_label_val_images = model_selection.train_test_split(
+#             class_label_train_images, train_size=train_percent,
+#             test_size=val_percent, shuffle=True,
+#             random_state=random_state
+#         )
+#         partitioned_image_lists[class_label] = {
+#             'train': class_label_train_images,
+#             'val': class_label_val_images,
+#             'test': class_label_test_images
+#         }
+#     return partitioned_image_lists
 
 
 def main(_):
