@@ -261,59 +261,8 @@ def main(_):
     # Delete any TensorBoard summaries left over from previous runs:
     _prepare_tensor_board_directories()
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
-
-    # TODO: could add an advanced cmd-line flag here to bypass image directory walk if user knows bottlenecks are up-to-date.
-    ''' Recursively walk the image directory and build up a dict of all images and their associated class names and 
-        file paths. 
-    '''
-    # tf.logging.info(msg='Recursively walking the provided image directory and aggregating image paths by class '
-    #                     'label...')
-    # ts = time.time()
-    # image_lists = _get_image_lists(image_dir=CMD_ARG_FLAGS.image_dir)
-    # tf.logging.info(msg='Recursive image directory walk performed in: %s seconds (%.2f minutes).'
-    #                     % ((time.time() - ts), (time.time() - ts)/60))
-    # TODO: Do we really need to partition images again with the bottlenecks already generated?
-    # Partition images into training, validation, and testing sets:
-    # TODO: add support for user specified test set proportions? Right now constrained to numbers given in paper.
-    # train_percent = .80
-    # val_percent = .20
-    # test_percent = .20
-    # tf.logging.info(msg='Partitioning each classes\' list of images into training (n=%.2f%%), validation (n=%.2f%%), '
-    #                     'and testing (n=%.2f%%) datasets.'
-    #                     % (train_percent * 100, val_percent * 100, test_percent * 100))
-    # ts = time.time()
-    # image_lists = _partition_image_lists(
-    #     image_lists=image_lists, train_percent=0.80,
-    #     val_percent=.20, test_percent=.20,
-    #     random_state=0
-    # )
-    # tf.logging.info(msg='Performed this partitioning of sample images in: %s seconds (%.2f minutes).'
-    #                     % ((time.time() - ts), (time.time() - ts)/60))
-    # num_classes = len(list(image_lists.keys()))
-    # num_images = 0
-    # num_train_images = 0
-    # num_test_images = 0
-    # num_val_images = 0
-    # for class_label, datasets in image_lists.items():
-    #     if 'train' in datasets:
-    #         num_train_images += len(datasets['train'])
-    #         num_images += len(datasets['train'])
-    #     if 'val' in datasets:
-    #         num_val_images += len(datasets['val'])
-    #         num_images += len(datasets['val'])
-    #     if 'test' in datasets:
-    #         num_test_images += len(datasets['test'])
-    #         num_images += len(datasets['test'])
-    # tf.logging.info(msg='Found %d total images. Found %d unique classes. Partitioned into %d total training images, '
-    #                     '%d total validation images, and %d total testing images.'
-    #                     % (num_images, num_classes, num_train_images, num_val_images, num_test_images))
-    # tf.logging.info(msg='This partitioning was performed on a class-by-class basis. The sampled distribution of '
-    #                     'class labels is:\n\ttraining (%d/%d) = %.2f%% of all sample images'
-    #                     '\n\tvalidation (%d/%d) = %.2f%% of all sample images\n\ttesting (%d/%d) = %.2f%% of '
-    #                     'all sample images' % (num_train_images, num_images, ((num_train_images*100)/num_images),
-    #                                            num_val_images, num_images, ((num_val_images*100)/num_images),
-    #                                            num_test_images, num_images, ((num_test_images*100)/num_images)))
     bottleneck_dataframes = _partition_and_retrieve_bottlenecks()
+    tf.logging.info(msg='Partitioned bottleneck dataframe into train, val, test splits.')
     class_labels = set()
     for unique_class in bottleneck_dataframes['train']['class'].unique():
         class_labels.add(unique_class)
