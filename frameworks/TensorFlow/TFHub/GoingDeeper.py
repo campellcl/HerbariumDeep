@@ -132,9 +132,9 @@ def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, cl
     return bottleneck_values, bottleneck_ground_truth_indices
 
 
-def _update_and_retrieve_bottlenecks(image_lists):
+def _partition_and_retrieve_bottlenecks():
     """
-    _update_and_retrieve_bottlenecks:
+    _partition_and_retrieve_bottlenecks:
     :return:
     """
     bottleneck_path = CMD_ARG_FLAGS.bottleneck_path
@@ -143,26 +143,24 @@ def _update_and_retrieve_bottlenecks(image_lists):
         tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'.'
                             % CMD_ARG_FLAGS.bottleneck_path)
         try:
-            bottlenecks = pd.read_pickle(os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
+            bottlenecks = pd.read_pickle(CMD_ARG_FLAGS.bottleneck_path)
             tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
                                 % os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
         except Exception as err:
             tf.logging.error(msg=err)
+            bottlenecks = None
+            exit(-1)
 
-        if _is_bottleneck_for_every_sample(image_lists, bottlenecks):
-            # Partition the bottleneck dataframe:
-            train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
-                bottlenecks=bottlenecks,
-                random_state=0
-            )
-            bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
-            tf.logging.info('Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), '
-                        'and testing (N=%d) datasets.'
-                        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0]))
-            return bottleneck_dataframes
-        else:
-            tf.logging.error('ERROR: Not a bottleneck for every sample. Implement logic to fix this.')
-            return None
+        # Partition the bottleneck dataframe:
+        train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
+            bottlenecks=bottlenecks,
+            random_state=0
+        )
+        bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
+        tf.logging.info('Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), '
+                    'and testing (N=%d) datasets.'
+                    % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0]))
+        return bottleneck_dataframes
 
 
 def _get_image_lists(image_dir):
@@ -263,69 +261,80 @@ def main(_):
     # Delete any TensorBoard summaries left over from previous runs:
     _prepare_tensor_board_directories()
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
+
     # TODO: could add an advanced cmd-line flag here to bypass image directory walk if user knows bottlenecks are up-to-date.
     ''' Recursively walk the image directory and build up a dict of all images and their associated class names and 
         file paths. 
     '''
-    tf.logging.info(msg='Recursively walking the provided image directory and aggregating image paths by class '
-                        'label...')
-    ts = time.time()
-    image_lists = _get_image_lists(image_dir=CMD_ARG_FLAGS.image_dir)
-    tf.logging.info(msg='Recursive image directory walk performed in: %s seconds (%.2f minutes).'
-                        % ((time.time() - ts), (time.time() - ts)/60))
+    # tf.logging.info(msg='Recursively walking the provided image directory and aggregating image paths by class '
+    #                     'label...')
+    # ts = time.time()
+    # image_lists = _get_image_lists(image_dir=CMD_ARG_FLAGS.image_dir)
+    # tf.logging.info(msg='Recursive image directory walk performed in: %s seconds (%.2f minutes).'
+    #                     % ((time.time() - ts), (time.time() - ts)/60))
     # TODO: Do we really need to partition images again with the bottlenecks already generated?
     # Partition images into training, validation, and testing sets:
     # TODO: add support for user specified test set proportions? Right now constrained to numbers given in paper.
-    train_percent = .80
-    val_percent = .20
-    test_percent = .20
-    tf.logging.info(msg='Partitioning each classes\' list of images into training (n=%.2f%%), validation (n=%.2f%%), '
-                        'and testing (n=%.2f%%) datasets.'
-                        % (train_percent * 100, val_percent * 100, test_percent * 100))
-    ts = time.time()
-    image_lists = _partition_image_lists(
-        image_lists=image_lists, train_percent=0.80,
-        val_percent=.20, test_percent=.20,
-        random_state=0
-    )
-    tf.logging.info(msg='Performed this partitioning of sample images in: %s seconds (%.2f minutes).'
-                        % ((time.time() - ts), (time.time() - ts)/60))
-    num_classes = len(list(image_lists.keys()))
-    num_images = 0
-    num_train_images = 0
-    num_test_images = 0
-    num_val_images = 0
-    for class_label, datasets in image_lists.items():
-        if 'train' in datasets:
-            num_train_images += len(datasets['train'])
-            num_images += len(datasets['train'])
-        if 'val' in datasets:
-            num_val_images += len(datasets['val'])
-            num_images += len(datasets['val'])
-        if 'test' in datasets:
-            num_test_images += len(datasets['test'])
-            num_images += len(datasets['test'])
-    tf.logging.info(msg='Found %d total images. Found %d unique classes. Partitioned into %d total training images, '
-                        '%d total validation images, and %d total testing images.'
-                        % (num_images, num_classes, num_train_images, num_val_images, num_test_images))
-    tf.logging.info(msg='This partitioning was performed on a class-by-class basis. The sampled distribution of '
-                        'class labels is:\n\ttraining (%d/%d) = %.2f%% of all sample images'
-                        '\n\tvalidation (%d/%d) = %.2f%% of all sample images\n\ttesting (%d/%d) = %.2f%% of '
-                        'all sample images' % (num_train_images, num_images, ((num_train_images*100)/num_images),
-                                               num_val_images, num_images, ((num_val_images*100)/num_images),
-                                               num_test_images, num_images, ((num_test_images*100)/num_images)))
-    bottleneck_dataframes = _update_and_retrieve_bottlenecks(image_lists=image_lists)
+    # train_percent = .80
+    # val_percent = .20
+    # test_percent = .20
+    # tf.logging.info(msg='Partitioning each classes\' list of images into training (n=%.2f%%), validation (n=%.2f%%), '
+    #                     'and testing (n=%.2f%%) datasets.'
+    #                     % (train_percent * 100, val_percent * 100, test_percent * 100))
+    # ts = time.time()
+    # image_lists = _partition_image_lists(
+    #     image_lists=image_lists, train_percent=0.80,
+    #     val_percent=.20, test_percent=.20,
+    #     random_state=0
+    # )
+    # tf.logging.info(msg='Performed this partitioning of sample images in: %s seconds (%.2f minutes).'
+    #                     % ((time.time() - ts), (time.time() - ts)/60))
+    # num_classes = len(list(image_lists.keys()))
+    # num_images = 0
+    # num_train_images = 0
+    # num_test_images = 0
+    # num_val_images = 0
+    # for class_label, datasets in image_lists.items():
+    #     if 'train' in datasets:
+    #         num_train_images += len(datasets['train'])
+    #         num_images += len(datasets['train'])
+    #     if 'val' in datasets:
+    #         num_val_images += len(datasets['val'])
+    #         num_images += len(datasets['val'])
+    #     if 'test' in datasets:
+    #         num_test_images += len(datasets['test'])
+    #         num_images += len(datasets['test'])
+    # tf.logging.info(msg='Found %d total images. Found %d unique classes. Partitioned into %d total training images, '
+    #                     '%d total validation images, and %d total testing images.'
+    #                     % (num_images, num_classes, num_train_images, num_val_images, num_test_images))
+    # tf.logging.info(msg='This partitioning was performed on a class-by-class basis. The sampled distribution of '
+    #                     'class labels is:\n\ttraining (%d/%d) = %.2f%% of all sample images'
+    #                     '\n\tvalidation (%d/%d) = %.2f%% of all sample images\n\ttesting (%d/%d) = %.2f%% of '
+    #                     'all sample images' % (num_train_images, num_images, ((num_train_images*100)/num_images),
+    #                                            num_val_images, num_images, ((num_val_images*100)/num_images),
+    #                                            num_test_images, num_images, ((num_test_images*100)/num_images)))
+    bottleneck_dataframes = _partition_and_retrieve_bottlenecks()
+    class_labels = set()
+    for unique_class in bottleneck_dataframes['train']['class'].unique():
+        class_labels.add(unique_class)
+    for unique_class in bottleneck_dataframes['val']['class'].unique():
+        class_labels.add(unique_class)
+    for unique_class in bottleneck_dataframes['test']['class'].unique():
+        class_labels.add(unique_class)
+    # Convert back to list for one-hot encoding using array indices:
+    class_labels = list(class_labels)
+
     minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
         bottleneck_dataframes=bottleneck_dataframes,
         how_many=CMD_ARG_FLAGS.train_batch_size,
         category='train',
-        class_labels=list(image_lists.keys())
+        class_labels=class_labels
     )
     minibatch_val_bottlenecks, minibatch_val_ground_truth_indices = _get_random_cached_bottlenecks(
         bottleneck_dataframes=bottleneck_dataframes,
         how_many=CMD_ARG_FLAGS.val_batch_size,
         category='val',
-        class_labels=list(image_lists.keys())
+        class_labels=class_labels
     )
 
     # Hyperparameters
@@ -357,7 +366,7 @@ def main(_):
     # }
     params = {
         'initializer': [he_normal, he_uniform],
-        'optimizer_class': [adadelta]
+        'optimizer_class': [adam]
     }
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     tfh_classifier = TFHClassifier(random_state=42)
