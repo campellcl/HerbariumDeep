@@ -159,7 +159,7 @@ class BottleneckExecutor:
                 # Need to run image decoding:
                 image_data = tf.gfile.Gfile(image_path, 'rb').read()
             # First decode the JPEG image, resize it, and rescale the pixel values.
-            resized_input_value = self._session.run(self.decoded_image_tensor, {self.resized_image_tensor: image_data})
+            resized_input_value = self._session.run(self.decoded_image_tensor, {self.jpeg_data_tensor: image_data})
             # Then run it through the source network:
             bottleneck_value = self._session.run(self.bottleneck_tensor, {self.resized_image_tensor: resized_input_value})
             bottleneck_value = np.squeeze(bottleneck_value)
@@ -220,7 +220,7 @@ class BottleneckExecutor:
                 image_paths = self.image_lists[clss]
                 images_data = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_paths]
                 '''
-                Use batch size for the forward propagation with actual images otherwise OOM GPU errors occur: 
+                Use batch size for the forward propagation with actual images otherwise OOM GPU errors occur:
                 '''
                 image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
                 image_data_batches = [images_data[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
@@ -255,6 +255,59 @@ class BottleneckExecutor:
                 if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+
+    # def cache_all_bottlenecks(self):
+    #     """
+    #     cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
+    #         sample's Tensor through the original source network. At the penultimate layer of the provided source network
+    #         (that is, pre-softmax layer) each sample's output tensors are recorded in lieu of the original input image.
+    #         These recorded output tensors constitute the 'bottlenecks' of the provided image_lists. This method computes
+    #         and stores the calculated bottlenecks in a bottlenecks dataframe for retrieval at a later time during training
+    #         or evaluation.
+    #         WARNING: This method currently assumes that all bottlenecks will fit in a single output dataframe. If this is
+    #             not the case then this method (and prior logic) needs to be updated.
+    #     :param sess: <tf.Session> The current active TensorFlow Session.
+    #     :param image_metadata: <dict> Contains information regarding the distribution of images among training, validation,
+    #         and testing datasets.
+    #         image_metadata['num_train_images']: Number of training images.
+    #         image_metadata['num_val_images']: Number of validation images.
+    #         image_metadata['num_test_images']: Number of testing images.
+    #         image_metadata['num_images']: Total number of sample images.
+    #     :param image_lists: <OrderedDict> of training images for each label.\
+    #     :param jpeg_data_tensor: <tf.Tensor?> Input tensor for jpeg data from file.
+    #     :param decoded_image_tensor: <tf.Tensor?> The tensor holding the output of the image decoding sub-graph.
+    #     :param resized_input_tensor: <tf.Tensor?> The input node of the source/recognition graph.
+    #     :param bottleneck_tensor: <tf.Tensor?> The penultimate (pre-softmax) output node of the source/recognition graph.
+    #     :return bottlenecks: <pd.DataFrame> A dataframe containing the bottleneck values for every tensor in the
+    #         datasets.
+    #     """
+    #     # If the specified bottleneck directory doesn't exist, create it:
+    #     if not os.path.exists(os.path.dirname(self.compressed_bottleneck_file_path)):
+    #         os.mkdir(os.path.dirname(self.compressed_bottleneck_file_path))
+    #     bottlenecks_empty = pd.DataFrame(columns=['class', 'path', 'bottleneck'])
+    #     bottlenecks_empty['class'] = bottlenecks_empty['class'].astype('category')
+    #     for clss in self.image_lists.keys():
+    #         for image_path in self.image_lists[clss]:
+    #             new_bottleneck_entry = pd.Series([clss, image_path, None], index=['class', 'path', 'bottleneck'])
+    #             bottlenecks_empty = bottlenecks_empty.append(new_bottleneck_entry, ignore_index=True)
+    #     bottlenecks = bottlenecks_empty.copy(deep=True)
+    #     num_bottlenecks = 0
+    #     for i, (clss, series) in enumerate(bottlenecks_empty.iterrows()):
+    #         image_path = series['path']
+    #         if not tf.gfile.Exists(image_path):
+    #             tf.logging.fatal('File does not exist %s', image_path)
+    #         image_data = tf.gfile.FastGFile(image_path, 'rb').read()
+    #         bottleneck_tensor_values = self._calculate_bottleneck_value(image_path=image_path, image_data=image_data)
+    #         bottlenecks.iat[i, 2] = bottleneck_tensor_values
+    #         num_bottlenecks += 1
+    #         if num_bottlenecks % 100 == 0:
+    #             tf.logging.info(msg='Computed %d bottleneck vectors.' % num_bottlenecks)
+    #         if num_bottlenecks % 10000 == 0:
+    #             tf.logging.info(msg='Computed %d bottleneck vectors. Backing up dataframe to: \'%s\'' % (num_bottlenecks, self.compressed_bottleneck_file_path))
+    #             bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+    #
+    #     tf.logging.info(msg='Finished computing bottlenecks. Saving dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+    #     bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
 
 
 if __name__ == '__main__':
