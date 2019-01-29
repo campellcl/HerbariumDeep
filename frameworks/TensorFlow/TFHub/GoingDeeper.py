@@ -106,10 +106,10 @@ def _partition_and_retrieve_bottlenecks():
     :return:
     """
     bottleneck_path = CMD_ARG_FLAGS.bottleneck_path
-    if os.path.isfile(os.path.basename(CMD_ARG_FLAGS.bottleneck_path)):
+    if os.path.isfile(bottleneck_path):
         # Bottlenecks .pkl file exists, read from disk:
         tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'.'
-                            % CMD_ARG_FLAGS.bottleneck_path)
+                            % bottleneck_path)
         try:
             bottlenecks = pd.read_pickle(CMD_ARG_FLAGS.bottleneck_path)
             tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
