@@ -255,6 +255,8 @@ class BottleneckExecutor:
                 if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+            df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
 
     # def cache_all_bottlenecks(self):
     #     """
@@ -312,15 +314,15 @@ class BottleneckExecutor:
 
 if __name__ == '__main__':
     # Debug Configuration:
-    # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
-    # image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
+    bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
+    debug_image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
 
     # GoingDeeper Configuration:
-    bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
+    # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    # going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
 
     bottleneck_executor = BottleneckExecutor(
-        image_dir=going_deeper_image_path,
+        image_dir=debug_image_path,
         tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
         compressed_bottleneck_file_path=bottleneck_path
     )
