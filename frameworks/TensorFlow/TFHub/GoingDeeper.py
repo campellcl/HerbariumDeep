@@ -13,6 +13,7 @@ from sklearn.model_selection import GridSearchCV
 # from sklearn.model_selection import ParameterGrid
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
+from frameworks.TensorFlow.TFHub.HandsOnMLPracticalGuidelines import HandsOnMLClassifier
 import pandas as pd
 import numpy as np
 
@@ -282,11 +283,13 @@ def main(_):
     #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
     # }
     params = {
-        'initializer': [he_normal, he_uniform],
+        'initializer': [he_normal],
         'optimizer_class': [adam]
     }
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
-    tfh_classifier = TFHClassifier(random_state=42)
+    tfh_classifier = HandsOnMLClassifier(random_state=42)
+    # tfh_classifier = TFHClassifier(random_state=42, batch_norm_momentum=0.95)
+    # tfh_classifier = TFHClassifier(random_state=42)
     tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
 
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090

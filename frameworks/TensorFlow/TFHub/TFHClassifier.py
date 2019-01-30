@@ -172,6 +172,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
 
             with tf.name_scope('biases'):
+                # TODO: Use the self.initializer to initialize the weights.
                 layer_biases = tf.Variable(initial_value=tf.zeros([n_classes]), name='final_biases')
 
             # pre-activations:
@@ -551,6 +552,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 is_last_step = (epoch + 1 == n_epochs)
                 # Run a training step and capture the results in self._training_op
                 train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X, self._y: y})
+                if extra_update_ops:
+                        sess.run([extra_update_ops], feed_dict={self._X: X, self._y: y})
                 # Export the results to the TensorBoard logging directory:
                 self._train_writer.add_summary(train_summary, epoch)
 
