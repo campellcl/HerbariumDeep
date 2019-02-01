@@ -19,7 +19,7 @@ import numpy as np
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 
 
-def _prepare_tensor_board_directories():
+def _prepare_tensor_board_directories(tb_summaries_dir, intermediate_output_graphs_dir=None):
     """
     _prepare_tensor_board_directories: Ensures that if a TensorBoard storage directory is defined in the command line
         flags, that said directory is purged of old TensorBoard files, and that this program has sufficient permissions
@@ -27,15 +27,15 @@ def _prepare_tensor_board_directories():
     :return None: see above ^
     """
     # Check to see if the file exists:
-    if tf.gfile.Exists(CMD_ARG_FLAGS.summaries_dir):
+    if tf.gfile.Exists(tb_summaries_dir):
         # Delete everything in the file recursively:
-        tf.gfile.DeleteRecursively(CMD_ARG_FLAGS.summaries_dir)
+        tf.gfile.DeleteRecursively(tb_summaries_dir)
     # Re-create (or create for the first time) the storage directory:
-    tf.gfile.MakeDirs(CMD_ARG_FLAGS.summaries_dir)
+    tf.gfile.MakeDirs(tb_summaries_dir)
     # Check to see if intermediate computational graphs are to be stored:
-    if CMD_ARG_FLAGS.intermediate_store_frequency > 0:
-        if not os.path.exists(CMD_ARG_FLAGS.intermediate_output_graphs_dir):
-            os.makedirs(CMD_ARG_FLAGS.intermediate_output_graphs_dir)
+    if intermediate_output_graphs_dir:
+        if not os.path.exists(intermediate_output_graphs_dir):
+            os.makedirs(intermediate_output_graphs_dir)
     return
 
 
@@ -94,73 +94,6 @@ def _partition_bottlenecks_dataframe(bottlenecks, train_percent=.80, val_percent
         random_state=random_state
     )
     return train_bottlenecks, val_bottlenecks, test_bottlenecks
-
-
-def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
-    """
-    get_random_cached_bottlenecks: Retrieve a random sample of rows from the bottlenecks dataframe of size 'how_many'.
-        Performs random sampling with replacement.
-    :param bottlenecks: The dataframe containing pre-computed bottleneck values.
-    :param how_many: The number of bottleneck samples to retrieve.
-    :param category: Which subset of dataframes to partition.
-    :param class_labels: <list> A list of all unique class labels in the training and testing datasets.
-    :returns bottleneck_values, bottleneck_ground_truth_labels:
-        :return bottleneck_values: <list> A Python array of size 'how_many' by 2048 (the size of the penultimate output
-            layer).
-        :return bottleneck_ground_truth_indices: <list> A Python list of size 'how_many' by one, containing the index
-            into the class_labels array that corresponds with the ground truth label name associated with each
-            bottlneck array.
-    """
-    bottleneck_dataframe = bottleneck_dataframes[category]
-    # TODO: Get size of output layer from module itself.
-    penultimate_output_layer_size = 2048
-    if how_many >= 0:
-        random_mini_batch_indices = np.random.randint(low=0, high=bottleneck_dataframe.shape[0], size=(how_many, ))
-        minibatch_samples = bottleneck_dataframe.iloc[random_mini_batch_indices]
-        bottleneck_values = minibatch_samples['bottleneck'].tolist()
-        bottleneck_values = np.array(bottleneck_values)
-        bottleneck_ground_truth_labels = minibatch_samples['class'].values
-
-    else:
-        bottleneck_values = bottleneck_dataframe['bottleneck'].tolist()
-        bottleneck_values = np.array(bottleneck_values)
-        bottleneck_ground_truth_labels = bottleneck_dataframe['class'].values
-
-    # Convert to index (encoded int class label):
-    bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
-                                       for ground_truth_label in bottleneck_ground_truth_labels])
-    return bottleneck_values, bottleneck_ground_truth_indices
-
-
-def _partition_and_retrieve_bottlenecks():
-    """
-    _partition_and_retrieve_bottlenecks:
-    :return:
-    """
-    bottleneck_path = CMD_ARG_FLAGS.bottleneck_path
-    if os.path.isfile(os.path.basename(CMD_ARG_FLAGS.bottleneck_path)):
-        # Bottlenecks .pkl file exists, read from disk:
-        tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'.'
-                            % CMD_ARG_FLAGS.bottleneck_path)
-        try:
-            bottlenecks = pd.read_pickle(CMD_ARG_FLAGS.bottleneck_path)
-            tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
-                                % os.path.basename(CMD_ARG_FLAGS.bottleneck_path))
-        except Exception as err:
-            tf.logging.error(msg=err)
-            bottlenecks = None
-            exit(-1)
-
-        # Partition the bottleneck dataframe:
-        train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
-            bottlenecks=bottlenecks,
-            random_state=0
-        )
-        bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
-        tf.logging.info('Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), '
-                    'and testing (N=%d) datasets.'
-                    % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0]))
-        return bottleneck_dataframes
 
 
 def _get_image_lists(image_dir):
@@ -255,82 +188,253 @@ def _partition_image_lists(image_lists, train_percent, val_percent, test_percent
     return partitioned_image_lists
 
 
-def main(_):
-    # Enable visible logging output:
-    tf.logging.set_verbosity(tf.logging.INFO)
-    # Delete any TensorBoard summaries left over from previous runs:
-    _prepare_tensor_board_directories()
-    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
-    bottleneck_dataframes = _partition_and_retrieve_bottlenecks()
-    tf.logging.info(msg='Partitioned bottleneck dataframe into train, val, test splits.')
+def _load_bottlenecks(compressed_bottleneck_file_path):
+    bottlenecks = None
+    bottleneck_path = compressed_bottleneck_file_path
+    if os.path.isfile(bottleneck_path):
+        # Bottlenecks .pkl file exists, read from disk:
+        tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'' % bottleneck_path)
+        try:
+            bottlenecks = pd.read_pickle(bottleneck_path)
+            tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
+                                % os.path.basename(bottleneck_path))
+        except Exception as err:
+            tf.logging.error(msg=err)
+            bottlenecks = None
+            exit(-1)
+    else:
+        tf.logging.error(msg='Bottleneck file not located at the provided path: \'%s\'. '
+                             'Have you run BottleneckExecutor.py?' % bottleneck_path)
+        exit(-1)
+    return bottlenecks
+
+
+def _get_class_labels(bottlenecks):
+    """
+    _get_class_labels: Obtains a list of unique class labels contained in the bottlenecks dataframe for use in one-hot
+        encoding.
+    :param bottlenecks: The bottlenecks dataframe.
+    :return class_labels: <list> An array of unique class labels whose indices can be used to one-hot encode target
+        labels.
+    """
     class_labels = set()
-    for unique_class in bottleneck_dataframes['train']['class'].unique():
-        class_labels.add(unique_class)
-    for unique_class in bottleneck_dataframes['val']['class'].unique():
-        class_labels.add(unique_class)
-    for unique_class in bottleneck_dataframes['test']['class'].unique():
+    for unique_class in bottlenecks['class'].unique():
         class_labels.add(unique_class)
     # Convert back to list for one-hot encoding using array indices:
     class_labels = list(class_labels)
+    return class_labels
 
-    minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
-        bottleneck_dataframes=bottleneck_dataframes,
-        how_many=CMD_ARG_FLAGS.train_batch_size,
-        category='train',
-        class_labels=class_labels
+
+def _run_setup(bottleneck_path, tb_summaries_dir):
+    """
+    _run_setup: Performs initial setup operations by:
+        1) Setting verbosity of TensorFlow logging output
+        2) Purging (or creating new) TensorBoard logging directories
+        3) Retrieving the bottlenecks dataframe from disk
+        4) Partitioning the bottlenecks dataframe into training and testing sets.
+    :param bottleneck_path: The file path to the compressed bottlenecks dataframe.
+    :return:
+    """
+    # Enable visible logging output:
+    tf.logging.set_verbosity(tf.logging.INFO)
+
+    # Delete any TensorBoard summaries left over from previous runs:
+    _prepare_tensor_board_directories(tb_summaries_dir=tb_summaries_dir)
+    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
+
+    # Retrieve the bottlenecks dataframe or alert the user and terminate:
+    bottlenecks = _load_bottlenecks(bottleneck_path)
+
+    # Get a list of unique class labels for use in one-hot encoding:
+    class_labels = _get_class_labels(bottlenecks)
+
+    # Partition the bottlenecks dataframe:
+    train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
+        bottlenecks=bottlenecks,
+        random_state=0
     )
-    minibatch_val_bottlenecks, minibatch_val_ground_truth_indices = _get_random_cached_bottlenecks(
-        bottleneck_dataframes=bottleneck_dataframes,
-        how_many=CMD_ARG_FLAGS.val_batch_size,
-        category='val',
-        class_labels=class_labels
+    bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
+    tf.logging.info(
+        'Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), and testing (N=%d) datasets.'
+        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0])
     )
+    return bottleneck_dataframes, class_labels
 
-    # Hyperparameters
-    learning_rate = 0.01
 
-    # GridSearchCV
-    ''' Weight Initialization Methods (see: https://www.tensorflow.org/api_docs/python/tf/initializers): '''
-    he_normal = tf.variance_scaling_initializer()
+def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
+    """
+    get_random_cached_bottlenecks: Retrieve a random sample of rows from the bottlenecks dataframe of size 'how_many'.
+        Performs random sampling with replacement.
+    :param bottlenecks: The dataframe containing pre-computed bottleneck values.
+    :param how_many: The number of bottleneck samples to retrieve.
+    :param category: Which subset of dataframes to partition.
+    :param class_labels: <list> A list of all unique class labels in the training and testing datasets.
+    :returns bottleneck_values, bottleneck_ground_truth_labels:
+        :return bottleneck_values: <list> A Python array of size 'how_many' by 2048 (the size of the penultimate output
+            layer).
+        :return bottleneck_ground_truth_indices: <list> A Python list of size 'how_many' by one, containing the index
+            into the class_labels array that corresponds with the ground truth label name associated with each
+            bottlneck array.
+    """
+    bottleneck_dataframe = bottleneck_dataframes[category]
+    # TODO: Get size of output layer from module itself.
+    penultimate_output_layer_size = 2048
+    if how_many >= 0:
+        random_mini_batch_indices = np.random.randint(low=0, high=bottleneck_dataframe.shape[0], size=(how_many, ))
+        minibatch_samples = bottleneck_dataframe.iloc[random_mini_batch_indices]
+        bottleneck_values = minibatch_samples['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = minibatch_samples['class'].values
+
+    else:
+        bottleneck_values = bottleneck_dataframe['bottleneck'].tolist()
+        bottleneck_values = np.array(bottleneck_values)
+        bottleneck_ground_truth_labels = bottleneck_dataframe['class'].values
+
+    # Convert to index (encoded int class label):
+    bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                       for ground_truth_label in bottleneck_ground_truth_labels])
+    return bottleneck_values, bottleneck_ground_truth_indices
+
+
+def _get_all_cached_bottlenecks(bottleneck_dataframe, class_labels):
+    """
+    _get_all_cached_bottlenecks: Returns the bottleneck values from the dataframe and performs one-hot encoding on the
+        class labels.
+    :param bottleneck_dataframe: One of the partitioned bottleneck dataframes [train, val, test].
+    :param class_labels: A list of unique class labels to be used consistently for one-hot encoding of target labels.
+    :returns bottleneck_values, bottleneck_ground_truth_indices:
+        :return bottleneck_values: The bottleneck values from the bottleneck dataframe associated with the returned
+            ground truth indices (representing one-hot encoded class labels).
+        :return bottleneck_ground_truth_indices: The ground truth indices corresponding to the returned bottleneck
+            values for use in classification and evaluation.
+    """
+    bottleneck_values = bottleneck_dataframe['bottleneck'].tolist()
+    bottleneck_values = np.array(bottleneck_values)
+    bottleneck_ground_truth_labels = bottleneck_dataframe['class'].values
+    # Convert the labels into indices (one hot encoding by index):
+    bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                                for ground_truth_label in bottleneck_ground_truth_labels])
+    return bottleneck_values, bottleneck_ground_truth_indices
+
+
+def get_initializer_options():
+    """
+    get_initializer_options: Returns a dictionary of weight initialization methods for use with SKLearn's GridSearch.
+        For details see: https://www.tensorflow.org/api_docs/python/tf/initializers
+    :return initializer_options: <dict> A dictionary of valid weight initialization methods.
+    """
     # he_normal = tf.initializers.he_normal
-    he_uniform = tf.initializers.he_uniform
-    truncated_normal = tf.truncated_normal
-    random_normal_dist = tf.random_normal
-    uniform_normal_dist = tf.random_uniform
-
-    ''' Optimizer Classes (see: https://www.tensorflow.org/api_docs/python/tf/train): '''
-    gradient_descent = tf.train.GradientDescentOptimizer
-    adam = tf.train.AdamOptimizer
-    momentum_low = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.1)
-    momentum_high = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
-    nesterov_low = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.1, use_nesterov=True)
-    nesterov_high = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9, use_nesterov=True)
-    adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate, name='Adagrad')
-    adadelta = tf.train.AdadeltaOptimizer(learning_rate=learning_rate, rho=0.95, epsilon=1e-08, name='Adadelta')
+    initializer_options = {
+        'he_normal': tf.variance_scaling_initializer(),
+        'he_uniform': tf.initializers.he_uniform,
+        'truncated_normal': tf.truncated_normal,
+        'random_normal_dist': tf.random_normal,
+        'uniform_normal_dist': tf.random_uniform
+    }
+    return initializer_options
 
 
+def get_activation_options():
+    """
+    get_activation_options: Returns a dictionary of activation methods for use with SKLearn's GridSearch. For details
+        see: https://www.tensorflow.org/api_docs/python/tf/nn
+    :return activation_options: <dict> A dictionary of valid neural network activation functions.
+    """
+    activation_options = {
+        'ELU': tf.nn.elu
+    }
+    return activation_options
+
+
+def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=None, adam_beta2=None, adam_epsilon=None, adagrad_init_accum=None, adadelta_rho=None, adadelta_epsilon=None):
+    """
+    get_optimizer_options: Returns a dictionary of optimizer methods for use with SKLearn's GridSearch. Ensures that the
+        method invoker supplies all arguments for the desired optimizer class (no defaults allowed). For details
+        see: https://www.tensorflow.org/api_docs/python/tf/train
+    :return:
+    """
+    optimizer_options = {
+        'GradientDescent': tf.train.GradientDescentOptimizer(
+            learning_rate=static_learning_rate
+        )
+    }
+    if momentum_const:
+        optimizer_options['Momentum'] = tf.train.MomentumOptimizer(
+            learning_rate=static_learning_rate,
+            momentum=momentum_const,
+            use_nesterov=False
+        )
+        optimizer_options['Nesterov'] = tf.train.MomentumOptimizer(
+            learning_rate=static_learning_rate,
+            momentum=momentum_const,
+            use_nesterov=True
+        )
+    if adam_epsilon and adam_beta1 and adam_beta2:
+        optimizer_options['Adam'] = tf.train.AdamOptimizer(
+            learning_rate=static_learning_rate,
+            beta1=adam_beta1,
+            beta2=adam_beta2,
+            epsilon=adam_epsilon
+        )
+    if adagrad_init_accum:
+        optimizer_options['AdaGrad'] = tf.train.AdagradOptimizer(
+            learning_rate=static_learning_rate,
+            initial_accumulator_value=0.1
+        )
+    if adadelta_rho and adadelta_epsilon:
+        optimizer_options['AdaDelta'] = tf.train.AdadeltaOptimizer(
+            learning_rate=static_learning_rate,
+            rho=adadelta_rho,
+            epsilon=adadelta_epsilon
+        )
+    # momentum_low = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.1)
+    # momentum_high = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
+    # nesterov_low = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.1, use_nesterov=True)
+    # nesterov_high = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9, use_nesterov=True)
+    # adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate, name='Adagrad')
+    # adadelta = tf.train.AdadeltaOptimizer(learning_rate=learning_rate, rho=0.95, epsilon=1e-08, name='Adadelta')
+    return optimizer_options
+
+
+def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
     # params = {
     #     'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
     #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
     # }
+    # params = {
+    #     'initializer': [he_normal],
+    #     'activation': [elu],
+    #     'optimizer': [nesterov_high],
+    #     'learning_rate': [learning_rate]
+    # }
+
+    # params = {
+    #     'initializer': list(initializers.values()),
+    #     'activation': list(activations.values()),
+    #     'optimizer': list(optimizers.values())
+    # }
+
     params = {
-        'initializer': [he_normal, he_uniform],
-        'optimizer_class': [adam]
+        'initializer': [initializers['he_normal']],
+        'activation': [activations['ELU']],
+        'optimizer': [optimizers['Nesterov']]
+        # 'train_batch_size': [1000]
     }
+
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     tfh_classifier = TFHClassifier(random_state=42)
     tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
-
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(tfh_classifier, params, cv=cv, verbose=2, refit=False)
     tf.logging.info(msg='Fitting model...')
     grid_search.fit(
-        X=minibatch_train_bottlenecks,
-        y=minibatch_train_ground_truth_indices,
-        X_valid=minibatch_val_bottlenecks,
-        y_valid=minibatch_val_ground_truth_indices,
-        n_epochs=100,
+        X=train_bottlenecks,
+        y=train_ground_truth_indices,
+        X_valid=val_bottlenecks,
+        y_valid=val_ground_truth_indices,
+        n_epochs=1000,
         ckpt_freq=0
     )
     best_params = grid_search.best_params_
@@ -342,398 +446,102 @@ def main(_):
     tfh_classifier.set_params(**current_params)
     # Re-fit the model using the best parameter combination from the GridSearch:
     tfh_classifier.fit(
-        X=minibatch_train_bottlenecks,
-        y=minibatch_train_ground_truth_indices,
-        X_valid=minibatch_val_bottlenecks,
-        y_valid=minibatch_val_ground_truth_indices,
-        n_epochs=100,
+        X=train_bottlenecks,
+        y=train_ground_truth_indices,
+        X_valid=val_bottlenecks,
+        y_valid=val_ground_truth_indices,
+        n_epochs=1000,
         ckpt_freq=0
     )
-    y_pred = tfh_classifier.predict(X=minibatch_val_bottlenecks)
-    print('accuracy_score: %s' % accuracy_score(minibatch_val_ground_truth_indices, y_pred))
+    y_pred = tfh_classifier.predict(X=val_bottlenecks)
+    print('accuracy_score: %s' % accuracy_score(val_ground_truth_indices, y_pred))
 
 
-def _parse_known_evaluation_args(parser):
-    '''
-    Evaluation specific command line arguments go here:
-    '''
-    print('Error: Support for evaluation mode only has only been partially implemented.')
-    raise NotImplementedError
-
-
-def _parse_train_dynamic_learn_rate_optimizer_known_args(parser):
+def main():
     """
-    _parse_known_train_dynamic_learn_rate_optimizer: This helper method is invoked if the user provides the following
-        sequence of flags during invocation:
-            --learn_rate_type dynamic --optimizer_type adaptive_optimizer
-        This helper method ensures that the arguments necessary for user-specified optimization module are all provided
-        during invocation and prior to instantiation.
-    :param parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
-    :return None: Upon completion, the provided argparse object will be updated with the necessary set of required
-        command line flags, and argparse will have ensured that the required flags were provided during invocation.
+    Path to folders of labeled images. If this script is being invoked in training mode this directory will later be
+    partitioned into training, validation, and testing datasets. However, if this script is being invoked in evaluation
+    mode, this entire directory will be inferred solely as a testing dataset.
     """
-    parser.add_argument(
-        '--learning_rate_optimizer',
-        dest='lr_optimizer',
-        choices=('tf.train.MomentumOptimizer', 'tf.train.AdagradOptimizer', 'tf.train.AdamOptimizer'),
-        nargs=1,
-        required=True,
-        help='You have chosen a dynamic learning rate controlled by an optimization algorithm. Specify the '
-             'module housing the optimization algorithm of your choice: '
-             '{tf.train.MomentumOptimizer,tf.train.AdagradOptimizer,tf.train.AdamOptimizer}. '
-    )
-    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    if CMD_ARG_FLAGS.lr_optimizer[0] == 'tf.train.MomentumOptimizer':
-        parser.add_argument(
-            '--momentum',
-            dest='momentum',
-            nargs=1,
-            type=float,
-            required=True,
-            metavar='[0-1]',
-            help='Threshold (0-1) indicating '
-        )
-    elif CMD_ARG_FLAGS.lr_optimizer[0] == 'tf.train.AdagradOptimizer':
-        print('Error: The dynamic learning rate optimizer \'tf.train.AdagradOptimizer\' is not yet supported.')
-        raise NotImplementedError
-    elif CMD_ARG_FLAGS.lr_optimizer[0] == 'tf.train.AdamOptimizer':
-        print('Error: The dynamic learning rate optimizer \'tf.train.AdamOptimizer\' is not yet supported.')
-        raise NotImplementedError
-
-
-def _parse_train_tensorflow_related_hyperparameter_known_args(parser):
-    """
-    _parse_train_tensorflow_related_heyperparameter_known_args: This helper method is executed if the user provides the
-        following sequence of flags during script invocation:
-            --use_case train
-    :param parser: parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
-    :return: None: Upon completion, the provided argparse object will be updated with the necessary set of required
-        command line flags, and argparse will have ensured that the required flags were provided during invocation.
-    """
-    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    parser.add_argument(
-        '--eval_step_interval',
-        dest='eval_step_interval',
-        type=int,
-        default=CMD_ARG_FLAGS.num_epochs[0] // 10,
-        nargs='?',
-        help='Specifies how many epochs should pass during training before performing an evaluation step (i.e. computing'
-             ' the chosen training metrics on the validation batch).'
-    )
-    parser.add_argument(
-        '--summaries_dir',
-        type=str,
-        default='tmp/summaries',
-        required=True,
-        nargs=1,
-        help='The directory to which TensorBoard summaries will be saved.'
-    )
-    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    parser.add_argument(
-        '--intermediate_store_frequency',
-        type=int,
-        default=CMD_ARG_FLAGS.eval_step_interval,
-        nargs='?',
-        help="""Specifies how many epochs should be run (during training) before storing an intermediate checkpoint of 
-                the computational graph. If 0 is provided, then no checkpoints of the computational graph will be stored 
-                during the training process; but one will be stored once the training process is complete.
-                NOTE: The disk write required to store the computational graph is somewhat computationally expensive in
-                    comparison to the training process (when using pre-computed bottleneck values). As a result, the 
-                    saving (and automatic restore from) the computational graph should be invoked somewhat sparingly. 
-                    However, in the event of a critical failure; the training process will only ever to be capable of 
-                    resuming from the last-saved checkpoint of the model. If frequent interruptions to the
-                    training process is anticipated, then it is recommended to set this frequency at least as high as 
-                    the default value (e.g. trigger the saving of a checkpoint every time the evaluation step is run).  
-                """
-    )
-    parser.add_argument(
-        '--output_graph',
-        type=str,
-        default='tmp/saved_model.pb',
-        nargs='?',
-        help="""Indicates the directory in which to save the computational graph of the final trained model. 
-            NOTE: It is not the final checkpoint that is saved (of the form checkpoint, *.index, *.meta) but rather; the
-            final trained model in it's entirety (architecture included) as a *.pb file. It is this file that will be
-            used, if this program is later invoked with the flag:
-                --use_case eval 
-        """
-    )
-    parser.add_argument(
-        '--intermediate_output_graphs_dir',
-        type=str,
-        default='tmp/intermediate_graphs/',
-        nargs='?',
-        help="""Indicates the directory used to save intermediate copies of the computational graph. The anticipated use
-            case is that a model may not have been finished training, but still may have converged. In this case, it may 
-            be convenient to compare and contrast this model (viewed externally as a fully trained model) with other 
-            already trained models, or other equally partially-trained models at the same epoch.
-            NOTE: This does NOT specify the directory to house checkpoints generated during training. Instead, this flag
-                specifies the directory to house architectural copies of the entire model (as a *.pb file) during 
-                training. It is this file that will be used, if the program is later invoked with the --use_case flag 
-                set to 'eval' mode, and the previous model never fully completed training (therebye failing to generate 
-                the trained \'saved_model.pb\' file which is usually preferred in the evaluation invocation context).  
-        """
-    )
-
-
-def _parse_known_training_args(parser):
-    """
-    _parse_known_training_args: This helper method is executed if the user provides the following sequence of flags
-        during script invocation:
-            --use_case train
-        This helper method ensures that the arguments necessary for all forms of training are provided during invocation
-        and prior to instantiation.
-    :param parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
-    :return None: Upon completion, the provided argparse object will be updated with the necessary set of required
-        command line flags, and argparse will have ensured that the required flags were provided during invocation.
-    """
-    '''
-    Training mode specific command line arguments go here:
-    '''
-    parser.add_argument(
-        '--training_state',
-        choices=('new_model', 'resume_training'),
-        dest='train_state',
-        nargs=1,
-        required=True,
-        help='Whether or not the model\'s weights should be re-initialized {new_model} or restored '
-             '{resume_training} from a previous session wherein the model was not able to finish training.'
-    )
-    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    if CMD_ARG_FLAGS.train_state[0] == 'new_model':
-        # _parse_known_train_new_model_args(parser=parser)
-        parser.add_argument(
-            '--tfhub_module',
-            type=str,
-            default='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
-            nargs=1,
-            required=True,
-            help="""\
-                    Which TensorFlow Hub module to use.
-                    See https://github.com/tensorflow/hub/blob/r0.1/docs/modules/image.md
-                    for some publicly available ones.\
-                    """
-        )
-        parser.add_argument(
-            '--init_type',
-            choices=('he', 'xavier', 'random'),
-            type=str,
-            nargs=1,
-            required=True,
-            help='Initialization technique {he, xavier, random}. URL resources to be added soon.'
-        )
+    if DEBUG:
+        image_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
     else:
-        print('Error: Support for resuming training of a previous model has not been implemented yet.')
-        raise NotImplementedError
-    parser.add_argument(
-        '--num_epochs',
-        dest='num_epochs',
-        type=int,
-        nargs=1,
-        required=True,
-        help='The number of training epochs (the number of passes over the entire training dataset during training).'
-    )
-    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    parser.add_argument(
-        '-learning_rate_type',
-        choices=('static', 'dynamic'),
-        type=str,
-        nargs=1,
-        required=True,
-        dest='learning_rate_type',
-        help='Specify the type of learning rate as either static {static} (e.g. fixed) or dynamic {dynamic} (e.g. '
-             'learning rate schedule, learning rate optimization technique).'
-    )
-    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    if CMD_ARG_FLAGS.learning_rate_type[0] == 'static':
-        parser.add_argument(
-            '--learning_rate',
-            dest='learning_rate',
-            # default=0.01,
-            nargs=1,
-            type=float,
-            required=True,
-            help='Specify the learning rate (eta). The default value is eta=0.01. This will initialize a '
-                 'tf.train.GradientDescentOptimizer designed to use a constant learning rate.'
-        )
+        image_dir = 'D:\\data\\GoingDeeperData\\images'
+
+    """
+    The path to the dataframe storing the cached bottleneck layer values. It is standard to name this file: 
+    \'bottlenecks.pkl\'. If this file does not exist, or if the network architecture is changed, run 
+    BottleneckExecutor.py to regenerate the bottleneck dataframe.
+    """
+    if DEBUG:
+        bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
     else:
-        parser.add_argument(
-            '--optimizer_type',
-            choices=['fixed_lr_schedule', 'adaptive_optimizer'],
-            dest='optimizer_type',
-            nargs=1,
-            required=True,
-            help='Specify the type of dynamic learning rate as either a user-provided Learning Rate Schedule ' \
-                 '{learning_rate_schedule} or a specific op algorithm {optimization_algorithm} such as:'
-                 ' Nestrov Accelerated Gradient, ...., etc..'
-        )
-        CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-        if CMD_ARG_FLAGS.optimizer_type[0] == 'learning_rate_schedule':
-            # _parse_known_train_optimizer_learn_schedule(parser=parser)
-            print('ERROR: Support for custom learning rate schedule not implemented yet. See: '
-                  'https://stackoverflow.com/questions/33919948/how-to-set-adaptive-learning-rate-for-gradientdescentoptimizer')
-            raise NotImplementedError
-        else:
-            _parse_train_dynamic_learn_rate_optimizer_known_args(parser=parser)
-    parser.add_argument(
-        '-train_batch_size',
-        dest='train_batch_size',
-        type=int,
-        default=-1,
-        nargs='?',
-        help='The number of images per mini-batch during training. If -1 (default) is provided the entire training '
-             'dataset will be used.'
-    )
-    parser.add_argument(
-        '-val_batch_size',
-        dest='val_batch_size',
-        type=int,
-        default=-1,
-        nargs='?',
-        help='The number of images to use during an evaluation step on the validation dataset while training. By default'
-             ' this value is -1, the size of the entire validation datset.'
-    )
-    _parse_train_tensorflow_related_hyperparameter_known_args(parser=parser)
+        bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
 
-
-def _parse_known_advanced_user_args(parser):
     """
-    _parse_known_advanced_user_args: This helper method is executed in the global scope during command line invocation.
-        This helper method parses out advanced command line arguments and warns the user the implications of an improper
-        invocation using an argument of this type.
-    :param parser: <argparse.ArgumentParser> A reference to the instance of the global/parent argument parser.
-    :return None: Upon completion, the provided argparse object will be updated with the necessary set of required
-        command line flags, and argparse will have ensured that the optional flags were provided properly during
-        invocation.
+    TensorBoard summaries directory:
     """
+    summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
 
-    parser.add_argument(
-        '--force_bypass_bottleneck_updates',
-        dest='force_bypass_bottleneck_updates',
-        default=False,
-        action='store_true',
-        help="""WARNING: This command line argument belongs to a special class of \'force\' flags used for override 
-        functionality, and only intended for users who really know what they are doing.
-        For this command in particular: An invocation of the script with the \'--force_bypass_bottleneck_updates\' flag
-            enabled will result in a bypass of the entire image directory walk while confirming the existence of
-            generated bottlenecks for all samples. That is to say, using this argument tells the program that there were
-            NO new samples added since the last time the bottlenecks have been generated. This allows for a faster
-            initialization step, since the entire parent image directory no longer needs to be fully traversed. 
-        """
+    """
+    Size of training batches (-1 indicates to attempt training with the entire batch):
+    """
+    train_batch_size = -1
+
+    """
+    Size of validation batches (-1 indicates to attempt training with the entire batch):
+    """
+    val_batch_size = -1
+
+    # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
+    bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=bottleneck_path, tb_summaries_dir=summaries_dir)
+    tf.logging.info('Detected %d unique class labels in the bottlenecks dataframe' % len(class_labels))
+
+    train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
+        bottleneck_dataframe=bottleneck_dataframes['train'],
+        class_labels=class_labels
     )
 
+    val_bottlenecks, val_ground_truth_indices = _get_all_cached_bottlenecks(
+        bottleneck_dataframe=bottleneck_dataframes['val'],
+        class_labels=class_labels
+    )
 
-def _force_type_coercion_of_argparse_cmd_arg_flags():
-    """
-    _force_type_coercion_of_argparse_cmd_arg_flags: Ensures that the argparse read arguments are the types that
-        argparse was instructed to ensure. Variable length input arguments are stored in arrays regardless if the
-        input type was specified as a scalar. This method converts all arrays with one element into the respective
-        element, modifying the type in the globally scoped CMD_ARG_FLAGS. Care must be taken to run this method after
-        all parsing has been completed, so that the cmd argument types match what the rest of the program is expecting.
-    :return None: see above^
-    """
-    if CMD_ARG_FLAGS.summaries_dir:
-        CMD_ARG_FLAGS.summaries_dir = CMD_ARG_FLAGS.summaries_dir[0]
-    if CMD_ARG_FLAGS.image_dir:
-        CMD_ARG_FLAGS.image_dir = CMD_ARG_FLAGS.image_dir[0]
-    if CMD_ARG_FLAGS.bottleneck_path:
-        CMD_ARG_FLAGS.bottleneck_path = CMD_ARG_FLAGS.bottleneck_path[0]
-    if CMD_ARG_FLAGS.init_type:
-        CMD_ARG_FLAGS.init_type = CMD_ARG_FLAGS.init_type[0]
-    if CMD_ARG_FLAGS.learning_rate_type:
-        CMD_ARG_FLAGS.learning_rate_type = CMD_ARG_FLAGS.learning_rate_type[0]
-    # if CMD_ARG_FLAGS.learning_rate:
-    #     CMD_ARG_FLAGS.learning_rate = CMD_ARG_FLAGS.learning_rate[0]
-    if CMD_ARG_FLAGS.num_epochs:
-        if type(CMD_ARG_FLAGS.num_epochs) is list:
-            CMD_ARG_FLAGS.num_epochs = CMD_ARG_FLAGS.num_epochs[0]
-    if CMD_ARG_FLAGS.tfhub_module:
-        CMD_ARG_FLAGS.tfhub_module = CMD_ARG_FLAGS.tfhub_module[0]
-    print('Application Executed with the following parsed command line arguments:\n\t%s' % CMD_ARG_FLAGS)
+    tf.logging.info(msg='Obtained bottleneck values from dataframe. Performed corresponding one-hot encoding of class labels')
+    initializer_options = get_initializer_options()
+    activation_options = get_activation_options()
+    # User MUST provide all default arguments or a KeyError will be thrown:
+    optimizer_options = get_optimizer_options(static_learning_rate=0.01, momentum_const=0.9)
+    _run_grid_search(
+        train_bottlenecks=train_bottlenecks,
+        train_ground_truth_indices=train_ground_truth_indices,
+        initializers=initializer_options,
+        activations=activation_options,
+        optimizers=optimizer_options,
+        val_bottlenecks=val_bottlenecks,
+        val_ground_truth_indices=val_ground_truth_indices
+    )
+    # minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
+    #     bottleneck_dataframes=bottleneck_dataframes,
+    #     how_many=train_batch_size,
+    #     category='train',
+    #     class_labels=class_labels
+    # )
+    # minibatch_val_bottlenecks, minibatch_val_ground_truth_indices = _get_random_cached_bottlenecks(
+    #     bottleneck_dataframes=bottleneck_dataframes,
+    #     how_many=val_batch_size,
+    #     category='val',
+    #     class_labels=class_labels
+    # )
+    # tf.logging.info(msg='Partitioned bottleneck dataframe into train, val, test splits.')
 
 
 if __name__ == '__main__':
-    """
-    __main__: Global scope initialization. Performs argument parsing prior to invoking the main method. If this script
-        is functioning properly there is NO chance that a method called in main that relies on user input will fail to 
-        have access to the required user-provided arguments during initialization. This method is intended to ensure 
-        that all required TensorFlow constructor's parameters have associated user-provided values during invocation, 
-        and prior to instantiation.
-    """
-    # Create top-level parser:
-    parser = argparse.ArgumentParser(description='TensorFlow Transfer Learning on Going Deeper Datasets')
-    '''
-    Initialization-Level global command line arguments go here:
-    '''
-    parser.add_argument(
-        '--use_case',
-        choices=('train', 'eval'),
-        dest='use_case',
-        nargs=1,
-        required=True,
-        help='Indicates the intended use case of the program by the user. This program can be run in either training '
-             '{train} or evaluation {eval} mode.'
-    )
-    CMD_ARG_FLAGS, unknown = parser.parse_known_args()
-    if CMD_ARG_FLAGS.use_case == 'eval':
-        # Parse command line arguments only relevant to the use case of evaluating existing and already trained models:
-        _parse_known_evaluation_args(parser=parser)
-    else:
-        # Parse command line arguments only relevant to the use case of training a model:
-        _parse_known_training_args(parser=parser)
-    '''
-    Post-Initialization-Level global command line arguments go here:
-        For global non-positional arguments use a single - prefix instead of a double -- prefix. 
-    '''
-    parser.add_argument(
-        '--image_dir',
-        dest='image_dir',
-        type=str,
-        required=True,
-        nargs=1,
-        help='Path to folders of labeled images. If this script is being invoked in training mode this directory will '
-             'later be partitioned into training, validation, and testing datasets. However, if this script is being '
-             'invoked in evaluation mode, this entire directory will be inferred solely as a testing dataset.'
-    )
-    parser.add_argument(
-        '--bottleneck_path',
-        dest='bottleneck_path',
-        type=str,
-        required=True,
-        nargs=1,
-        help="""The path to the dataframe storing the cached bottleneck layer values. It is standard to name this file:
-        \'bottlenecks.pkl\'. Note that bottleneck generation via forward propagation is computationally expensive. It 
-        is therefore recommended that great care should be taken to prevent altering this path repeatedly, unless it is
-        absolutely necessary (as in the case of a new architecture or newly applied data augmentation technique). 
-            * If this script is being invoked in training mode, and a new model is being trained, the bottlenecks file
-                may not yet exist. In this case, the provided argument will be interpreted as the location in which the
-                bottlenecks file is to reside upon it\'s eventual creation. 
-            * If data augmentation is being performed, then this method will need to be adapted to support a parent 
-                directory that houses multiple bottleneck files (one for each form of data augmentation and network
-                 architecture that is applied). 
-        """
-    )
-    # Parse 'advanced' usage flags enabling faster execution at the cost of knowledge complexity:
-    _parse_known_advanced_user_args(parser=parser)
-    # CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
-    # global non-positional arguments go here (use single - prefix instead of double dash --).
-
-    # Tests:
-    # Valid:
-    # CMD_ARG_FLAGS, unparsed = parser.parse_known_args(['--train', '--init', 'random', '--train_batch_size 0'])
-    # CMD_ARG_FLAGS, unknown = parser.parse_known_args(['--train', '--image_dir', 'C:\\sample_images\\root_dir'])
-    CMD_ARG_FLAGS, unparsed = parser.parse_known_args()
-    ''' Force conversions to the correct type (argparse supports chained arguments so need to convert singleton 
-        lists to actual singletons, etc...). 
-        NOTE: This method MUST be executed after the very last call to parser.parse_known_args(), or otherwise great
-              care must be taken to prevent an override of the global command argument flags array while parsing. After
-              this method enforces a type coercion of the argparse flags, this will not be performed again without
-              a repeated manual invocation. 
-    '''
-    _force_type_coercion_of_argparse_cmd_arg_flags()
+    DEBUG = False
+    main()
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
     https://stackoverflow.com/questions/33703624/how-does-tf-app-run-work
     '''
-    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+    # tf.app.run(main=main)

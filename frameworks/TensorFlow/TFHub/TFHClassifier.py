@@ -12,14 +12,14 @@ he_init = tf.variance_scaling_initializer()
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, optimizer_class=tf.train.AdamOptimizer,
-                 learning_rate=0.01, batch_size=20, activation=tf.nn.elu, initializer=he_init,
+    def __init__(self, optimizer=tf.train.AdamOptimizer,
+                 learning_rate=0.01, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp/summaries/',
                  ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
-        :param optimizer_class: The type of optimizer to use during training (AdamOptimizer by default)
-        :param learning_rate:
+        :param optimizer: The type of optimizer to use during training (tf.train.AdamOptimizer by default).
+        :param learning_rate: The learning rate to use wherever a static learning rate is required.
         :param batch_size:
         :param activation:
         :param initializer:
@@ -36,9 +36,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
         self._module_spec = None
-        self.optimizer_class = optimizer_class
+        self.optimizer = optimizer
         self.learning_rate = learning_rate
-        self.batch_size = batch_size
+        self.train_batch_size = train_batch_size
+        self.val_batch_size = val_batch_size
         self.activation = activation
         self.initializer = initializer
         self.batch_norm_momentum = batch_norm_momentum
@@ -136,43 +137,47 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         final_layer_name = 'final_retrain_ops'
         with tf.variable_scope(final_layer_name):
             # The final layer of target domain re-train Operations is composed of the following:
-            with tf.name_scope('weights'):
-                # Output random values from the initializer:
-                if 'random_uniform' in str(self.initializer):
-                # if self.initializer_repr == 'INIT_UNIFORM':
-                    # Random uniform distribution initializer doesn't need stddev:
-                    initial_value = self.initializer(
-                        shape=[bottleneck_tensor_size, n_outputs]
-                    )
-                elif 'he_normal' in str(self.initializer) or 'init_ops.VarianceScaling' in str(self.initializer):
-                # elif self.initializer_repr == 'INIT_HE_NORMAL':
-                    # He normal initializer doesn't need a stddev:
-                    initial_value = self.initializer(
-                        shape=[bottleneck_tensor_size, n_outputs]
-                    )
-                # elif self.initializer_repr == 'INIT_HE_UNIFORM':
-                elif 'he_uniform' in str(self.initializer):
-                    initial_value = self.initializer()(shape=[bottleneck_tensor_size, n_outputs])
-                else:
-                    initial_value = self.initializer(
-                        shape=[bottleneck_tensor_size, n_outputs],
-                        stddev=0.001
-                    )
-                # Output random values from truncated normal distribution:
-                # initial_value = tf.truncated_normal(
-                #     shape=[bottleneck_tensor_size, n_outputs],
-                #     stddev=0.001
-                # )
-                layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
+            logits = tf.layers.dense(X, n_outputs, activation=self.activation, use_bias=True, kernel_initializer=self.initializer, trainable=True, name='logits')
+            tf.summary.histogram('logits', logits)
 
-            with tf.name_scope('biases'):
-                layer_biases = tf.Variable(initial_value=tf.zeros([n_outputs]), name='final_biases')
+            # with tf.name_scope('weights'):
+            #     # Output random values from the initializer:
+            #     if 'random_uniform' in str(self.initializer):
+            #     # if self.initializer_repr == 'INIT_UNIFORM':
+            #         # Random uniform distribution initializer doesn't need stddev:
+            #         initial_value = self.initializer(
+            #             shape=[bottleneck_tensor_size, n_outputs]
+            #         )
+            #     elif 'he_normal' in str(self.initializer) or 'init_ops.VarianceScaling' in str(self.initializer):
+            #     # elif self.initializer_repr == 'INIT_HE_NORMAL':
+            #         # He normal initializer doesn't need a stddev:
+            #         initial_value = self.initializer(
+            #             shape=[bottleneck_tensor_size, n_outputs]
+            #         )
+            #     # elif self.initializer_repr == 'INIT_HE_UNIFORM':
+            #     elif 'he_uniform' in str(self.initializer):
+            #         initial_value = self.initializer()(shape=[bottleneck_tensor_size, n_outputs])
+            #     else:
+            #         initial_value = self.initializer(
+            #             shape=[bottleneck_tensor_size, n_outputs],
+            #             stddev=0.001
+            #         )
+            #     # Output random values from truncated normal distribution:
+            #     # initial_value = tf.truncated_normal(
+            #     #     shape=[bottleneck_tensor_size, n_outputs],
+            #     #     stddev=0.001
+            #     # )
+            #     layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
 
-            # pre-activations:
-            with tf.name_scope('Wx_plus_b'):
-                logits = tf.matmul(X, layer_weights) + layer_biases
-                # For TensorBoard histograms:
-                tf.summary.histogram('Wx_plus_b', logits)
+            # with tf.name_scope('biases'):
+            #     layer_biases = tf.Variable(initial_value=tf.zeros([n_outputs]), name='final_biases')
+
+            # # pre-activations:
+            # with tf.name_scope('Wx_plus_b'):
+            #     logits = tf.matmul(X, layer_weights) + layer_biases
+            #     # For TensorBoard histograms:
+            #     tf.summary.histogram('Wx_plus_b', logits)
+
 
         # logits = tf.layers.dense(dnn_outputs, n_outputs, kernel_initializer=he_init, name="logits")
         Y_proba = tf.nn.softmax(logits, name="Y_proba")
@@ -184,20 +189,20 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         loss = tf.reduce_mean(xentropy, name="loss")
         tf.summary.scalar('loss', loss)
 
-        optim_class_repr = str(self.optimizer_class)
-        if 'momentum.MomentumOptimizer' in optim_class_repr:
-            # optimizer = self.optimizer_class(learning_rate=self.learning_rate, momentum=)
-            # Optimizer is an already instantiated MomentumOptimizer, do not attempt to re-instantiate:
-            optimizer = self.optimizer_class
-        elif 'adagrad.AdagradOptimizer' in optim_class_repr:
-            # Optimizer is an already instantiated AdagradOptimizer, do not attempt to re-instantiate:
-            optimizer = self.optimizer_class
-        elif 'adadelta.AdadeltaOptimizer' in optim_class_repr:
-            # Optimizer is an already instantiated AdadeltaOptimizer, do not attempt to re-instantiate:
-            optimizer = self.optimizer_class
-        else:
-            optimizer = self.optimizer_class(learning_rate=self.learning_rate)
-        training_op = optimizer.minimize(loss)
+        # optim_class_repr = str(self.optimizer)
+        # if 'momentum.MomentumOptimizer' in optim_class_repr:
+        #     # optimizer = self.optimizer(learning_rate=self.learning_rate, momentum=)
+        #     # Optimizer is an already instantiated MomentumOptimizer, do not attempt to re-instantiate:
+        #     optimizer = self.optimizer
+        # elif 'adagrad.AdagradOptimizer' in optim_class_repr:
+        #     # Optimizer is an already instantiated AdagradOptimizer, do not attempt to re-instantiate:
+        #     optimizer = self.optimizer
+        # elif 'adadelta.AdadeltaOptimizer' in optim_class_repr:
+        #     # Optimizer is an already instantiated AdadeltaOptimizer, do not attempt to re-instantiate:
+        #     optimizer = self.optimizer
+        # else:
+        #     optimizer = self.optimizer(learning_rate=self.learning_rate)
+        training_op = self.optimizer.minimize(loss)
 
         correct = tf.nn.in_top_k(logits, y, 1)
         accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name="accuracy")
@@ -310,7 +315,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
     #         hyper_string = 'INIT_unknown,'
     #     return hyper_string
 
-    def fit(self, X, y, n_epochs=10, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
+    def fit(self, X, y, n_epochs=100, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
         """
         fit: Fits the model to the training data.
         :param X:
@@ -324,6 +329,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """
         """Fit the model to the training set. If X_valid and y_valid are provided, use early stopping."""
         self.close_session()
+        if self.train_batch_size == -1:
+            self.train_batch_size = len(X)
+        if self.val_batch_size == -1:
+            self.val_batch_size = len(X_valid)
 
         # TB TrainWriter logging directory:
         tb_log_path_train = self.tb_logdir + '/train/' + self.__repr__()
@@ -365,45 +374,51 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             self._init.run()
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
-                # Run a training step and capture the results in self._training_op
-                train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X, self._y: y})
-                # Export the results to the TensorBoard logging directory:
-                self._train_writer.add_summary(train_summary, epoch)
+                # Minibatch partitioning:
+                rnd_idx = np.random.permutation(len(X))
+                for rnd_indices in np.array_split(rnd_idx, len(X) // self.train_batch_size):
+                    X_batch, y_batch = X[rnd_indices], y[rnd_indices]
 
-                # Check to see if a checkpoint should be recorded this epoch:
-                if ckpt_freq != 0 and epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
-                    tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
-                    self._train_saver.save(sess, self.ckpt_dir)
-                    # Constant OP for tf.Serving export code goes here:
-                    # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
-                    # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
-                    # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
+                    # Run a training step and capture the results in self._training_op
+                    train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
 
-                if X_valid is not None and y_valid is not None:
-                    # Run eval metrics, and write the result.
-                    val_summary, loss_val, acc_val = sess.run([self._merged, self._loss, self._accuracy],
-                                                 feed_dict={self._X: X_valid,
-                                                            self._y: y_valid})
-                    self._val_writer.add_summary(val_summary, epoch)
-                    if loss_val < best_loss:
-                        best_params = self._get_model_params()
-                        best_loss = loss_val
-                        checks_without_progress = 0
+                    # Export the results to the TensorBoard logging directory:
+                    self._train_writer.add_summary(train_summary, epoch)
+
+                    # Check to see if a checkpoint should be recorded this epoch:
+                    if ckpt_freq != 0 and epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
+                        tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
+                        self._train_saver.save(sess, self.ckpt_dir)
+                        # Constant OP for tf.Serving export code goes here:
+                        # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
+                        # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
+                        # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
+
+                    if X_valid is not None and y_valid is not None:
+                        # Run eval metrics, and write the result.
+                        val_summary, loss_val, acc_val = sess.run([self._merged, self._loss, self._accuracy],
+                                                     feed_dict={self._X: X_valid,
+                                                                self._y: y_valid})
+                        self._val_writer.add_summary(val_summary, epoch)
+                        if loss_val < best_loss:
+                            best_params = self._get_model_params()
+                            best_loss = loss_val
+                            checks_without_progress = 0
+                        else:
+                            checks_without_progress += 1
+                        print("{}\tValidation loss: {:.6f}\tBest loss: {:.6f}\tAccuracy: {:.2f}%".format(
+                            epoch, loss_val, best_loss, acc_val * 100))
+                        if checks_without_progress > max_checks_without_progress:
+                            print("Early stopping!")
+                            break
                     else:
-                        checks_without_progress += 1
-                    print("{}\tValidation loss: {:.6f}\tBest loss: {:.6f}\tAccuracy: {:.2f}%".format(
-                        epoch, loss_val, best_loss, acc_val * 100))
-                    if checks_without_progress > max_checks_without_progress:
-                        print("Early stopping!")
-                        break
-                else:
-                    # Report on training accuracy since no validation dataset
-                    if (epoch % eval_freq) == 0 or is_last_step:
-                        loss_train, acc_train = sess.run([self._loss, self._accuracy],
-                                                         feed_dict={self._X: X,
-                                                                    self._y: y})
-                        print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
-                            epoch, loss_train, acc_train * 100))
+                        # Report on training accuracy since no validation dataset
+                        if (epoch % eval_freq) == 0 or is_last_step:
+                            loss_train, acc_train = sess.run([self._loss, self._accuracy],
+                                                             feed_dict={self._X: X_batch,
+                                                                        self._y: y_batch})
+                            print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
+                                epoch, loss_train, acc_train * 100))
 
             # If we used early stopping then rollback to the best model found
             if best_params:
@@ -429,29 +444,29 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._train_saver.save(self._session, path)
 
     def __repr__(self):
-        tfh_repr = '%s,%s' % (self._get_initializer_repr(self.initializer), self._get_optimizer_repr(self.optimizer_class))
+        tfh_repr = '%s,%s' % (self._get_initializer_repr(self.initializer), self._get_optimizer_repr(self.optimizer))
         # tfh_repr = '%s,' % str(self.initializer)
         return tfh_repr
 
 
-if __name__ == '__main__':
-    n_inputs = 28 * 28 # MNIST
-    n_outputs = 5
-    (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
-    X_train = X_train.astype(np.float32).reshape(-1, 28*28) / 255.0
-    X_test = X_test.astype(np.float32).reshape(-1, 28*28) / 255.0
-    y_train = y_train.astype(np.int32)
-    y_test = y_test.astype(np.int32)
-    X_valid, X_train = X_train[:5000], X_train[5000:]
-    y_valid, y_train = y_train[:5000], y_train[5000:]
-    X_train1 = X_train[y_train < 5]
-    y_train1 = y_train[y_train < 5]
-    X_valid1 = X_valid[y_valid < 5]
-    y_valid1 = y_valid[y_valid < 5]
-    X_test1 = X_test[y_test < 5]
-    y_test1 = y_test[y_test < 5]
-    dnn_clf = TFHClassifier(random_state=42)
-    dnn_clf.fit(X_train1, y_train1, n_epochs=10, X_valid=X_valid1, y_valid=y_valid1)
-    y_pred = dnn_clf.predict(X_test1)
-    # accuracy_score(y_test1, y_pred)
-    print(accuracy_score(y_test1, y_pred))
+# if __name__ == '__main__':
+#     n_inputs = 28 * 28 # MNIST
+#     n_outputs = 5
+#     (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
+#     X_train = X_train.astype(np.float32).reshape(-1, 28*28) / 255.0
+#     X_test = X_test.astype(np.float32).reshape(-1, 28*28) / 255.0
+#     y_train = y_train.astype(np.int32)
+#     y_test = y_test.astype(np.int32)
+#     X_valid, X_train = X_train[:5000], X_train[5000:]
+#     y_valid, y_train = y_train[:5000], y_train[5000:]
+#     X_train1 = X_train[y_train < 5]
+#     y_train1 = y_train[y_train < 5]
+#     X_valid1 = X_valid[y_valid < 5]
+#     y_valid1 = y_valid[y_valid < 5]
+#     X_test1 = X_test[y_test < 5]
+#     y_test1 = y_test[y_test < 5]
+#     dnn_clf = TFHClassifier(random_state=42)
+#     dnn_clf.fit(X_train1, y_train1, n_epochs=10, X_valid=X_valid1, y_valid=y_valid1)
+#     y_pred = dnn_clf.predict(X_test1)
+#     # accuracy_score(y_test1, y_pred)
+#     print(accuracy_score(y_test1, y_pred))
