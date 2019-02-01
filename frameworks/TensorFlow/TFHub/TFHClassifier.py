@@ -246,16 +246,17 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._session.run(assign_ops, feed_dict=feed_dict)
 
     # def export_model(self, module_spec, class_count, saved_model_dir):
-    #     """Exports model for serving.
+    #     """
+    #     Exports a trained model for use with TensorFlow serving.
     #
-    # Args:
-    #   module_spec: The hub.ModuleSpec for the image module being used.
-    #   class_count: The number of classes.
-    #   saved_model_dir: Directory in which to save exported model and variables.
-    # """
+    #     Args:
+    #       module_spec: The hub.ModuleSpec for the image module being used.
+    #       class_count: The number of classes.
+    #       saved_model_dir: Directory in which to save exported model and variables.
+    #     """
     #     # The SavedModel should hold the eval graph.
     #     eval_sess, resized_input_image, bottleneck_input, ground_truth_input, acc_evaluation_step, \
-    #         top5_acc_eval_step, prediction = build_eval_session(module_spec, class_count)
+    #         top5_acc_eval_step, prediction = _build_eval_session(module_spec, class_count)
     #     graph = eval_sess.graph
     #     with graph.as_default():
     #         inputs = {'image': tf.saved_model.utils.build_tensor_info(resized_input_image)}

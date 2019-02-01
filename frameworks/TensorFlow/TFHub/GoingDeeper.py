@@ -534,6 +534,7 @@ def main():
         val_bottlenecks=val_bottlenecks,
         val_ground_truth_indices=val_ground_truth_indices
     )
+
     # minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
     #     bottleneck_dataframes=bottleneck_dataframes,
     #     how_many=train_batch_size,
@@ -549,6 +550,7 @@ def main():
     # tf.logging.info(msg='Partitioned bottleneck dataframe into train, val, test splits.')
     # ON RESUME: Need to test checkpoint save and restore during training since it will take long time. Code previously
     #     written in one of these branches or for networking. Then need to check saved model export and load for inference.
+
 
 if __name__ == '__main__':
     DEBUG = True
