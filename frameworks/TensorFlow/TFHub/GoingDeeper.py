@@ -335,7 +335,7 @@ def get_initializer_options():
     return initializer_options
 
 
-def get_activation_options():
+def get_activation_options(leaky_relu_alpha=None):
     """
     get_activation_options: Returns a dictionary of activation methods for use with SKLearn's GridSearch. For details
         see: https://www.tensorflow.org/api_docs/python/tf/nn
@@ -344,6 +344,8 @@ def get_activation_options():
     activation_options = {
         'ELU': tf.nn.elu
     }
+    if leaky_relu_alpha:
+        activation_options['LeakyReLU'] = tf.nn.leaky_relu
     return activation_options
 
 
@@ -415,11 +417,17 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     #     'optimizer': list(optimizers.values())
     # }
 
+    # params = {
+    #     'initializer': [initializers['he_normal']],
+    #     'activation': [activations['ELU']],
+    #     'optimizer': [optimizers['Nesterov']]
+    #     # 'train_batch_size': [1000]
+    # }
+
     params = {
         'initializer': [initializers['he_normal']],
-        'activation': [activations['ELU']],
-        'optimizer': [optimizers['Nesterov']]
-        # 'train_batch_size': [1000]
+        'activation': [activations['LeakyReLU']],
+        'optimizer': [optimizers['Adam']]
     }
 
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
@@ -428,15 +436,16 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(tfh_classifier, params, cv=cv, verbose=2, refit=False)
-    tf.logging.info(msg='Fitting model...')
+    tf.logging.info(msg='Running GridSearch...')
     grid_search.fit(
         X=train_bottlenecks,
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
         n_epochs=1000,
-        ckpt_freq=0
+        ckpt_freq=100
     )
+    tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
     best_params = grid_search.best_params_
     # This is a refit operation, notify TensorBoard to replace the previous run's logging data:
     best_params['refit'] = True
@@ -444,6 +453,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     current_params = tfh_classifier.get_params()
     current_params.update(best_params)
     tfh_classifier.set_params(**current_params)
+    tf.logging.info(msg='Model hyperparmaters have been set to the highest scoring settings reported by GridSearch. '
+                        'Now fitting a classifier with these hyperparameters...')
     # Re-fit the model using the best parameter combination from the GridSearch:
     tfh_classifier.fit(
         X=train_bottlenecks,
@@ -451,13 +462,19 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
         n_epochs=1000,
-        ckpt_freq=0
+        ckpt_freq=100
     )
+    tf.logging.info(msg='Classifier fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
-    print('accuracy_score: %s' % accuracy_score(val_ground_truth_indices, y_pred))
+    print('Classifier accuracy_score: %.2f%%' % accuracy_score(val_ground_truth_indices, y_pred)*100)
 
 
 def main():
+    """
+    main:
+    :return:
+    """
+
     """
     Path to folders of labeled images. If this script is being invoked in training mode this directory will later be
     partitioned into training, validation, and testing datasets. However, if this script is being invoked in evaluation
@@ -483,16 +500,6 @@ def main():
     """
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
 
-    """
-    Size of training batches (-1 indicates to attempt training with the entire batch):
-    """
-    train_batch_size = -1
-
-    """
-    Size of validation batches (-1 indicates to attempt training with the entire batch):
-    """
-    val_batch_size = -1
-
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
     bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=bottleneck_path, tb_summaries_dir=summaries_dir)
     tf.logging.info('Detected %d unique class labels in the bottlenecks dataframe' % len(class_labels))
@@ -509,9 +516,15 @@ def main():
 
     tf.logging.info(msg='Obtained bottleneck values from dataframe. Performed corresponding one-hot encoding of class labels')
     initializer_options = get_initializer_options()
-    activation_options = get_activation_options()
+    activation_options = get_activation_options(leaky_relu_alpha=0.2)
     # User MUST provide all default arguments or a KeyError will be thrown:
-    optimizer_options = get_optimizer_options(static_learning_rate=0.01, momentum_const=0.9)
+    optimizer_options = get_optimizer_options(
+        static_learning_rate=0.001,
+        momentum_const=0.9,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_epsilon=1e-08
+    )
     _run_grid_search(
         train_bottlenecks=train_bottlenecks,
         train_ground_truth_indices=train_ground_truth_indices,
@@ -534,10 +547,11 @@ def main():
     #     class_labels=class_labels
     # )
     # tf.logging.info(msg='Partitioned bottleneck dataframe into train, val, test splits.')
-
+    # ON RESUME: Need to test checkpoint save and restore during training since it will take long time. Code previously
+    #     written in one of these branches or for networking. Then need to check saved model export and load for inference.
 
 if __name__ == '__main__':
-    DEBUG = False
+    DEBUG = True
     main()
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with

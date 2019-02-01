@@ -12,15 +12,15 @@ he_init = tf.variance_scaling_initializer()
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, optimizer=tf.train.AdamOptimizer,
-                 learning_rate=0.01, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu, initializer=he_init,
+    def __init__(self, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
+                 activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp/summaries/',
                  ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
         :param optimizer: The type of optimizer to use during training (tf.train.AdamOptimizer by default).
-        :param learning_rate: The learning rate to use wherever a static learning rate is required.
-        :param batch_size:
+        :param train_batch_size:
+        :param val_batch_size:
         :param activation:
         :param initializer:
         :param batch_norm_momentum:
@@ -37,7 +37,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
         self._module_spec = None
         self.optimizer = optimizer
-        self.learning_rate = learning_rate
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.activation = activation
@@ -208,6 +207,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name="accuracy")
         tf.summary.scalar('accuracy', accuracy)
 
+        top5_pred= tf.nn.in_top_k(predictions=Y_proba, targets=y, k=5)
+        top5_acc = tf.reduce_mean(tf.cast(top5_pred, tf.float32))
+        tf.summary.scalar('top5_accuracy', top5_acc)
+
         init = tf.global_variables_initializer()
 
         # Merge all tensorboard summaries into one object:
@@ -219,7 +222,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Make the important operations available easily through instance variables
         self._X, self._y = X, y
         self._Y_proba, self._loss = Y_proba, loss
-        self._training_op, self._accuracy = training_op, accuracy
+        self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top5_acc
         self._init, self._train_saver = init, train_saver
         self._merged = tb_merged_summaries
 
@@ -394,31 +397,32 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
                         # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
 
-                    if X_valid is not None and y_valid is not None:
-                        # Run eval metrics, and write the result.
-                        val_summary, loss_val, acc_val = sess.run([self._merged, self._loss, self._accuracy],
-                                                     feed_dict={self._X: X_valid,
-                                                                self._y: y_valid})
-                        self._val_writer.add_summary(val_summary, epoch)
-                        if loss_val < best_loss:
-                            best_params = self._get_model_params()
-                            best_loss = loss_val
-                            checks_without_progress = 0
-                        else:
-                            checks_without_progress += 1
-                        print("{}\tValidation loss: {:.6f}\tBest loss: {:.6f}\tAccuracy: {:.2f}%".format(
-                            epoch, loss_val, best_loss, acc_val * 100))
-                        if checks_without_progress > max_checks_without_progress:
-                            print("Early stopping!")
-                            break
+                if X_valid is not None and y_valid is not None:
+                    # Run eval metrics, and write the result.
+                    val_summary, loss_val, acc_val, top5_acc = sess.run(
+                        [self._merged, self._loss, self._accuracy, self._top_five_acc],
+                        feed_dict={self._X: X_valid, self._y: y_valid}
+                    )
+                    self._val_writer.add_summary(val_summary, epoch)
+                    if loss_val < best_loss:
+                        best_params = self._get_model_params()
+                        best_loss = loss_val
+                        checks_without_progress = 0
                     else:
-                        # Report on training accuracy since no validation dataset
-                        if (epoch % eval_freq) == 0 or is_last_step:
-                            loss_train, acc_train = sess.run([self._loss, self._accuracy],
-                                                             feed_dict={self._X: X_batch,
-                                                                        self._y: y_batch})
-                            print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
-                                epoch, loss_train, acc_train * 100))
+                        checks_without_progress += 1
+                    print("{}\tValidation loss: {:.6f}\tBest loss: {:.6f}\tAccuracy: {:.2f}%\tTop-5 Accuracy: {:.2f}%".format(
+                        epoch, loss_val, best_loss, acc_val * 100, top5_acc * 100))
+                    if checks_without_progress > max_checks_without_progress:
+                        print("Early stopping!")
+                        break
+                else:
+                    # Report on training accuracy since no validation dataset
+                    if (epoch % eval_freq) == 0 or is_last_step:
+                        loss_train, acc_train = sess.run([self._loss, self._accuracy],
+                                                         feed_dict={self._X: X_batch,
+                                                                    self._y: y_batch})
+                        print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
+                            epoch, loss_train, acc_train * 100))
 
             # If we used early stopping then rollback to the best model found
             if best_params:
