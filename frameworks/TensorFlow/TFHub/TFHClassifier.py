@@ -7,6 +7,7 @@ import tensorflow_hub as hub
 import numpy as np
 import os
 import shutil
+import pycm
 
 he_init = tf.variance_scaling_initializer()
 # he_init = tf.initializers.he_normal
@@ -132,6 +133,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             shape=[batch_size],
             name='y'
         )
+        num_classes = tf.placeholder(tf.int32, shape=(), name='NumClasses')
         predictions = tf.placeholder(
             tf.int64,
             shape=[batch_size],
@@ -191,11 +193,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Create a tensor containing the predicted class label for each training sample (the argmax of the probability tensor)
         preds = tf.math.argmax(Y_proba, axis=1)
         # Create a confusion matrix:
-        # confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=len(self.classes_), dtype=tf.int32, name='ConfusionMatrix')
+        confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=num_classes, dtype=tf.float32, name='BatchConfusionMatrix')
+        # Create an accumulator variable to hold the counts:
+        # confusion = tf.Variable(tf.zeros([len(self.classes_), len(self.classes_)], dtype=tf.float32), name='ConfusionMatrixAccumulator')
+        # print(confusion)
+        # Create an update op for doing a += accumulation on the batch:
+        # confusion_update = confusion.assign(confusion + batch_confusion)
         # Sanity check:
         # acc = tf.reduce_mean(confusion_matrix)
         # per-class acc:
-        # per_class_acc = tf.reduce_mean(confusion_matrix, axis=1)
+        # per_class_acc = tf.reduce_mean(batch_confusion, axis=1)
         # tf.logging.info('per_class_acc: %s' % per_class_acc)
 
         # Create a tensor to store a running counter of the number of times each class was chosen as the target:
@@ -263,7 +270,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._Y_proba, self._preds, self._loss = Y_proba, preds, loss
         self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top5_acc
         # self._per_class_acc_update_op = per_class_acc_update
-        # self._per_class_acc = per_class_acc
+        self.num_classes, self.confusion_matrix = num_classes, confusion_matrix
         self._init, self.running_vars_init, self._train_saver = init, running_vars_init, train_saver
         self._merged = tb_merged_summaries
 
@@ -397,7 +404,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # infer n_inputs and n_outputs from the training set.
         n_inputs = X.shape[1]
         self.classes_ = np.unique(y)
-        self._num_classes = len(self.classes_)
+        # self._num_classes = len(self.classes_)
         n_outputs = len(self.classes_)
         self._graph = tf.Graph()
         with self._graph.as_default():
@@ -443,11 +450,20 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
                 if X_valid is not None and y_valid is not None:
                     # Run eval metrics, and write the result.
-                    val_summary, loss_val, acc_val, top5_acc, y_proba, preds = sess.run(
-                        [self._merged, self._loss, self._accuracy, self._top_five_acc, self._Y_proba, self._preds],
+                    val_summary, loss_val, acc_val, top5_acc, preds = sess.run(
+                        [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
                         feed_dict={self._X: X_valid, self._y: y_valid}
                     )
-                    # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: y_proba, self._num_classes: len(self.classes_)})
+                    # Compute confusion matrix for multiclass accuracy:
+                    # confusion_matrix = sess.run(self.confusion_matrix, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
+                    cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
+                    print(cm)
+                    # true_positives = confusion_matrix.diagonal()
+                    # print()
+                    # print(confusion_matrix)
+                    # print('preds: %s' % preds)
+                    # sess.run(self.batch_confusion, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
+                    # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
                     # sess.run(self._per_class_acc_update_op, feed_dict={self._y: y_valid, self._predictions: preds})
                     # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds})
                     # print('per_class_acc: %s' % per_class_acc)
