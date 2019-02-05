@@ -14,7 +14,7 @@ he_init = tf.variance_scaling_initializer()
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
+    def __init__(self, class_labels, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
                  activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp/summaries/',
                  ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/', refit=False):
@@ -38,6 +38,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
         self._module_spec = None
+        self.class_labels = class_labels
         self.optimizer = optimizer
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
@@ -367,6 +368,22 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
     #         hyper_string = 'INIT_unknown,'
     #     return hyper_string
 
+    def print_multiclass_acc(self, y, y_pred):
+        """
+        print_multiclass_acc: Prints the accuracy for each class in human readable form
+        :param y:
+        :param y_pred:
+        :return:
+        """
+        cm = pycm.ConfusionMatrix(actual_vector=y, predict_vector=y_pred)
+        out = '\t{'
+        for clss, acc in cm.ACC.items():
+            out = out + '\'%s\': %.2f%%,' % (self.class_labels[int(clss)], acc*100)
+        out = out[:-1]
+        out = out + '}'
+        print(out)
+
+
     def fit(self, X, y, n_epochs=100, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
         """
         fit: Fits the model to the training data.
@@ -456,8 +473,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     )
                     # Compute confusion matrix for multiclass accuracy:
                     # confusion_matrix = sess.run(self.confusion_matrix, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
-                    cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
-                    print(cm)
+                    # cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
+                    # tf.summary.histogram(cm.ACC, 'multiclassAcc')
+                    self.print_multiclass_acc(y=y_valid, y_pred=preds)
                     # true_positives = confusion_matrix.diagonal()
                     # print()
                     # print(confusion_matrix)
