@@ -2,6 +2,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import accuracy_score
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 import tensorflow_hub as hub
 import numpy as np
 import os
@@ -131,6 +132,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             shape=[batch_size],
             name='y'
         )
+        predictions = tf.placeholder(
+            tf.int64,
+            shape=[batch_size],
+            name='predictions'
+        )
 
         ''' Add transfer learning target domain final retrain operations: '''
         final_layer_name = 'final_retrain_ops'
@@ -181,6 +187,31 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # logits = tf.layers.dense(dnn_outputs, n_outputs, kernel_initializer=he_init, name="logits")
         Y_proba = tf.nn.softmax(logits, name="Y_proba")
 
+        # The logic here is for computing a running accuracy on a class-by-class basis:
+        # Create a tensor containing the predicted class label for each training sample (the argmax of the probability tensor)
+        preds = tf.math.argmax(Y_proba, axis=1)
+        # Create a confusion matrix:
+        # confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=len(self.classes_), dtype=tf.int32, name='ConfusionMatrix')
+        # Sanity check:
+        # acc = tf.reduce_mean(confusion_matrix)
+        # per-class acc:
+        # per_class_acc = tf.reduce_mean(confusion_matrix, axis=1)
+        # tf.logging.info('per_class_acc: %s' % per_class_acc)
+
+        # Create a tensor to store a running counter of the number of times each class was chosen as the target:
+        # class_counts = tf.zeros(shape=[len(self.classes_)], dtype=tf.float32)
+        # Create a tensor to store a running counter of the number of times each class was predicted correctly:
+        # class_counts_correct = tf.zeros(shape=[len(self.classes_)], dtype=tf.float32)
+
+        # # Create a boolean tensor containing values of True where the predicted label matches the class label:
+        # is_correct = tf.math.equal(y, preds)
+        # # Convert this tensor to zero's and one's and then update the class_counts tensor
+        # is_correct_as_int = tf.cast(is_correct, tf.float32)
+        # for i in range(class_counts.shape[0]):
+        #     class_counts[i] = sum(tf.cast(tf.equal(preds, i), tf.float32))
+        # class_counts_correct = class_counts_correct + is_correct_as_int
+
+
         xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y,
                                                                   logits=logits)
         tf.summary.histogram('xentropy', xentropy)
@@ -211,6 +242,14 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         top5_acc = tf.reduce_mean(tf.cast(top5_pred, tf.float32))
         tf.summary.scalar('top5_accuracy', top5_acc)
 
+        # Shape mis-match incompatible shapes: [5850] vs. [650]
+        # per_class_acc, per_class_acc_update = tf.metrics.mean_per_class_accuracy(y, predictions, len(self.classes_), name='PerClassAcc')
+        # tf.summary.scalar('per_class_acc', per_class_acc)
+
+        running_vars = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope='PerClassAcc')
+        running_vars_init = tf.variables_initializer(var_list=running_vars)
+
+        # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         init = tf.global_variables_initializer()
 
         # Merge all tensorboard summaries into one object:
@@ -220,10 +259,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         train_saver = tf.train.Saver()
 
         # Make the important operations available easily through instance variables
-        self._X, self._y = X, y
-        self._Y_proba, self._loss = Y_proba, loss
+        self._X, self._y, self._Y_proba, self._predictions = X, y, Y_proba, predictions
+        self._Y_proba, self._preds, self._loss = Y_proba, preds, loss
         self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top5_acc
-        self._init, self._train_saver = init, train_saver
+        # self._per_class_acc_update_op = per_class_acc_update
+        # self._per_class_acc = per_class_acc
+        self._init, self.running_vars_init, self._train_saver = init, running_vars_init, train_saver
         self._merged = tb_merged_summaries
 
     def close_session(self):
@@ -356,6 +397,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # infer n_inputs and n_outputs from the training set.
         n_inputs = X.shape[1]
         self.classes_ = np.unique(y)
+        self._num_classes = len(self.classes_)
         n_outputs = len(self.classes_)
         self._graph = tf.Graph()
         with self._graph.as_default():
@@ -376,6 +418,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             self._train_writer = tf.summary.FileWriter(tb_log_path_train, sess.graph)
             self._val_writer = tf.summary.FileWriter(tb_log_path_val)
             self._init.run()
+            self.running_vars_init.run()
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
                 # Minibatch partitioning:
@@ -400,10 +443,14 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
                 if X_valid is not None and y_valid is not None:
                     # Run eval metrics, and write the result.
-                    val_summary, loss_val, acc_val, top5_acc = sess.run(
-                        [self._merged, self._loss, self._accuracy, self._top_five_acc],
+                    val_summary, loss_val, acc_val, top5_acc, y_proba, preds = sess.run(
+                        [self._merged, self._loss, self._accuracy, self._top_five_acc, self._Y_proba, self._preds],
                         feed_dict={self._X: X_valid, self._y: y_valid}
                     )
+                    # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: y_proba, self._num_classes: len(self.classes_)})
+                    # sess.run(self._per_class_acc_update_op, feed_dict={self._y: y_valid, self._predictions: preds})
+                    # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds})
+                    # print('per_class_acc: %s' % per_class_acc)
                     self._val_writer.add_summary(val_summary, epoch)
                     if loss_val < best_loss:
                         best_params = self._get_model_params()
