@@ -277,8 +277,6 @@ def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, cl
             bottlneck array.
     """
     bottleneck_dataframe = bottleneck_dataframes[category]
-    # TODO: Get size of output layer from module itself.
-    penultimate_output_layer_size = 2048
     if how_many >= 0:
         random_mini_batch_indices = np.random.randint(low=0, high=bottleneck_dataframe.shape[0], size=(how_many, ))
         minibatch_samples = bottleneck_dataframe.iloc[random_mini_batch_indices]
