@@ -399,7 +399,7 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
+def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, val_bottlenecks=None, val_ground_truth_indices=None):
     # params = {
     #     'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
     #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
@@ -417,21 +417,23 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     #     'optimizer': list(optimizers.values())
     # }
 
-    # params = {
-    #     'initializer': [initializers['he_normal']],
-    #     'activation': [activations['ELU']],
-    #     'optimizer': [optimizers['Nesterov']]
-    #     # 'train_batch_size': [1000]
-    # }
-
     params = {
         'initializer': [initializers['he_normal']],
         'activation': [activations['LeakyReLU']],
-        'optimizer': [optimizers['Adam']]
+        'optimizer': [optimizers['Nesterov']],
+        'train_batch_size': [20, 60, 1000, -1]
+        # 'train_batch_size': [20, 60, 1000, ]
     }
 
+    # params = {
+    #     'initializer': [initializers['he_normal']],
+    #     'activation': [activations['LeakyReLU']],
+    #     'optimizer': [optimizers['Adam']]
+    #     # 'train_batch_size': [1000]
+    # }
+
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
-    tfh_classifier = TFHClassifier(random_state=42)
+    tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels)
     tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
     cv = [(slice(None), slice(None))]
@@ -442,8 +444,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=10000,
-        ckpt_freq=1000
+        n_epochs=1000,
+        ckpt_freq=100
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
     best_params = grid_search.best_params_
@@ -461,12 +463,12 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=10000,
-        ckpt_freq=1000
+        n_epochs=1000,
+        ckpt_freq=100
     )
-    tf.logging.info(msg='Classifier fit! Model ready for inference.')
+    tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
-    print('Classifier accuracy_score: %.2f%%' % accuracy_score(val_ground_truth_indices, y_pred)*100)
+    print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
 
 
 def main():
@@ -531,11 +533,10 @@ def main():
         initializers=initializer_options,
         activations=activation_options,
         optimizers=optimizer_options,
+        class_labels=class_labels,
         val_bottlenecks=val_bottlenecks,
         val_ground_truth_indices=val_ground_truth_indices
     )
-
-
 
     # minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
     #     bottleneck_dataframes=bottleneck_dataframes,
