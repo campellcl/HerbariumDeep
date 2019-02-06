@@ -283,25 +283,59 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         out = out + '}'
         print(out)
 
+    @staticmethod
+    def _shuffle_batch(X, y, batch_size):
+        """
+        _shuffle_batch: Yields an iterable of batch tuples that has been permuted and shuffled so that sampling without
+            replacement occurs and each sample is included in at least one batch.
+        :source HandsOnML: https://github.com/ageron/handson-ml/blob/master/13_convolutional_neural_networks.ipynb
+        :param X: The training data.
+        :param y: The target data.
+        :param batch_size: The desired batch size. The last array will have len(array) <= batch_size, all others will
+            have len(batch_size) length.
+        :return:
+        """
+        rnd_idx = np.random.permutation(len(X))
+        n_batches = len(X) // batch_size
+        for batch_idx in np.array_split(rnd_idx, n_batches):
+            X_batch, y_batch = X[batch_idx], y[batch_idx]
+            yield X_batch, y_batch
+
     def fit(self, X, y, n_epochs=100, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
         """
-        fit: Fits the model to the training data.
-        :param X:
-        :param y:
+        fit: Fits the model to the training data. If X_valid and y_valid are provided, validation metrics are reported
+            instead of training metrics, and early stopping is employed.
+        :param X: The training data.
+        :param y: The training targets.
         :param n_epochs: The number of passes over the entire training dataset during fitting.
-        :param X_valid:
-        :param y_valid:
+        :param X_valid: The validation dataset.
+        :param y_valid: The validation targets.
         :param eval_freq: How many epochs to train for, before running and displaying the results of an evaluation step.
         :param ckpt_freq: How many epochs to train for, before saving a model checkpoint.
         :return:
         """
-        """Fit the model to the training set. If X_valid and y_valid are provided, use early stopping."""
+        ''' Generic cleanup, and some lazy instantiation: '''
+        # Close the session in case it was previously left open for some reason:
         self.close_session()
+
+        # If the batch size was set to -1 during initialization, infer the training size at runtime from the X matrix:
         if self.train_batch_size == -1:
             self.train_batch_size = len(X)
         if self.val_batch_size == -1:
             self.val_batch_size = len(X_valid)
 
+        # infer n_inputs and n_outputs from the training set:
+        n_inputs = X.shape[1]
+        self.classes_ = np.unique(y)
+        n_outputs = len(self.classes_)
+
+        # needed in case of early stopping:
+        max_checks_without_progress = 20
+        checks_without_progress = 0
+        best_loss = np.infty
+        best_params = None
+
+        '''Some TensorBoard setup: '''
         # TB TrainWriter logging directory:
         tb_log_path_train = self.tb_logdir + '/train/' + self.__repr__()
         # TB ValidationWriter logging directory:
@@ -314,42 +348,32 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             # Remove the TB logging directory from the first validation fit with these parameters:
             shutil.rmtree(tb_log_path_val, ignore_errors=True)
 
-        # infer n_inputs and n_outputs from the training set.
-        n_inputs = X.shape[1]
-        self.classes_ = np.unique(y)
-        # self._num_classes = len(self.classes_)
-        n_outputs = len(self.classes_)
+        ''' Build the computational graph: '''
         self._graph = tf.Graph()
         with self._graph.as_default():
             self._build_graph(n_inputs, n_outputs)
             # extra ops for batch normalization
             extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
-        # needed in case of early stopping
-        max_checks_without_progress = 20
-        checks_without_progress = 0
-        best_loss = np.infty
-        best_params = None
-
-        # Now train the model!
+        ''' Train the model! '''
         self._session = tf.Session(graph=self._graph)
         with self._session.as_default() as sess:
-            # self._hyper_string = str(self._get_model_params())
             self._train_writer = tf.summary.FileWriter(tb_log_path_train, sess.graph)
             self._val_writer = tf.summary.FileWriter(tb_log_path_val)
             self._init.run()
             self.running_vars_init.run()
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
-                # Minibatch partitioning:
-                rnd_idx = np.random.permutation(len(X))
-                for rnd_indices in np.array_split(rnd_idx, len(X) // self.train_batch_size):
-                    X_batch, y_batch = X[rnd_indices], y[rnd_indices]
+                # batch partitioning:
+                for X_batch, y_batch in self._shuffle_batch(X, y, batch_size=self.train_batch_size):
 
+                    # Run a training step, but don't capture the results at the mini-batch level:
+                    # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
                     # Run a training step and capture the results in self._training_op
                     train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
 
                     # Export the results to the TensorBoard logging directory:
+                    # TODO: How to avoid doing this on the mini-batch level... is it being overwritten each time?
                     self._train_writer.add_summary(train_summary, epoch)
 
                 # Check to see if a checkpoint should be recorded this epoch:
