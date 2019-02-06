@@ -49,6 +49,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self._session = None
         self._graph = None
+        self.classes_ = None
         # Create a FileWriter object to export tensorboard information:
         self._train_writer = None
         self._val_writer = None
@@ -58,44 +59,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.tb_logdir = tb_logdir
         self.refit = refit
 
-    @staticmethod
-    def _get_initializer_repr(initializer):
-        function_repr = str(initializer)
-        if 'random_uniform' in function_repr:
-            return 'INIT_UNIFORM'
-        elif 'random_normal' in function_repr:
-            return 'INIT_NORMAL'
-        elif 'truncated_normal' in function_repr:
-            return 'INIT_NORMAL_TRUNCATED'
-        elif 'he_normal' in function_repr or 'init_ops.VarianceScaling' in function_repr:
-            # He normal
-            return 'INIT_HE_NORMAL'
-        elif 'he_uniform' in function_repr:
-            return 'INIT_HE_UNIFORM'
-        else:
-            return 'INIT_UNKNOWN'
-
-    @staticmethod
-    def _get_optimizer_repr(optimizer):
-        class_repr = str(optimizer)
-        if 'GradientDescentOptimizer' in class_repr:
-            return 'OPTIM_GRAD_DESCENT'
-        elif 'AdamOptimizer' in class_repr:
-            return 'OPTIM_ADAM'
-        else:
-            return 'OPTIM_UNKNOWN'
-
     def _build_graph(self, n_inputs, n_outputs):
-        # I added this to control TB writting, not sure session persistance is the issue depends on SKLearn inner workings.
-        # if self._session is not None:
-        #     self.close_session()
-
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
             np.random.seed(self.random_state)
-
-        # X = tf.placeholder(tf.float32, shape=(None, n_inputs), name="X")
-        # y = tf.placeholder(tf.int32, shape=(None), name="y")
 
         if self.batch_norm_momentum or self.dropout_rate:
             self._training = tf.placeholder_with_default(False, shape=(), name='training')
@@ -148,49 +115,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             logits = tf.layers.dense(X, n_outputs, activation=self.activation, use_bias=True, kernel_initializer=self.initializer, trainable=True, name='logits')
             tf.summary.histogram('logits', logits)
 
-            # with tf.name_scope('weights'):
-            #     # Output random values from the initializer:
-            #     if 'random_uniform' in str(self.initializer):
-            #     # if self.initializer_repr == 'INIT_UNIFORM':
-            #         # Random uniform distribution initializer doesn't need stddev:
-            #         initial_value = self.initializer(
-            #             shape=[bottleneck_tensor_size, n_outputs]
-            #         )
-            #     elif 'he_normal' in str(self.initializer) or 'init_ops.VarianceScaling' in str(self.initializer):
-            #     # elif self.initializer_repr == 'INIT_HE_NORMAL':
-            #         # He normal initializer doesn't need a stddev:
-            #         initial_value = self.initializer(
-            #             shape=[bottleneck_tensor_size, n_outputs]
-            #         )
-            #     # elif self.initializer_repr == 'INIT_HE_UNIFORM':
-            #     elif 'he_uniform' in str(self.initializer):
-            #         initial_value = self.initializer()(shape=[bottleneck_tensor_size, n_outputs])
-            #     else:
-            #         initial_value = self.initializer(
-            #             shape=[bottleneck_tensor_size, n_outputs],
-            #             stddev=0.001
-            #         )
-            #     # Output random values from truncated normal distribution:
-            #     # initial_value = tf.truncated_normal(
-            #     #     shape=[bottleneck_tensor_size, n_outputs],
-            #     #     stddev=0.001
-            #     # )
-            #     layer_weights = tf.Variable(initial_value=initial_value, name='final_weights')
-
-            # with tf.name_scope('biases'):
-            #     layer_biases = tf.Variable(initial_value=tf.zeros([n_outputs]), name='final_biases')
-
-            # # pre-activations:
-            # with tf.name_scope('Wx_plus_b'):
-            #     logits = tf.matmul(X, layer_weights) + layer_biases
-            #     # For TensorBoard histograms:
-            #     tf.summary.histogram('Wx_plus_b', logits)
-
-
-        # logits = tf.layers.dense(dnn_outputs, n_outputs, kernel_initializer=he_init, name="logits")
         Y_proba = tf.nn.softmax(logits, name="Y_proba")
 
-        # The logic here is for computing a running accuracy on a class-by-class basis:
+        ''' The logic here is for computing a running accuracy on a class-by-class basis: '''
         # Create a tensor containing the predicted class label for each training sample (the argmax of the probability tensor)
         preds = tf.math.argmax(Y_proba, axis=1)
         # Create a confusion matrix:
@@ -227,19 +154,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         loss = tf.reduce_mean(xentropy, name="loss")
         tf.summary.scalar('loss', loss)
 
-        # optim_class_repr = str(self.optimizer)
-        # if 'momentum.MomentumOptimizer' in optim_class_repr:
-        #     # optimizer = self.optimizer(learning_rate=self.learning_rate, momentum=)
-        #     # Optimizer is an already instantiated MomentumOptimizer, do not attempt to re-instantiate:
-        #     optimizer = self.optimizer
-        # elif 'adagrad.AdagradOptimizer' in optim_class_repr:
-        #     # Optimizer is an already instantiated AdagradOptimizer, do not attempt to re-instantiate:
-        #     optimizer = self.optimizer
-        # elif 'adadelta.AdadeltaOptimizer' in optim_class_repr:
-        #     # Optimizer is an already instantiated AdadeltaOptimizer, do not attempt to re-instantiate:
-        #     optimizer = self.optimizer
-        # else:
-        #     optimizer = self.optimizer(learning_rate=self.learning_rate)
         training_op = self.optimizer.minimize(loss)
 
         correct = tf.nn.in_top_k(logits, y, 1)
@@ -354,20 +268,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         with tf.gfile.GFile(graph_file_name, 'wb') as fp:
             fp.write(output_graph_def.SerializeToString())
 
-    # def get_hyperparameter_string(self):
-    #     if self.initializer == tf.random_normal:
-    #         hyper_string = 'INIT_rand_norm,'
-    #     elif self.initializer == tf.random_uniform:
-    #         hyper_string = 'INIT_rand_unif,'
-    #     elif self.initializer == tf.truncated_normal:
-    #         hyper_string = 'INIT_trunc_norm,'
-    #     elif self.initializer == tf.initializers.he_normal:
-    #     # elif 'tf.python.ops.init_ops.VarianceScaling' in str(self.initializer):
-    #         hyper_string = 'INIT_he_norm,'
-    #     else:
-    #         hyper_string = 'INIT_unknown,'
-    #     return hyper_string
-
     def print_multiclass_acc(self, y, y_pred):
         """
         print_multiclass_acc: Prints the accuracy for each class in human readable form
@@ -382,7 +282,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         out = out[:-1]
         out = out + '}'
         print(out)
-
 
     def fit(self, X, y, n_epochs=100, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
         """
@@ -414,9 +313,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             shutil.rmtree(tb_log_path_train, ignore_errors=True)
             # Remove the TB logging directory from the first validation fit with these parameters:
             shutil.rmtree(tb_log_path_val, ignore_errors=True)
-            # Re-create both directories:
-            # os.mkdir(tb_log_path_train)
-            # os.mkdir(tb_log_path_val)
 
         # infer n_inputs and n_outputs from the training set.
         n_inputs = X.shape[1]
@@ -457,7 +353,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     self._train_writer.add_summary(train_summary, epoch)
 
                 # Check to see if a checkpoint should be recorded this epoch:
-                if ckpt_freq != 0 and epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
+                if ckpt_freq != 0 and epoch > 0 and ((epoch % ckpt_freq == 0) or is_last_step):
                     tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
                     self._train_saver.save(sess, self.ckpt_dir)
                     # Constant OP for tf.Serving export code goes here:
@@ -529,8 +425,46 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
     def save(self, path):
         self._train_saver.save(self._session, path)
 
+    @staticmethod
+    def _get_initializer_repr(initializer):
+        function_repr = str(initializer)
+        if 'random_uniform' in function_repr:
+            return 'INIT_UNIFORM'
+        elif 'random_normal' in function_repr:
+            return 'INIT_NORMAL'
+        elif 'truncated_normal' in function_repr:
+            return 'INIT_NORMAL_TRUNCATED'
+        elif 'he_normal' in function_repr or 'init_ops.VarianceScaling' in function_repr:
+            # He normal
+            return 'INIT_HE_NORMAL'
+        elif 'he_uniform' in function_repr:
+            return 'INIT_HE_UNIFORM'
+        else:
+            return 'INIT_UNKNOWN'
+
+    @staticmethod
+    def _get_optimizer_repr(optimizer):
+        class_repr = str(optimizer)
+        if 'GradientDescentOptimizer' in class_repr:
+            return 'OPTIM_GRAD_DESCENT'
+        elif 'AdamOptimizer' in class_repr:
+            return 'OPTIM_ADAM'
+        elif 'MomentumOptimizer' in class_repr:
+            if optimizer._use_nesterov:
+                return 'OPTIM_NESTEROV'
+            else:
+                return 'OPTIM_MOMENTUM'
+        else:
+            return 'OPTIM_UNKNOWN'
+
+    @staticmethod
+    def _get_activation_repr(activation):
+        function_repr = str(activation)
+        if 'leaky_relu' in function_repr:
+            return 'ACTIVATION_LEAKY_RELU'
+
     def __repr__(self):
-        tfh_repr = '%s,%s' % (self._get_initializer_repr(self.initializer), self._get_optimizer_repr(self.optimizer))
+        tfh_repr = '%s,%s,TRAIN_BATCH_SIZE__%d' % (self._get_initializer_repr(self.initializer), self._get_optimizer_repr(self.optimizer), self.train_batch_size)
         # tfh_repr = '%s,' % str(self.initializer)
         return tfh_repr
 
