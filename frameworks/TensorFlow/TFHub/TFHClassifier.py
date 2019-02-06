@@ -456,14 +456,14 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # Export the results to the TensorBoard logging directory:
                     self._train_writer.add_summary(train_summary, epoch)
 
-                    # Check to see if a checkpoint should be recorded this epoch:
-                    if ckpt_freq != 0 and epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
-                        tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
-                        self._train_saver.save(sess, self.ckpt_dir)
-                        # Constant OP for tf.Serving export code goes here:
-                        # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
-                        # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
-                        # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
+                # Check to see if a checkpoint should be recorded this epoch:
+                if ckpt_freq != 0 and epoch > 0 and (epoch % ckpt_freq == 0) or is_last_step:
+                    tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
+                    self._train_saver.save(sess, self.ckpt_dir)
+                    # Constant OP for tf.Serving export code goes here:
+                    # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
+                    # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
+                    # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
 
                 if X_valid is not None and y_valid is not None:
                     # Run eval metrics, and write the result.
@@ -475,7 +475,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # confusion_matrix = sess.run(self.confusion_matrix, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
                     # cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
                     # tf.summary.histogram(cm.ACC, 'multiclassAcc')
-                    self.print_multiclass_acc(y=y_valid, y_pred=preds)
+                    # self.print_multiclass_acc(y=y_valid, y_pred=preds)
                     # true_positives = confusion_matrix.diagonal()
                     # print()
                     # print(confusion_matrix)
