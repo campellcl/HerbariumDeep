@@ -417,18 +417,20 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     #     'optimizer': list(optimizers.values())
     # }
 
-    # params = {
-    #     'initializer': [initializers['he_normal']],
-    #     'activation': [activations['ELU']],
-    #     'optimizer': [optimizers['Nesterov']]
-    #     # 'train_batch_size': [1000]
-    # }
-
     params = {
         'initializer': [initializers['he_normal']],
         'activation': [activations['LeakyReLU']],
-        'optimizer': [optimizers['Adam']]
+        'optimizer': [optimizers['Nesterov']],
+        'train_batch_size': [20, 60, 1000, -1]
+        # 'train_batch_size': [20, 60, 1000, ]
     }
+
+    # params = {
+    #     'initializer': [initializers['he_normal']],
+    #     'activation': [activations['LeakyReLU']],
+    #     'optimizer': [optimizers['Adam']]
+    #     # 'train_batch_size': [1000]
+    # }
 
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels)
@@ -464,9 +466,9 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         n_epochs=1000,
         ckpt_freq=100
     )
-    tf.logging.info(msg='Classifier fit! Model ready for inference.')
+    tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
-    print('Classifier accuracy_score: %.2f%%' % accuracy_score(val_ground_truth_indices, y_pred)*100)
+    print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
 
 
 def main():
