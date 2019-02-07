@@ -122,30 +122,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         preds = tf.math.argmax(Y_proba, axis=1)
         # Create a confusion matrix:
         confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=num_classes, dtype=tf.float32, name='BatchConfusionMatrix')
-        # Create an accumulator variable to hold the counts:
-        # confusion = tf.Variable(tf.zeros([len(self.classes_), len(self.classes_)], dtype=tf.float32), name='ConfusionMatrixAccumulator')
-        # print(confusion)
-        # Create an update op for doing a += accumulation on the batch:
-        # confusion_update = confusion.assign(confusion + batch_confusion)
-        # Sanity check:
-        # acc = tf.reduce_mean(confusion_matrix)
-        # per-class acc:
-        # per_class_acc = tf.reduce_mean(batch_confusion, axis=1)
-        # tf.logging.info('per_class_acc: %s' % per_class_acc)
-
-        # Create a tensor to store a running counter of the number of times each class was chosen as the target:
-        # class_counts = tf.zeros(shape=[len(self.classes_)], dtype=tf.float32)
-        # Create a tensor to store a running counter of the number of times each class was predicted correctly:
-        # class_counts_correct = tf.zeros(shape=[len(self.classes_)], dtype=tf.float32)
-
-        # # Create a boolean tensor containing values of True where the predicted label matches the class label:
-        # is_correct = tf.math.equal(y, preds)
-        # # Convert this tensor to zero's and one's and then update the class_counts tensor
-        # is_correct_as_int = tf.cast(is_correct, tf.float32)
-        # for i in range(class_counts.shape[0]):
-        #     class_counts[i] = sum(tf.cast(tf.equal(preds, i), tf.float32))
-        # class_counts_correct = class_counts_correct + is_correct_as_int
-
 
         xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y,
                                                                   logits=logits)
@@ -168,9 +144,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # per_class_acc, per_class_acc_update = tf.metrics.mean_per_class_accuracy(y, predictions, len(self.classes_), name='PerClassAcc')
         # tf.summary.scalar('per_class_acc', per_class_acc)
 
-        running_vars = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope='PerClassAcc')
-        running_vars_init = tf.variables_initializer(var_list=running_vars)
-
         # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         init = tf.global_variables_initializer()
 
@@ -186,7 +159,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top5_acc
         # self._per_class_acc_update_op = per_class_acc_update
         self.num_classes, self.confusion_matrix = num_classes, confusion_matrix
-        self._init, self.running_vars_init, self._train_saver = init, running_vars_init, train_saver
+        self._init, self._train_saver = init, train_saver
         self._merged = tb_merged_summaries
 
     def close_session(self):
@@ -363,7 +336,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             self._train_writer = tf.summary.FileWriter(tb_log_path_train, sess.graph)
             self._val_writer = tf.summary.FileWriter(tb_log_path_val)
             self._init.run()
-            self.running_vars_init.run()
+            # self.running_vars_init.run()
 
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
@@ -386,21 +359,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
                             feed_dict={self._X: X_valid, self._y: y_valid}
                         )
+                        # Update TensorBoard on the results:
                         self._val_writer.add_summary(val_summary, epoch)
-                        # Compute confusion matrix for multiclass accuracy:
-                        # confusion_matrix = sess.run(self.confusion_matrix, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
-                        # cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
-                        # tf.summary.histogram(cm.ACC, 'multiclassAcc')
-                        # self.print_multiclass_acc(y=y_valid, y_pred=preds)
-                        # true_positives = confusion_matrix.diagonal()
-                        # print()
-                        # print(confusion_matrix)
-                        # print('preds: %s' % preds)
-                        # sess.run(self.batch_confusion, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
-                        # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
-                        # sess.run(self._per_class_acc_update_op, feed_dict={self._y: y_valid, self._predictions: preds})
-                        # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds})
-                        # print('per_class_acc: %s' % per_class_acc)
+
+                        # Early stopping logic:
                         if loss_val < best_loss:
                             best_params = self._get_model_params()
                             best_loss = loss_val
