@@ -456,7 +456,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
     def __repr__(self):
         tfh_repr = '%s,%s,TRAIN_BATCH_SIZE__%d' % (self._get_initializer_repr(self.initializer), self._get_optimizer_repr(self.optimizer), self.train_batch_size)
-        # tfh_repr = '%s,' % str(self.initializer)
         return tfh_repr
 
 
