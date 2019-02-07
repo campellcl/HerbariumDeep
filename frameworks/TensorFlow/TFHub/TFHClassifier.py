@@ -295,6 +295,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             have len(batch_size) length.
         :return:
         """
+        # If the batch size is set via shorthand to -1, infer the batch size from dim(0) of X:
+        if batch_size == -1:
+            batch_size = len(X)
+        # Yield batch tuples until exhausted:
         rnd_idx = np.random.permutation(len(X))
         n_batches = len(X) // batch_size
         for batch_idx in np.array_split(rnd_idx, n_batches):
@@ -319,8 +323,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.close_session()
 
         # If the batch size was set to -1 during initialization, infer the training size at runtime from the X matrix:
-        if self.train_batch_size == -1:
-            self.train_batch_size = len(X)
         if self.val_batch_size == -1:
             self.val_batch_size = len(X_valid)
 
@@ -362,11 +364,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             self._val_writer = tf.summary.FileWriter(tb_log_path_val)
             self._init.run()
             self.running_vars_init.run()
+
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
                 # batch partitioning:
                 for X_batch, y_batch in self._shuffle_batch(X, y, batch_size=self.train_batch_size):
-
                     # Run a training step, but don't capture the results at the mini-batch level:
                     # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
                     # Run a training step and capture the results in self._training_op
@@ -376,63 +378,66 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # TODO: How to avoid doing this on the mini-batch level... is it being overwritten each time?
                     self._train_writer.add_summary(train_summary, epoch)
 
+                # Check to see if eval metrics should be computed this epoch on the validation dataset:
+                if (epoch % eval_freq == 0) or is_last_step:
+                    if X_valid is not None and y_valid is not None:
+                        # Run eval metrics on the entire validation dataset:
+                        val_summary, loss_val, acc_val, top5_acc, preds = sess.run(
+                            [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
+                            feed_dict={self._X: X_valid, self._y: y_valid}
+                        )
+                        self._val_writer.add_summary(val_summary, epoch)
+                        # Compute confusion matrix for multiclass accuracy:
+                        # confusion_matrix = sess.run(self.confusion_matrix, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
+                        # cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
+                        # tf.summary.histogram(cm.ACC, 'multiclassAcc')
+                        # self.print_multiclass_acc(y=y_valid, y_pred=preds)
+                        # true_positives = confusion_matrix.diagonal()
+                        # print()
+                        # print(confusion_matrix)
+                        # print('preds: %s' % preds)
+                        # sess.run(self.batch_confusion, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
+                        # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
+                        # sess.run(self._per_class_acc_update_op, feed_dict={self._y: y_valid, self._predictions: preds})
+                        # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds})
+                        # print('per_class_acc: %s' % per_class_acc)
+                        if loss_val < best_loss:
+                            best_params = self._get_model_params()
+                            best_loss = loss_val
+                            checks_without_progress = 0
+                        else:
+                            checks_without_progress += 1
+                        print("{}\tValidation loss: {:.6f}\tBest loss: {:.6f}\tAccuracy: {:.2f}%\tTop-5 Accuracy: {:.2f}%".format(
+                            epoch, loss_val, best_loss, acc_val * 100, top5_acc * 100))
+                        if checks_without_progress > max_checks_without_progress:
+                            print("Early stopping!")
+                            break
+                    else:
+                        # Run eval metrics on the entire training dataset (as no validation set is available):
+                        loss_train, acc_train = sess.run([self._loss, self._accuracy],
+                                                             feed_dict={self._X: X,
+                                                                        self._y: y})
+                        # print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
+                        #     epoch, loss_train, acc_train * 100))
+                        print("{}\tLoss on all of X_train: {:.6f}\tAccuracy: {:.2f}%".format(
+                            epoch, loss_train, acc_train * 100))
+
                 # Check to see if a checkpoint should be recorded this epoch:
                 if ckpt_freq != 0 and epoch > 0 and ((epoch % ckpt_freq == 0) or is_last_step):
                     tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.ckpt_dir)
                     self._train_saver.save(sess, self.ckpt_dir)
-                    # Constant OP for tf.Serving export code goes here:
+                    # Constant OP for tf.Serving export code of stand-alone model goes here:
                     # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
                     # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
                     # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
 
-                if X_valid is not None and y_valid is not None:
-                    # Run eval metrics, and write the result.
-                    val_summary, loss_val, acc_val, top5_acc, preds = sess.run(
-                        [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
-                        feed_dict={self._X: X_valid, self._y: y_valid}
-                    )
-                    # Compute confusion matrix for multiclass accuracy:
-                    # confusion_matrix = sess.run(self.confusion_matrix, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
-                    # cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
-                    # tf.summary.histogram(cm.ACC, 'multiclassAcc')
-                    # self.print_multiclass_acc(y=y_valid, y_pred=preds)
-                    # true_positives = confusion_matrix.diagonal()
-                    # print()
-                    # print(confusion_matrix)
-                    # print('preds: %s' % preds)
-                    # sess.run(self.batch_confusion, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
-                    # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds, self.num_classes: len(self.classes_)})
-                    # sess.run(self._per_class_acc_update_op, feed_dict={self._y: y_valid, self._predictions: preds})
-                    # per_class_acc = sess.run(self.per_class_acc, feed_dict={self._y: y_valid, self._predictions: preds})
-                    # print('per_class_acc: %s' % per_class_acc)
-                    self._val_writer.add_summary(val_summary, epoch)
-                    if loss_val < best_loss:
-                        best_params = self._get_model_params()
-                        best_loss = loss_val
-                        checks_without_progress = 0
-                    else:
-                        checks_without_progress += 1
-                    print("{}\tValidation loss: {:.6f}\tBest loss: {:.6f}\tAccuracy: {:.2f}%\tTop-5 Accuracy: {:.2f}%".format(
-                        epoch, loss_val, best_loss, acc_val * 100, top5_acc * 100))
-                    if checks_without_progress > max_checks_without_progress:
-                        print("Early stopping!")
-                        break
-                else:
-                    # Report on training accuracy since no validation dataset
-                    if (epoch % eval_freq) == 0 or is_last_step:
-                        loss_train, acc_train = sess.run([self._loss, self._accuracy],
-                                                         feed_dict={self._X: X_batch,
-                                                                    self._y: y_batch})
-                        print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
-                            epoch, loss_train, acc_train * 100))
-
             # If we used early stopping then rollback to the best model found
             if best_params:
+                print('Restoring model to best parameter set: %s' % best_params)
                 self._restore_model_params(best_params)
 
             # Export the trained model for use with serving:
             # export_model(module_spec=self._module_spec, class_count=n_outputs, saved_model_dir=self.saved_model_dir)
-
             return self
 
     def predict_proba(self, X):
