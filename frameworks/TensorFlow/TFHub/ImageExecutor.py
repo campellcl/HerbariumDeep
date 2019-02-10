@@ -1,11 +1,15 @@
 """
-
+ImageExecutor.py
+Performs aggregation across image directories and the cleaning of class labels. Use this class to obtain image_lists
+that can then be fed into the BottleneckExecutor. Image lists returned by this classes' get_image_lists() method are
+guaranteed to be cleaned prior to return.
 """
 import pandas as pd
 import tensorflow as tf
 import os
 from collections import OrderedDict
 import numpy as np
+
 
 class ImageExecutor:
 
@@ -174,10 +178,10 @@ class ImageExecutor:
             elif '.' in label and len(label.split(' ')) > 1:
                 labels_with_authorship_info.append(label)
         for label in labels_with_authorship_info:
+            label_sans_authorship = ''
             if '(' in label:
                 label_sans_authorship = label.split('(')[0].strip()
             elif '.' in label:
-                label_sans_authorship = ''
                 label_delimited = label.split(' ')
                 for sub_label in label_delimited:
                     if '.' in sub_label:
@@ -254,8 +258,7 @@ class ImageExecutor:
 
 def main(root_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
-    img_executor._clean_images()
-
+    image_lists = img_executor.get_image_lists()
 
 if __name__ == '__main__':
     # Logging verbosity:
