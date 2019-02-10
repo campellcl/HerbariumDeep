@@ -10,66 +10,10 @@ import tensorflow_hub as hub
 import collections
 import numpy as np
 import time
+from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 MAX_IMAGE_BATCH_SIZE = 400  # With more than 555 sized: [299, 299, 3] images per forward pass, hitting OOM GPU? errors
-
-
-def _get_image_lists(image_dir):
-    """
-    _get_image_lists: Creates a dictionary of file paths to images on the hard drive indexed by class label.
-    :param image_dir: <str> The file path pointing to the parent directory housing a series of sample images partitioned
-        into their respective subdirectories by class label.
-    :return image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
-        list of file paths for images belonging to the chosen key/species/class-label.
-    """
-    '''
-    Check to see if the root directory exists. We use tf.gfile which is a C++ FileSystem API wrapper for the Python
-        file API that also supports Google Cloud Storage and HDFS. For more information see:
-        https://stackoverflow.com/questions/42256938/what-does-tf-gfile-do-in-tensorflow
-    '''
-    if not tf.gfile.Exists(image_dir):
-        tf.logging.error("Root image directory '" + image_dir + "' not found.")
-        return None
-
-    accepted_extensions = ['jpg', 'jpeg']   # Note: Includes JPG and JPEG b/c the glob is case insensitive
-    image_lists = collections.OrderedDict()
-
-    sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
-    # The root directory comes first, so skip it.
-    is_root_dir = True
-    for sub_dir in sub_dirs:
-        file_list = []
-        dir_name = os.path.basename(sub_dir)
-        if is_root_dir:
-            is_root_dir = False
-            # Skip the root_dir:
-            continue
-        if dir_name == image_dir:
-            # Return control to beginning of for-loop:
-            continue
-        tf.logging.info("Looking for images in '" + dir_name + "'")
-        for extension in accepted_extensions:
-            # Get a list of all accepted file extensions and the targeted file_name:
-            file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
-            # Append all items from the file_glob to the list of files (if extension exists):
-            file_list.extend(tf.gfile.Glob(file_glob))
-        if not file_list:
-            tf.logging.warning(msg='No files found in \'%s\'. Class label omitted from data sets.' % dir_name)
-            # Return control to beginning of for-loop:
-            continue
-        if len(file_list) < 20:
-            tf.logging.warning('WARNING: Folder has less than 20 images, which may cause issues. See: %s for info.'
-                               % 'https://stackoverflow.com/questions/38175673/critical-tensorflowcategory-has-no-images-validation')
-        elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
-            tf.logging.warning(
-                'WARNING: Folder {} has more than {} images. Some images will '
-                'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
-        # label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
-        label_name = dir_name.lower()
-        if label_name not in image_lists:
-            image_lists[label_name] = file_list
-    return image_lists
 
 
 def _add_jpeg_decoding(module_spec):
@@ -130,6 +74,7 @@ class BottleneckExecutor:
     image_dir = None
     compressed_bottleneck_file_path = None
     tfhub_module_url = None
+    image_executor = None
     image_lists = None
     # Tensors to maintain references to:
     graph = None
@@ -146,7 +91,8 @@ class BottleneckExecutor:
         # Set logging verbosity:
         tf.logging.set_verbosity(tf.logging.INFO)
         # Get image lists:
-        self.image_lists = _get_image_lists(image_dir=self.image_dir)
+        self.image_executor = ImageExecutor(img_root_dir=self.image_dir, accepted_extensions=['jpg', 'jpeg'])
+        self.image_lists = self.image_executor.get_image_lists(min_num_images_per_class=20)
         # Build computational graph for bottleneck generation:
         # self.tfhub_module_url = 'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'
         self.graph, self.bottleneck_tensor, self.resized_image_tensor, \
@@ -225,7 +171,7 @@ class BottleneckExecutor:
                 image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
                 image_data_batches = [images_data[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
                 tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\''
-                                % (i, num_classes, len(image_paths), clss))
+                                % (i+1, num_classes, len(image_paths), clss))
                 # Iterate over the batches:
                 for j, image_data_batch in enumerate(image_data_batches):
                     tf.logging.info('\tComputing batch [%d/%d]...' % (j+1, len(image_data_batches)))
@@ -251,7 +197,9 @@ class BottleneckExecutor:
                         for k, img_path in enumerate(image_path_batches[j]):
                             df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
-                tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
+                tf.logging.info(msg='Finished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
+                tf.logging.info(msg='Backing up final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+                df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
                 if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
@@ -315,12 +263,16 @@ if __name__ == '__main__':
     # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
     # image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
 
+    # BOON Configuration:
+    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    boon_image_path = 'D:\\data\\BOON\\images\\'
+
     # GoingDeeper Configuration:
-    bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
+    # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    # going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
 
     bottleneck_executor = BottleneckExecutor(
-        image_dir=going_deeper_image_path,
+        image_dir=boon_image_path,
         tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
         compressed_bottleneck_file_path=bottleneck_path
     )
