@@ -9,11 +9,11 @@ import tensorflow as tf
 import os
 from collections import OrderedDict
 import numpy as np
+import copy
 
 
 class ImageExecutor:
 
-    MIN_NUM_SAMPLES_PER_CLASS = 20
     img_root_dir = None
     accepted_extensions = None
     df_images = None
@@ -246,19 +246,21 @@ class ImageExecutor:
         # self.df_images = self._get_raw_image_lists_df()
         self.image_lists = self._get_raw_image_lists()
         self.image_lists = self._clean_scientific_name()
+        self.cleaned_images = True
 
-    def get_image_lists(self):
-        if self.cleaned_images:
-            return self.image_lists
-        else:
+    def get_image_lists(self, min_num_images_per_class):
+        if not self.cleaned_images:
             self._clean_images()
-            self.cleaned_images = True
-            return self.image_lists
+        image_lists = copy.deepcopy(self.image_lists)
+        for label in self.image_lists:
+            if len(self.image_lists[label]) <= min_num_images_per_class:
+                image_lists.pop(label)
+        return image_lists
 
 
 def main(root_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
-    image_lists = img_executor.get_image_lists()
+    image_lists = img_executor.get_image_lists(min_num_images_per_class=20)
 
 
 if __name__ == '__main__':
