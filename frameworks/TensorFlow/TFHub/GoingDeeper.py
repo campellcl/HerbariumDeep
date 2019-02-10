@@ -420,7 +420,6 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         'activation': [activations['LeakyReLU']],
         'optimizer': [optimizers['Nesterov']],
         'train_batch_size': [20, 60, 1000, -1]
-        # 'train_batch_size': [20, 60, 1000, ]
     }
 
     # params = {
@@ -466,7 +465,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     )
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
-    print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
+    print('Classifier accuracy_score: %.2f%%' % accuracy_score(val_ground_truth_indices, y_pred)*100)
 
 
 def main():
@@ -531,7 +530,6 @@ def main():
         initializers=initializer_options,
         activations=activation_options,
         optimizers=optimizer_options,
-        class_labels=class_labels,
         val_bottlenecks=val_bottlenecks,
         val_ground_truth_indices=val_ground_truth_indices
     )
