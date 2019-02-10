@@ -468,7 +468,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     print('Classifier accuracy_score: %.2f%%' % accuracy_score(val_ground_truth_indices, y_pred)*100)
 
 
-def main():
+def main(run_config):
     """
     main:
     :return:
@@ -479,20 +479,20 @@ def main():
     partitioned into training, validation, and testing datasets. However, if this script is being invoked in evaluation
     mode, this entire directory will be inferred solely as a testing dataset.
     """
-    if DEBUG:
-        image_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
-    else:
-        image_dir = 'D:\\data\\GoingDeeperData\\images'
+    # if DEBUG:
+    #     image_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
+    # else:
+    #     image_dir = 'D:\\data\\GoingDeeperData\\images'
 
     """
     The path to the dataframe storing the cached bottleneck layer values. It is standard to name this file: 
     \'bottlenecks.pkl\'. If this file does not exist, or if the network architecture is changed, run 
     BottleneckExecutor.py to regenerate the bottleneck dataframe.
     """
-    if DEBUG:
-        bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
-    else:
-        bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    # if DEBUG:
+    #     bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
+    # else:
+    #     bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
 
     """
     TensorBoard summaries directory:
@@ -500,7 +500,7 @@ def main():
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
-    bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=bottleneck_path, tb_summaries_dir=summaries_dir)
+    bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir)
     tf.logging.info('Detected %d unique class labels in the bottlenecks dataframe' % len(class_labels))
 
     train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
@@ -530,6 +530,7 @@ def main():
         initializers=initializer_options,
         activations=activation_options,
         optimizers=optimizer_options,
+        class_labels=class_labels,
         val_bottlenecks=val_bottlenecks,
         val_ground_truth_indices=val_ground_truth_indices
     )
@@ -552,8 +553,22 @@ def main():
 
 
 if __name__ == '__main__':
-    DEBUG = True
-    main()
+    run_configs = {
+        'debug': {
+            'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
+            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
+        },
+        'BOON': {
+            'image_dir': 'D:\\data\\BOON\\images',
+            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl'
+        },
+        'GoingDeeper': {
+            'image_dir': 'D:\\data\\GoingDeeperData\\images',
+            'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+        },
+        'SERNEC': {}
+    }
+    main(run_configs['BOON'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
