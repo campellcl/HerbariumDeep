@@ -260,6 +260,7 @@ def main(root_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
     image_lists = img_executor.get_image_lists()
 
+
 if __name__ == '__main__':
     # Logging verbosity:
     tf.logging.set_verbosity(tf.logging.INFO)
