@@ -89,7 +89,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         '''
         batch_size, bottleneck_tensor_size = bottleneck_tensor.get_shape().as_list()
         assert batch_size is None, 'We want to work with arbitrary batch size when ' \
-                               'constructing fully-connected and softmax layers for fine-tuning.'
+                                   'constructing fully-connected and softmax layers for fine-tuning.'
 
         X = tf.placeholder_with_default(
             bottleneck_tensor,
@@ -180,12 +180,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         init_values = {gvar_name: assign_op.inputs[1] for gvar_name, assign_op in assign_ops.items()}
         feed_dict = {init_values[gvar_name]: model_params[gvar_name] for gvar_name in gvar_names}
         self._session.run(assign_ops, feed_dict=feed_dict)
-
-
-    # ON RESUME: BUILD AN OPP INTO COMPUTATIONAL GRAPH THAT IS THE SAME AS TRAIN_OPP but have it not use the optimizer!
-    # then call this opp when evaluating the training accuracy every eval_freq epochs, instead of train opp. But still
-    # capture results in a summary_op for tensorboard.
-    # Then the next goal is to make sure we can restore from the exported models for eval and comparison.
 
     # def export_model(self, module_spec, class_count, saved_model_dir):
     #     """
@@ -302,6 +296,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.close_session()
 
         # If the batch size was set to -1 during initialization, infer the training size at runtime from the X matrix:
+        if self.train_batch_size == -1:
+            self.train_batch_size = len(X)
         if self.val_batch_size == -1:
             self.val_batch_size = len(X_valid)
 
@@ -354,11 +350,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
 
                     # Export the results to the TensorBoard logging directory:
-                    # TODO: How to avoid doing this on the mini-batch level... is it being overwritten each time?
-                    self._train_writer.add_summary(train_summary, epoch)
+                    # self._train_writer.add_summary(train_summary, epoch)
 
                 # Check to see if eval metrics should be computed this epoch on the validation dataset:
                 if (epoch % eval_freq == 0) or is_last_step:
+                    train_summary = sess.run(self._merged, feed_dict={self._X: X, self._y: y})
+                    self._train_writer.add_summary(train_summary, epoch)
                     if X_valid is not None and y_valid is not None:
                         # Run eval metrics on the entire validation dataset:
                         val_summary, loss_val, acc_val, top5_acc, preds = sess.run(

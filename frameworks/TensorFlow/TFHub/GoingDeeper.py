@@ -441,8 +441,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=1000,
-        ckpt_freq=100
+        n_epochs=100,
+        ckpt_freq=0
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
     best_params = grid_search.best_params_
@@ -460,12 +460,12 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=1000,
-        ckpt_freq=100
+        n_epochs=100,
+        ckpt_freq=0
     )
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
-    print('Classifier accuracy_score: %.2f%%' % accuracy_score(val_ground_truth_indices, y_pred)*100)
+    print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
 
 
 def main(run_config):
