@@ -419,7 +419,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         'initializer': [initializers['he_normal']],
         'activation': [activations['LeakyReLU']],
         'optimizer': [optimizers['Nesterov']],
-        'train_batch_size': [20, 60, 1000, -1]
+        'train_batch_size': [20, 60, 100, -1]
     }
 
     # params = {
@@ -441,7 +441,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=100,
+        n_epochs=10000,
         ckpt_freq=0
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
@@ -460,7 +460,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=100,
+        n_epochs=10000,
         ckpt_freq=0
     )
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
