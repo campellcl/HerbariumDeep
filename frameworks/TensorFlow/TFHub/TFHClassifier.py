@@ -121,7 +121,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Create a tensor containing the predicted class label for each training sample (the argmax of the probability tensor)
         preds = tf.math.argmax(Y_proba, axis=1)
         # Create a confusion matrix:
-        confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=num_classes, dtype=tf.float32, name='BatchConfusionMatrix')
+        # confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=num_classes, dtype=tf.float32, name='BatchConfusionMatrix')
 
         xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y,
                                                                   logits=logits)
@@ -153,12 +153,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Create a saver for checkpoint file creation and restore:
         train_saver = tf.train.Saver()
 
-        # Make the important operations available easily through instance variables
+        # Make the important operations available easily through instance variables:
         self._X, self._y, self._Y_proba, self._predictions = X, y, Y_proba, predictions
         self._Y_proba, self._preds, self._loss = Y_proba, preds, loss
         self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top5_acc
         # self._per_class_acc_update_op = per_class_acc_update
-        self.num_classes, self.confusion_matrix = num_classes, confusion_matrix
+        self.num_classes = num_classes
         self._init, self._train_saver = init, train_saver
         self._merged = tb_merged_summaries
 
@@ -180,6 +180,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         init_values = {gvar_name: assign_op.inputs[1] for gvar_name, assign_op in assign_ops.items()}
         feed_dict = {init_values[gvar_name]: model_params[gvar_name] for gvar_name in gvar_names}
         self._session.run(assign_ops, feed_dict=feed_dict)
+
+
+    # ON RESUME: BUILD AN OPP INTO COMPUTATIONAL GRAPH THAT IS THE SAME AS TRAIN_OPP but have it not use the optimizer!
+    # then call this opp when evaluating the training accuracy every eval_freq epochs, instead of train opp. But still
+    # capture results in a summary_op for tensorboard.
+    # Then the next goal is to make sure we can restore from the exported models for eval and comparison.
 
     # def export_model(self, module_spec, class_count, saved_model_dir):
     #     """
@@ -241,20 +247,20 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         with tf.gfile.GFile(graph_file_name, 'wb') as fp:
             fp.write(output_graph_def.SerializeToString())
 
-    def print_multiclass_acc(self, y, y_pred):
-        """
-        print_multiclass_acc: Prints the accuracy for each class in human readable form
-        :param y:
-        :param y_pred:
-        :return:
-        """
-        cm = pycm.ConfusionMatrix(actual_vector=y, predict_vector=y_pred)
-        out = '\t{'
-        for clss, acc in cm.ACC.items():
-            out = out + '\'%s\': %.2f%%,' % (self.class_labels[int(clss)], acc*100)
-        out = out[:-1]
-        out = out + '}'
-        print(out)
+    # def print_multiclass_acc(self, y, y_pred):
+    #     """
+    #     print_multiclass_acc: Prints the accuracy for each class in human readable form
+    #     :param y:
+    #     :param y_pred:
+    #     :return:
+    #     """
+    #     cm = pycm.ConfusionMatrix(actual_vector=y, predict_vector=y_pred)
+    #     out = '\t{'
+    #     for clss, acc in cm.ACC.items():
+    #         out = out + '\'%s\': %.2f%%,' % (self.class_labels[int(clss)], acc*100)
+    #     out = out[:-1]
+    #     out = out + '}'
+    #     print(out)
 
     @staticmethod
     def _shuffle_batch(X, y, batch_size):
@@ -395,7 +401,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
             # If we used early stopping then rollback to the best model found
             if best_params:
-                print('Restoring model to best parameter set: %s' % best_params)
+                # print('Restoring model to best parameter set: %s' % best_params)
                 self._restore_model_params(best_params)
 
             # Export the trained model for use with serving:
@@ -453,9 +459,15 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         function_repr = str(activation)
         if 'leaky_relu' in function_repr:
             return 'ACTIVATION_LEAKY_RELU'
+        else:
+            return 'ACTIVATION_UNKNOWN'
 
     def __repr__(self):
-        tfh_repr = '%s,%s,TRAIN_BATCH_SIZE__%d' % (self._get_initializer_repr(self.initializer), self._get_optimizer_repr(self.optimizer), self.train_batch_size)
+        tfh_repr = '%s,%s,TRAIN_BATCH_SIZE__%d' % (
+            self._get_initializer_repr(self.initializer),
+            self._get_optimizer_repr(self.optimizer),
+            self.train_batch_size
+        )
         return tfh_repr
 
 
