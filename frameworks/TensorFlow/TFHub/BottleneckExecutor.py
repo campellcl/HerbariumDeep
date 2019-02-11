@@ -7,6 +7,7 @@ import os
 import pandas as pd
 import tensorflow as tf
 import tensorflow_hub as hub
+import tensorflow.contrib.slim as slim
 import collections
 import numpy as np
 import time
@@ -51,6 +52,7 @@ def _add_jpeg_decoding(module_spec):
 
 
 def _build_graph(tfhub_module_url):
+    train_from_scratch = True
     module_spec = hub.load_module_spec(tfhub_module_url)
     height, width = hub.get_expected_image_size(module_spec)
     tf.logging.info(msg='Loaded TensorFlowHub module spec: %s' % tfhub_module_url)
@@ -59,7 +61,11 @@ def _build_graph(tfhub_module_url):
         # Create a placeholder tensor for image input to the model (when bottleneck has not been pre-computed).
         resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
         # Declare the model in accordance with the chosen architecture:
-        m = hub.Module(module_spec)
+        if train_from_scratch:
+            m = hub.Module(module_spec, trainable=True)
+            trainable_vars = tf.trainable_variables()
+        else:
+            m = hub.Module(module_spec)
         # Create a placeholder tensor to catch the output of the pre-activation layer:
         bottleneck_tensor = m(resized_input_tensor)
         tf.logging.info(msg='Defined computational graph from the tensorflow hub module spec.')
@@ -260,20 +266,21 @@ class BottleneckExecutor:
 
 if __name__ == '__main__':
     # Debug Configuration:
-    bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
-    debug_image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
+    # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
+    # image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
 
     # BOON Configuration:
     bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    boon_image_path = 'D:\\data\\BOON\\images\\'
+    image_path = 'D:\\data\\BOON\\images\\'
 
     # GoingDeeper Configuration:
     # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
     # going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
 
     bottleneck_executor = BottleneckExecutor(
-        image_dir=boon_image_path,
+        image_dir=image_path,
         tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
+        # tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/classification/1',
         compressed_bottleneck_file_path=bottleneck_path
     )
     bottleneck_executor.cache_all_bottlenecks()

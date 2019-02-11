@@ -419,7 +419,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         'initializer': [initializers['he_normal']],
         'activation': [activations['LeakyReLU']],
         'optimizer': [optimizers['Nesterov']],
-        'train_batch_size': [20, 60, 100, -1]
+        'train_batch_size': [20, 60, 1000, -1]
     }
 
     # params = {
@@ -441,7 +441,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=10000,
+        n_epochs=1000,
         ckpt_freq=0
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
@@ -460,7 +460,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y=train_ground_truth_indices,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
-        n_epochs=10000,
+        n_epochs=1000,
         ckpt_freq=0
     )
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
@@ -498,6 +498,7 @@ def main(run_config):
     TensorBoard summaries directory:
     """
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
+
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
     bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir)
@@ -558,9 +559,15 @@ if __name__ == '__main__':
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
             'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
         },
-        'BOON': {
+        'BOON-Scratch': {
             'image_dir': 'D:\\data\\BOON\\images',
-            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl'
+            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+            'from_scratch': True
+        },
+        'BOON-ImgNet': {
+            'image_dir': 'D:\\data\\BOON\\images',
+            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+            'from_scratch': False
         },
         'GoingDeeper': {
             'image_dir': 'D:\\data\\GoingDeeperData\\images',

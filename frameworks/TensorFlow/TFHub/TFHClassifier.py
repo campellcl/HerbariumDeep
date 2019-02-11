@@ -71,6 +71,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
         # Load module spec/blueprint:
         tfhub_module_spec = hub.load_module_spec('https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1')
+        # tfhub_module_spec = hub.load_module_spec('https://tfhub.dev/google/imagenet/inception_v3/classification/1')
         self._module_spec = tfhub_module_spec
         height, width = hub.get_expected_image_size(tfhub_module_spec)
         tf.logging.info(msg='Loaded the provided TensorFlowHub module spec: \'%s\'' % tfhub_module_spec)
