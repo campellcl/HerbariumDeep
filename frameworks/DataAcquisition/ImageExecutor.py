@@ -257,6 +257,41 @@ class ImageExecutor:
                 image_lists.pop(label)
         return image_lists
 
+    # def _partition_image_lists(image_lists, train_percent, val_percent, test_percent, random_state):
+    #     """
+    #     _partition_image_lists: Partitions the provided dict of class labels and file paths into training, validation, and
+    #         testing datasets.
+    #     :param image_lists: <collections.OrderedDict> A dictionary indexed by class label, which provides as its value a
+    #         list of file paths for images belonging to the chosen key/species/class-label.
+    #     :param train_percent: What percentage of the training data is to remain in the training set.
+    #     :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
+    #         for a validation set.
+    #     :param test_percent: What percentage of the training data is to be allocated to a testing set.
+    #     :param random_state: A seed for the random number generator controlling the stratified partitioning.
+    #     :return partitioned_image_lists: <collections.OrderedDict> A dictionary indexed by class label which returns another
+    #         dictionary indexed by the dataset type {'train','val','test'} which in turn, returns the list of image file
+    #         paths that correspond to the chosen class label and that reside in the chosen dataset.
+    #     """
+    #     partitioned_image_lists = OrderedDict()
+    #     for class_label, image_paths in image_lists.items():
+    #         class_label_train_images, class_label_test_images = model_selection.train_test_split(
+    #             image_paths, train_size=train_percent,
+    #             test_size=test_percent, shuffle=True,
+    #             random_state=random_state
+    #         )
+    #         class_label_train_images, class_label_val_images = model_selection.train_test_split(
+    #             class_label_train_images, train_size=train_percent,
+    #             test_size=val_percent, shuffle=True,
+    #             random_state=random_state
+    #         )
+    #         partitioned_image_lists[class_label] = {
+    #             'train': class_label_train_images,
+    #             'val': class_label_val_images,
+    #             'test': class_label_test_images
+    #         }
+    #     return partitioned_image_lists
+
+
 
 def main(root_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
@@ -268,6 +303,7 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
 
     # GoingDeeper Configuration:
+    main(root_dir='D:\\data\\GoingDeeperData\\images')
 
     # BOON Configuration:
-    main(root_dir='D:\\data\\BOON\\images')
+    # main(root_dir='D:\\data\\BOON\\images')
