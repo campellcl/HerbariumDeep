@@ -6,6 +6,7 @@ guaranteed to be cleaned prior to return.
 """
 import pandas as pd
 import tensorflow as tf
+AUTOTUNE = tf.contrib.data.AUTOTUNE
 import os
 from collections import OrderedDict
 import numpy as np
@@ -292,10 +293,95 @@ class ImageExecutor:
     #     return partitioned_image_lists
 
 
+    def _get_cleaned_image_lists_as_df(self, image_lists):
+        """
+        _get_cleaned_image_lists_as_df: Designed to operate only on cleaned image lists returned by public getter method
+            self.get_image_lists(). This method aggregates as a dataframe and attempts to load all images into said
+            dataframe for persistence in memory.
+        :param image_lists:
+        :return:
+        """
+        df_images_empty = pd.DataFrame(columns=['class', 'path', 'img'])
+        for clss in image_lists.keys():
+            for image_path in image_lists[clss]:
+                new_img_entry = pd.Series([clss, image_path, None], index=['class', 'path', 'img'])
+                df_images_empty = df_images_empty.append(new_img_entry, ignore_index=True)
+        df_images_empty['class'] = df_images_empty['class'].astype('category')
+        df_images = df_images_empty.copy(deep=True)
+        num_imgs_loaded = 0
+        for i, (clss, series) in enumerate(df_images_empty.iterrows()):
+            img_path = series['path']
+            if not tf.gfile.Exists(img_path):
+                tf.logging.fatal('Image file does not exist: \'%s\'' % img_path)
+                exit(-1)
+            img_data = tf.gfile.GFile(img_path, 'rb').read()
+            df_images.at[i, 2] = img_data
+            num_imgs_loaded += 1
+            if num_imgs_loaded % 100 == 0:
+                tf.logging.info(msg='Loaded %d img vectors into dataframe.' % num_imgs_loaded)
+            if num_imgs_loaded % 1000 == 0:
+                tf.logging.info(msg='Loaded %d img vectors into dataframe. Backing up dataframe to: \'%s\'' % (num_imgs_loaded, '?'))
+        tf.logging.info(msg='Finished generating image dataframe. Saving dataframe to: \'%s\'' % '?')
+        return df_images
+
+    @staticmethod
+    def _preprocess_image(raw_image, height=299, width=299, num_channels=3):
+        """
+
+        :param raw_image:
+        :param height:
+        :param width:
+        :param num_channels:
+        :source: https://www.tensorflow.org/tutorials/load_data/images
+        :return:
+        """
+        image = tf.image.decode_jpeg(raw_image, channels=num_channels)
+        image = tf.image.resize_images(image, [height, width])
+        image /= 255.0  # normalize to [0,1] range
+        return image
+
+    def _load_and_preprocess_image(self, img_path):
+        img_raw = tf.read_file(img_path)
+        return self._preprocess_image(img_raw)
+
+    def get_image_lists_as_tensor_flow_dataset(self):
+        """
+        get_image_lists_as_tensor_flow_dataset:
+        :source: https://www.tensorflow.org/tutorials/load_data/images
+        :return:
+        """
+        if self.cleaned_images:
+            image_lists = self.image_lists
+        else:
+            image_lists = self.get_image_lists(min_num_images_per_class=20)
+        all_image_paths = []
+        all_image_label_indices = []
+        for i, (clss_label, img_paths) in enumerate(image_lists.items()):
+            for img_path in img_paths:
+                all_image_paths.append(img_path)
+                all_image_label_indices.append(i)
+        tf_ds_paths = tf.data.Dataset.from_tensor_slices(all_image_paths)
+        tf_ds_images = tf_ds_paths.map(self._load_and_preprocess_image, num_parallel_calls=AUTOTUNE)
+        label_names = list(image_lists.keys())
+        tf_ds_labels = tf.data.Dataset.from_tensor_slices(tf.cast(all_image_label_indices, tf.int64))
+        tf_ds_images_and_labels = tf.data.Dataset.zip((tf_ds_images, tf_ds_labels))
+        tf.logging.info(msg='Created TensorFlow datset from labels and images:')
+        tf.logging.info(msg='\timage shape: %s' % tf_ds_images_and_labels.output_shapes[0])
+        tf.logging.info(msg='\tlabel shape: %s' % tf_ds_images_and_labels.output_shapes[1])
+        tf.logging.info(msg='\ttypes: {}'.format(tf_ds_images_and_labels.output_types))
+        # print()
+        tf.logging.info(msg='\t {}'.format(tf_ds_images_and_labels))
+        # label_to_index = dict((name, index) for index, name in enumerate(label_names))
+        # all_image_labels = [label_to_index[label_name] for label in ]
+        return tf_ds_images_and_labels
+
 
 def main(root_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
     image_lists = img_executor.get_image_lists(min_num_images_per_class=20)
+    tf_ds = img_executor.get_image_lists_as_tensor_flow_dataset()
+    # Attempt to create a dataframe from image_lists:
+    # df_images = img_executor._get_cleaned_image_lists_as_df(image_lists=image_lists)
 
 
 if __name__ == '__main__':
@@ -303,7 +389,7 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
 
     # GoingDeeper Configuration:
-    main(root_dir='D:\\data\\GoingDeeperData\\images')
+    # main(root_dir='D:\\data\\GoingDeeperData\\images')
 
     # BOON Configuration:
-    # main(root_dir='D:\\data\\BOON\\images')
+    main(root_dir='D:\\data\\BOON\\images')
