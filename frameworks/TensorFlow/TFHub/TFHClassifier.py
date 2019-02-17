@@ -41,7 +41,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
         self._module_spec = None
-        self._fixed_feature_extractor = fixed_feature_extractor
+        self.fixed_feature_extractor = fixed_feature_extractor
         self.class_labels = class_labels
         self.optimizer = optimizer
         self.train_batch_size = train_batch_size
@@ -97,12 +97,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
 
         # Declare the model in accordance with the chosen architecture:
-        # if self._fixed_feature_extractor:
-        #     m = hub.Module(tfhub_module_spec)
-        # else:
-        #     # If not using a fixed feature extractor, then make the TFHub module weights trainable:
-        #     m = hub.Module(tfhub_module_spec, trainable=True)
-        m = hub.Module(tfhub_module_spec)
+        if self.fixed_feature_extractor:
+            m = hub.Module(tfhub_module_spec)
+        else:
+            # If not using a fixed feature extractor, then make the TFHub module weights trainable:
+            m = hub.Module(tfhub_module_spec, trainable=True)
+        # m = hub.Module(tfhub_module_spec)
 
         # Create a placeholder tensor to catch the output of the pre-activation layer:
         bottleneck_tensor = m(resized_input_tensor)
