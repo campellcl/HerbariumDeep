@@ -59,6 +59,11 @@ def _build_graph(tfhub_module_url):
         # Create a placeholder tensor for image input to the model (when bottleneck has not been pre-computed).
         resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
         # Declare the model in accordance with the chosen architecture:
+        # if train_from_scratch:
+        #     model = slim.nets.inception_v3.InceptionV3()
+        #     # m = hub.Module(module_spec, trainable=True)
+        #     # trainable_vars = tf.trainable_variables()
+        # else:
         m = hub.Module(module_spec)
         # Create a placeholder tensor to catch the output of the pre-activation layer:
         bottleneck_tensor = m(resized_input_tensor)
@@ -83,6 +88,8 @@ class BottleneckExecutor:
     resized_image_tensor = None
     jpeg_data_tensor = None
     decoded_image_tensor = None
+    # bottlenecks compressed dataframe:
+    bottlenecks = None
 
     def __init__(self, image_dir, tfhub_module_url, compressed_bottleneck_file_path):
         self.image_dir = image_dir
@@ -130,6 +137,26 @@ class BottleneckExecutor:
                 return bottleneck_values
             except Exception as err:
                 tf.logging.error(msg=err)
+
+    def get_bottlenecks(self):
+        if os.path.exists(self.compressed_bottleneck_file_path):
+            if os.path.isfile(self.compressed_bottleneck_file_path):
+                tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'' % self.compressed_bottleneck_file_path)
+                try:
+                    self.bottlenecks = pd.read_pickle(self.compressed_bottleneck_file_path)
+                    tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
+                                % os.path.basename(self.compressed_bottleneck_file_path))
+                except Exception as err:
+                    tf.logging.error(msg=err)
+                    self.bottlenecks = None
+                    exit(-1)
+            else:
+                tf.logging.error(msg='Bottleneck file not located at the provided path: \'%s\'. '
+                             'Have you run BottleneckExecutor.py?' % self.compressed_bottleneck_file_path)
+                exit(-1)
+        return self.bottlenecks
+
+
 
     def cache_all_bottlenecks(self):
         """
@@ -204,6 +231,38 @@ class BottleneckExecutor:
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
             df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
 
+    # def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
+    #     train_image_paths = []
+    #     val_image_paths = []
+    #     test_image_paths = []
+    #     for species, datasets in image_lists.items():
+    #         # Training set images:
+    #         species_train_image_paths = datasets['train']
+    #         for species_train_image_path in species_train_image_paths:
+    #             train_image_paths.append(species_train_image_path)
+    #         # Validation set images:
+    #         species_val_image_paths = datasets['val']
+    #         for species_val_image_path in species_val_image_paths:
+    #             val_image_paths.append(species_val_image_path)
+    #         # Testing set images:
+    #         species_test_image_paths = datasets['test']
+    #         for species_test_image_path in species_test_image_paths:
+    #             test_image_paths.append(species_test_image_path)
+    #     # Ensure every training image has a bottleneck entry in the bottlenecks dataframe:
+    #     for train_image_path in train_image_paths:
+    #         if train_image_path not in bottlenecks['path'].values:
+    #             return False
+    #     # Ensure every validation image has a bottleneck tensor in bottlenecks dataframe:
+    #     for val_image_path in val_image_paths:
+    #         if val_image_path not in bottlenecks['path'].values:
+    #             return False
+    #     # Ensure every test image has a bottleneck tensor in the bottlenecks dataframe:
+    #     for test_image_path in test_image_paths:
+    #         if test_image_path not in bottlenecks['path'].values:
+    #             return False
+    #     return True
+
+
     # def cache_all_bottlenecks(self):
     #     """
     #     cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
@@ -260,20 +319,21 @@ class BottleneckExecutor:
 
 if __name__ == '__main__':
     # Debug Configuration:
-    bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
-    debug_image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
+    # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
+    # image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
 
     # BOON Configuration:
     bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    boon_image_path = 'D:\\data\\BOON\\images\\'
+    image_path = 'D:\\data\\BOON\\images\\'
 
     # GoingDeeper Configuration:
     # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
     # going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
 
     bottleneck_executor = BottleneckExecutor(
-        image_dir=boon_image_path,
+        image_dir=image_path,
         tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
+        # tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/classification/1',
         compressed_bottleneck_file_path=bottleneck_path
     )
     bottleneck_executor.cache_all_bottlenecks()
