@@ -101,42 +101,6 @@ def _get_class_labels(bottlenecks):
     return class_labels
 
 
-def _run_setup(bottleneck_path, tb_summaries_dir):
-    """
-    _run_setup: Performs initial setup operations by:
-        1) Setting verbosity of TensorFlow logging output
-        2) Purging (or creating new) TensorBoard logging directories
-        3) Retrieving the bottlenecks dataframe from disk
-        4) Partitioning the bottlenecks dataframe into training and testing sets.
-    :param bottleneck_path: The file path to the compressed bottlenecks dataframe.
-    :return:
-    """
-    # Enable visible logging output:
-    tf.logging.set_verbosity(tf.logging.INFO)
-
-    # Delete any TensorBoard summaries left over from previous runs:
-    _prepare_tensor_board_directories(tb_summaries_dir=tb_summaries_dir)
-    tf.logging.info(msg='Removed left over TensorBoard summaries from previous runs.')
-
-    # Retrieve the bottlenecks dataframe or alert the user and terminate:
-    bottlenecks = _load_bottlenecks(bottleneck_path)
-
-    # Get a list of unique class labels for use in one-hot encoding:
-    class_labels = _get_class_labels(bottlenecks)
-
-    # Partition the bottlenecks dataframe:
-    train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
-        bottlenecks=bottlenecks,
-        random_state=0
-    )
-    bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
-    tf.logging.info(
-        'Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), and testing (N=%d) datasets.'
-        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0])
-    )
-    return bottleneck_dataframes, class_labels
-
-
 def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
     """
     get_random_cached_bottlenecks: Retrieve a random sample of rows from the bottlenecks dataframe of size 'how_many'.
@@ -352,6 +316,42 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
 
 
+def _run_setup(bottleneck_path, tb_summaries_dir):
+    """
+    _run_setup: Performs initial setup operations by:
+        1) Setting verbosity of TensorFlow logging output
+        2) Purging (or creating new) TensorBoard logging directories
+        3) Retrieving the bottlenecks dataframe from disk
+        4) Partitioning the bottlenecks dataframe into training and testing sets.
+    :param bottleneck_path: The file path to the compressed bottlenecks dataframe.
+    :return:
+    """
+    # Enable visible logging output:
+    tf.logging.set_verbosity(tf.logging.INFO)
+
+    # Delete any TensorBoard summaries left over from previous runs:
+    _prepare_tensor_board_directories(tb_summaries_dir=tb_summaries_dir)
+    tf.logging.info(msg='Removed left over TensorBoard summaries from previous runs.')
+
+    # Retrieve the bottlenecks dataframe or alert the user and terminate:
+    bottlenecks = _load_bottlenecks(bottleneck_path)
+
+    # Get a list of unique class labels for use in one-hot encoding:
+    class_labels = _get_class_labels(bottlenecks)
+
+    # Partition the bottlenecks dataframe:
+    train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
+        bottlenecks=bottlenecks,
+        random_state=0
+    )
+    bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
+    tf.logging.info(
+        'Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), and testing (N=%d) datasets.'
+        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0])
+    )
+    return bottleneck_dataframes, class_labels
+
+
 def main(run_config):
     """
     main:
@@ -429,7 +429,10 @@ if __name__ == '__main__':
             'image_dir': 'D:\\data\\GoingDeeperData\\images',
             'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
         },
-        'SERNEC': {}
+        'SERNEC': {
+            'image_dir': 'D:\\data\\SERNEC\\images',
+            'bottleneck_path': 'D:\\data\\SERNEC\\bottlenecks.pkl'
+        }
     }
     main(run_configs['BOON'])
     '''
