@@ -292,15 +292,18 @@ class ImageExecutor:
     #         }
     #     return partitioned_image_lists
 
-
-    def _get_cleaned_image_lists_as_df(self, image_lists):
+    def get_image_lists_as_df(self):
         """
-        _get_cleaned_image_lists_as_df: Designed to operate only on cleaned image lists returned by public getter method
+        get_cleaned_image_lists_as_df: Designed to operate only on cleaned image lists returned by public getter method
             self.get_image_lists(). This method aggregates as a dataframe and attempts to load all images into said
             dataframe for persistence in memory.
         :param image_lists:
         :return:
         """
+        if self.cleaned_images:
+            image_lists = self.image_lists
+        else:
+            image_lists = self.get_image_lists(min_num_images_per_class=20)
         df_images_empty = pd.DataFrame(columns=['class', 'path', 'img'])
         for clss in image_lists.keys():
             for image_path in image_lists[clss]:
@@ -379,9 +382,9 @@ class ImageExecutor:
 def main(root_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
     image_lists = img_executor.get_image_lists(min_num_images_per_class=20)
+    # TensorFlow Dataset support for Keras integration:
     tf_ds = img_executor.get_image_lists_as_tensor_flow_dataset()
-    # Attempt to create a dataframe from image_lists:
-    # df_images = img_executor._get_cleaned_image_lists_as_df(image_lists=image_lists)
+    # df_images = img_executor.get_image_lists_as_df()
 
 
 if __name__ == '__main__':
