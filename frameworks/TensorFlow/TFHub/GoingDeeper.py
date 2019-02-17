@@ -240,7 +240,7 @@ def _run_setup(bottleneck_path, tb_summaries_dir):
 
     # Delete any TensorBoard summaries left over from previous runs:
     _prepare_tensor_board_directories(tb_summaries_dir=tb_summaries_dir)
-    tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
+    tf.logging.info(msg='Removed left over TensorBoard summaries from previous runs.')
 
     # Retrieve the bottlenecks dataframe or alert the user and terminate:
     bottlenecks = _load_bottlenecks(bottleneck_path)
@@ -415,19 +415,27 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     #     'optimizer': list(optimizers.values())
     # }
 
-    params = {
-        'initializer': [initializers['he_normal']],
-        'activation': [activations['LeakyReLU']],
-        'optimizer': [optimizers['Nesterov']],
-        'train_batch_size': [20, 60, 100, -1]
-    }
-
     # params = {
     #     'initializer': [initializers['he_normal']],
     #     'activation': [activations['LeakyReLU']],
     #     'optimizer': [optimizers['Adam']]
     #     # 'train_batch_size': [1000]
     # }
+
+    # params = {
+    #     'initializer': [initializers['he_normal']],
+    #     'activation': [activations['LeakyReLU']],
+    #     'optimizer': [optimizers['Nesterov']],
+    #     'train_batch_size': [20, 60, 100, -1]
+    # }
+
+    params = {
+        'initializer': [initializers['he_normal']],
+        'fixed_feature_extractor': [True],
+        'activation': [activations['LeakyReLU']],
+        'optimizer': [optimizers['Nesterov']],
+        'train_batch_size': [20, 60]
+    }
 
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels)
@@ -473,27 +481,6 @@ def main(run_config):
     main:
     :return:
     """
-
-    """
-    Path to folders of labeled images. If this script is being invoked in training mode this directory will later be
-    partitioned into training, validation, and testing datasets. However, if this script is being invoked in evaluation
-    mode, this entire directory will be inferred solely as a testing dataset.
-    """
-    # if DEBUG:
-    #     image_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
-    # else:
-    #     image_dir = 'D:\\data\\GoingDeeperData\\images'
-
-    """
-    The path to the dataframe storing the cached bottleneck layer values. It is standard to name this file: 
-    \'bottlenecks.pkl\'. If this file does not exist, or if the network architecture is changed, run 
-    BottleneckExecutor.py to regenerate the bottleneck dataframe.
-    """
-    # if DEBUG:
-    #     bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
-    # else:
-    #     bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-
     """
     TensorBoard summaries directory:
     """
