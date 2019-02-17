@@ -14,12 +14,15 @@ he_init = tf.variance_scaling_initializer()
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, class_labels, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
-                 activation=tf.nn.elu, initializer=he_init,
+    def __init__(self, class_labels, fixed_feature_extractor=True, optimizer=tf.train.AdamOptimizer, train_batch_size=-1,
+                 val_batch_size=-1, activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp/summaries/',
                  ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
+        :param class_labels:
+        :param fixed_feature_extractor: <bool> Whether or not to allow the weights of the provided tfhub module to be
+            trained. If FFE is set to True, weights will not be trainable.
         :param optimizer: The type of optimizer to use during training (tf.train.AdamOptimizer by default).
         :param train_batch_size:
         :param val_batch_size:
@@ -38,6 +41,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
         self._module_spec = None
+        self._fixed_feature_extractor = fixed_feature_extractor
         self.class_labels = class_labels
         self.optimizer = optimizer
         self.train_batch_size = train_batch_size
@@ -59,6 +63,20 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.tb_logdir = tb_logdir
         self.refit = refit
 
+    # def _build_graph_fixed_feature_extractor(self, n_outputs):
+    #     if self.random_state is not None:
+    #         tf.set_random_seed(self.random_state)
+    #         np.random.seed(self.random_state)
+    #
+    #     tfhub_module_spec = hub.load_module_spec('https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1')
+    #     self._module_spec = tfhub_module_spec
+    #     height, width = hub.get_expected_image_size(tfhub_module_spec)
+    #     tf.logging.info(msg='Loaded the provided TensorFlowHub module spec: \'%s\'' % tfhub_module_spec)
+    #
+    #     # In the case of fixed feature extractor, bottlenecks will have been already pre-computed:
+    #     bottleneck_input_tensor =
+
+
     def _build_graph(self, n_inputs, n_outputs):
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
@@ -79,6 +97,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
 
         # Declare the model in accordance with the chosen architecture:
+        # if self._fixed_feature_extractor:
+        #     m = hub.Module(tfhub_module_spec)
+        # else:
+        #     # If not using a fixed feature extractor, then make the TFHub module weights trainable:
+        #     m = hub.Module(tfhub_module_spec, trainable=True)
         m = hub.Module(tfhub_module_spec)
 
         # Create a placeholder tensor to catch the output of the pre-activation layer:
@@ -347,7 +370,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # Run a training step, but don't capture the results at the mini-batch level:
                     # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
                     # Run a training step and capture the results in self._training_op
-                    train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
+                    # train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
+                    _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
 
                     # Export the results to the TensorBoard logging directory:
                     # self._train_writer.add_summary(train_summary, epoch)
