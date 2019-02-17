@@ -179,6 +179,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Make the important operations available easily through instance variables:
         self._X, self._y, self._Y_proba, self._predictions = X, y, Y_proba, predictions
         self._Y_proba, self._preds, self._loss = Y_proba, preds, loss
+        self._resized_input_tensor = resized_input_tensor
         self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top5_acc
         # self._per_class_acc_update_op = per_class_acc_update
         self.num_classes = num_classes
@@ -371,21 +372,38 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
                     # Run a training step and capture the results in self._training_op
                     # train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
-                    _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
-
-                    # Export the results to the TensorBoard logging directory:
-                    # self._train_writer.add_summary(train_summary, epoch)
+                    if self.fixed_feature_extractor:
+                        # If operating as a fixed feature extractor, feed-in at bottleneck tensor
+                        feed_dict = {self._X: X_batch, self._y: y_batch}
+                    else:
+                        # If not a fixed feature extractor, feed-in at resized_input_tensor:
+                        feed_dict = {self._resized_input_tensor: X_batch, self._y: y_batch}
+                    _ = sess.run(self._training_op, feed_dict=feed_dict)
 
                 # Check to see if eval metrics should be computed this epoch on the validation dataset:
                 if (epoch % eval_freq == 0) or is_last_step:
-                    train_summary = sess.run(self._merged, feed_dict={self._X: X, self._y: y})
+                    # If operating as fixed feature extractor, feed-in at bottleneck tensor:
+                    if self.fixed_feature_extractor:
+                        feed_dict = {self._X: X, self._y: y}
+                    else:
+                        feed_dict = {self._resized_input_tensor: X, self._y: y}
+                    train_summary = sess.run(self._merged, feed_dict=feed_dict)
                     self._train_writer.add_summary(train_summary, epoch)
+
                     if X_valid is not None and y_valid is not None:
-                        # Run eval metrics on the entire validation dataset:
+                        ''' Run eval metrics on the entire validation dataset: '''
+                        if self.fixed_feature_extractor:
+                            # Feed-in at bottleneck tensor:
+                            feed_dict = {self._X: X_valid, self._y: y_valid}
+                        else:
+                            # Feed-in at resized input tensor for full forward propagation:
+                            feed_dict = {self._resized_input_tensor: X_valid, self._y: y_valid}
+
                         val_summary, loss_val, acc_val, top5_acc, preds = sess.run(
                             [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
-                            feed_dict={self._X: X_valid, self._y: y_valid}
+                            feed_dict=feed_dict
                         )
+
                         # Update TensorBoard on the results:
                         self._val_writer.add_summary(val_summary, epoch)
 
@@ -402,10 +420,13 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             print("Early stopping!")
                             break
                     else:
-                        # Run eval metrics on the entire training dataset (as no validation set is available):
+                        ''' Run eval metrics on the entire training dataset (as no validation set is available): '''
+                        if self.fixed_feature_extractor:
+                            feed_dict = {self._X: X, self._y: y}
+                        else:
+                            feed_dict = {self._resized_input_tensor: X, self._y: y}
                         loss_train, acc_train = sess.run([self._loss, self._accuracy],
-                                                             feed_dict={self._X: X,
-                                                                        self._y: y})
+                                                             feed_dict=feed_dict)
                         # print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
                         #     epoch, loss_train, acc_train * 100))
                         print("{}\tLoss on all of X_train: {:.6f}\tAccuracy: {:.2f}%".format(
@@ -484,7 +505,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             return 'ACTIVATION_UNKNOWN'
 
     def __repr__(self):
-        tfh_repr = '%s,%s,TRAIN_BATCH_SIZE__%d' % (
+        tfh_repr = 'FFE_%s,%s,%s,TRAIN_BATCH_SIZE__%d' % (
+            self.fixed_feature_extractor,
             self._get_initializer_repr(self.initializer),
             self._get_optimizer_repr(self.optimizer),
             self.train_batch_size
