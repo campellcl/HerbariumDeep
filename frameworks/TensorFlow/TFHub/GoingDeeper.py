@@ -13,6 +13,8 @@ from sklearn.model_selection import GridSearchCV
 # from sklearn.model_selection import ParameterGrid
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
+from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
+from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 import pandas as pd
 import numpy as np
 
@@ -37,68 +39,6 @@ def _prepare_tensor_board_directories(tb_summaries_dir, intermediate_output_grap
         if not os.path.exists(intermediate_output_graphs_dir):
             os.makedirs(intermediate_output_graphs_dir)
     return
-
-
-def _partition_bottlenecks_dataframe(bottlenecks, train_percent=.80, val_percent=.20, test_percent=.20, random_state=0):
-    """
-    _partition_bottlenecks_dataframe: Partitions the bottlenecks dataframe into training, testing, and validation
-        dataframes.
-    :param bottlenecks: <pd.DataFrame> The bottlenecks dataframe containing image-labels, paths, and bottleneck values.
-    :param train_percent: What percentage of the training data is to remain in the training set.
-    :param test_percent: What percentage of the training data is to be allocated to a testing set.
-    :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
-        for a validation set.
-    :param random_state: A seed for the random number generator controlling the stratified partitioning.
-    :return:
-    """
-    train_bottlenecks, test_bottlenecks = model_selection.train_test_split(
-        bottlenecks, train_size=train_percent,
-        test_size=test_percent, shuffle=True,
-        random_state=random_state
-    )
-    train_bottlenecks, val_bottlenecks = model_selection.train_test_split(
-        train_bottlenecks, train_size=train_percent,
-        test_size=val_percent, shuffle=True,
-        random_state=random_state
-    )
-    return train_bottlenecks, val_bottlenecks, test_bottlenecks
-
-
-def _load_bottlenecks(compressed_bottleneck_file_path):
-    bottlenecks = None
-    bottleneck_path = compressed_bottleneck_file_path
-    if os.path.isfile(bottleneck_path):
-        # Bottlenecks .pkl file exists, read from disk:
-        tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'' % bottleneck_path)
-        try:
-            bottlenecks = pd.read_pickle(bottleneck_path)
-            tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
-                                % os.path.basename(bottleneck_path))
-        except Exception as err:
-            tf.logging.error(msg=err)
-            bottlenecks = None
-            exit(-1)
-    else:
-        tf.logging.error(msg='Bottleneck file not located at the provided path: \'%s\'. '
-                             'Have you run BottleneckExecutor.py?' % bottleneck_path)
-        exit(-1)
-    return bottlenecks
-
-
-def _get_class_labels(bottlenecks):
-    """
-    _get_class_labels: Obtains a list of unique class labels contained in the bottlenecks dataframe for use in one-hot
-        encoding.
-    :param bottlenecks: The bottlenecks dataframe.
-    :return class_labels: <list> An array of unique class labels whose indices can be used to one-hot encode target
-        labels.
-    """
-    class_labels = set()
-    for unique_class in bottlenecks['class'].unique():
-        class_labels.add(unique_class)
-    # Convert back to list for one-hot encoding using array indices:
-    class_labels = list(class_labels)
-    return class_labels
 
 
 def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
@@ -352,6 +292,22 @@ def _run_setup(bottleneck_path, tb_summaries_dir):
     return bottleneck_dataframes, class_labels
 
 
+def _get_class_labels(bottlenecks):
+    """
+    _get_class_labels: Obtains a list of unique class labels contained in the bottlenecks dataframe for use in one-hot
+        encoding.
+    :param bottlenecks: The bottlenecks dataframe.
+    :return class_labels: <list> An array of unique class labels whose indices can be used to one-hot encode target
+        labels.
+    """
+    class_labels = set()
+    for unique_class in bottlenecks['class'].unique():
+        class_labels.add(unique_class)
+    # Convert back to list for one-hot encoding using array indices:
+    class_labels = list(class_labels)
+    return class_labels
+
+
 def main(run_config):
     """
     main:
@@ -362,19 +318,42 @@ def main(run_config):
     """
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
 
-    # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
-    bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir)
-    tf.logging.info('Detected %d unique class labels in the bottlenecks dataframe' % len(class_labels))
-
-    train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
-        bottleneck_dataframe=bottleneck_dataframes['train'],
-        class_labels=class_labels
+    image_executor = ImageExecutor(
+        img_root_dir=run_config['image_dir'],
+        accepted_extensions=['jpg', 'jpeg']
     )
+    # image_lists = image_executor.get_image_lists(min_num_images_per_class=20)
+    # tf_ds = image_executor.get_image_lists_as_tensor_flow_dataset()
 
-    val_bottlenecks, val_ground_truth_indices = _get_all_cached_bottlenecks(
-        bottleneck_dataframe=bottleneck_dataframes['val'],
-        class_labels=class_labels
+    bottleneck_executor = BottleneckExecutor(
+        image_dir=run_config['image_dir'],
+        tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
+        compressed_bottleneck_file_path=run_config['bottleneck_path']
     )
+    # bottlenecks = bottleneck_executor.get_bottlenecks()
+    train_bottlenecks, val_bottlenecks, test_bottlenecks = bottleneck_executor.partition_bottlenecks_dataframe(
+        train_percent=.80,
+        val_percent=.20,
+        test_percent=.20,
+        random_state=42
+    )
+    bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
+    train_image_lists, val_image_lists, test_image_lists = \
+        image_executor.get_partitioned_image_lists_same_as_dataframes(
+            df_train_bottlenecks=train_bottlenecks,
+            df_val_bottlenecks=val_bottlenecks,
+            df_test_bottlenecks=test_bottlenecks
+        )
+    class_labels_one_hot = image_executor.get_class_labels_one_hot_encoded()
+    # Convert image lists to tensorflow datasets (already shuffled same as dataframes):
+    train_image_lists_tf_ds = image_executor.get_partitioned_image_list_as_tensor_flow_dataset(image_lists_subset=train_image_lists)
+    val_image_lists_tf_ds = image_executor.get_partitioned_image_list_as_tensor_flow_dataset(image_lists_subset=val_image_lists)
+    test_image_lists_tf_ds = image_executor.get_partitioned_image_list_as_tensor_flow_dataset(image_lists_subset=test_image_lists)
+
+    ON RESUME: NEED to finish replacing the native bottleneck functions in this class with methods from BottleneckExecutor.py
+    Need to finish run_grid_search modifications to allow for TFHclassifier to build two different computational graphs:
+        1. for the fixed feature extractor and bottlenecks dataframe (already exists)
+        2. for the fine-tuning and tensorflow datasets with keras compatability (partially implemented)
 
     tf.logging.info(msg='Obtained bottleneck values from dataframe. Performed corresponding one-hot encoding of class labels')
     initializer_options = get_initializer_options()
