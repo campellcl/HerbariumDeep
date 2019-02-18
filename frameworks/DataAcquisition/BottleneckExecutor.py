@@ -8,6 +8,7 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_hub as hub
 import collections
+from sklearn import model_selection
 import numpy as np
 import time
 from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
@@ -91,15 +92,19 @@ class BottleneckExecutor:
     # bottlenecks compressed dataframe:
     bottlenecks = None
 
-    def __init__(self, image_dir, tfhub_module_url, compressed_bottleneck_file_path):
+    def __init__(self, image_dir, tfhub_module_url, compressed_bottleneck_file_path, image_executor_instance=None):
         self.image_dir = image_dir
         self.tfhub_module_url = tfhub_module_url
         self.compressed_bottleneck_file_path = compressed_bottleneck_file_path
         # Set logging verbosity:
         tf.logging.set_verbosity(tf.logging.INFO)
-        # Get image lists:
-        self.image_executor = ImageExecutor(img_root_dir=self.image_dir, accepted_extensions=['jpg', 'jpeg'])
-        self.image_lists = self.image_executor.get_image_lists(min_num_images_per_class=20)
+        # TODO: Singleton pattern would help here. Right now instance of image_executor in GoingDeeper.py and here.
+        if image_executor_instance is not None:
+            self.image_executor = image_executor_instance
+        else:
+            self.image_executor = ImageExecutor(img_root_dir=self.image_dir, accepted_extensions=['jpg', 'jpeg'], min_num_imgs_per_class=20)
+        # Get cleaned image lists:
+        self.image_lists = self.image_executor.get_image_lists()
         # Build computational graph for bottleneck generation:
         # self.tfhub_module_url = 'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'
         self.graph, self.bottleneck_tensor, self.resized_image_tensor, \
@@ -141,7 +146,8 @@ class BottleneckExecutor:
     def get_bottlenecks(self):
         if os.path.exists(self.compressed_bottleneck_file_path):
             if os.path.isfile(self.compressed_bottleneck_file_path):
-                tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'' % self.compressed_bottleneck_file_path)
+                tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\''
+                                    % self.compressed_bottleneck_file_path)
                 try:
                     self.bottlenecks = pd.read_pickle(self.compressed_bottleneck_file_path)
                     tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
@@ -152,13 +158,13 @@ class BottleneckExecutor:
                     exit(-1)
             else:
                 tf.logging.error(msg='Bottleneck file not located at the provided path: \'%s\'. '
-                             'Have you run BottleneckExecutor.py?' % self.compressed_bottleneck_file_path)
+                                     'Double check the path and try again. If this error persists, run '
+                                     'BottleneckExecutor.py manually to generate compressed bottleneck file.'
+                                     % self.compressed_bottleneck_file_path)
                 exit(-1)
         return self.bottlenecks
 
-
-
-    def cache_all_bottlenecks(self):
+    def _cache_all_bottlenecks(self):
         """
         cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
             sample's Tensor through the original source network. At the penultimate layer of the provided source network
@@ -230,6 +236,32 @@ class BottleneckExecutor:
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
             df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+
+    def partition_bottlenecks_dataframe(self, train_percent=.80, val_percent=.20, test_percent=.20, random_state=42):
+        """
+        _partition_bottlenecks_dataframe: Partitions the bottlenecks dataframe into training, testing, and validation
+            dataframes.
+        :param bottlenecks: <pd.DataFrame> The bottlenecks dataframe containing image-labels, paths, and bottleneck values.
+        :param train_percent: What percentage of the training data is to remain in the training set.
+        :param test_percent: What percentage of the training data is to be allocated to a testing set.
+        :param val_percent: What percentage of the remaining training data (after removing test set) is to be allocated
+            for a validation set.
+        :param random_state: A seed for the random number generator controlling the stratified partitioning.
+        :return:
+        """
+        if not self.bottlenecks:
+            self.get_bottlenecks()
+        train_bottlenecks, test_bottlenecks = model_selection.train_test_split(
+            self.bottlenecks, train_size=train_percent,
+            test_size=test_percent, shuffle=True,
+            random_state=random_state
+        )
+        train_bottlenecks, val_bottlenecks = model_selection.train_test_split(
+            train_bottlenecks, train_size=train_percent,
+            test_size=val_percent, shuffle=True,
+            random_state=random_state
+        )
+        return train_bottlenecks, val_bottlenecks, test_bottlenecks
 
     # def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
     #     train_image_paths = []
@@ -336,4 +368,4 @@ if __name__ == '__main__':
         # tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/classification/1',
         compressed_bottleneck_file_path=bottleneck_path
     )
-    bottleneck_executor.cache_all_bottlenecks()
+    bottleneck_executor._cache_all_bottlenecks()
