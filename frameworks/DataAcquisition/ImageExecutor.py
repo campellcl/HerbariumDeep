@@ -17,15 +17,28 @@ class ImageExecutor:
 
     img_root_dir = None
     accepted_extensions = None
+    min_num_imgs_per_class = 20
     df_images = None
     image_lists = None
+    class_labels_one_hot_encoded_list = None
+    train_image_lists = None
+    val_image_lists = None
+    test_image_lists = None
 
-    def __init__(self, img_root_dir, accepted_extensions):
+    def __init__(self, img_root_dir, accepted_extensions, min_num_imgs_per_class=20):
         self.img_root_dir = img_root_dir
         self.accepted_extensions = accepted_extensions
         self.df_images = None
+        if min_num_imgs_per_class:
+            self.min_num_imgs_per_class = min_num_imgs_per_class
         self._clean_images()
-        self.cleaned_images = True
+
+    def get_class_labels_one_hot_encoded(self):
+        if self.cleaned_images:
+            return self.class_labels_one_hot_encoded_list
+        else:
+            self._clean_images()
+            return self.class_labels_one_hot_encoded_list
 
     def _get_raw_image_lists_df(self):
         col_names = {'class', 'path', 'bottleneck'}
@@ -61,8 +74,13 @@ class ImageExecutor:
                 continue
             tf.logging.info('Locating images in: \'%s\'' % dir_name)
             for extension in self.accepted_extensions:
-                file_glob = os.path.join(self.img_root_dir, dir_name, '*.' + extension)
-                file_list.extend(tf.gfile.Glob(file_glob))
+                if extension == '':
+                    tf.logging.warning(msg='\tOverrode your allowed extensions. Ignoring files with extension \'\' due '
+                                           'to high possibility of corrupted files.')
+                    pass
+                else:
+                    file_glob = os.path.join(self.img_root_dir, dir_name, '*.' + extension)
+                    file_list.extend(tf.gfile.Glob(file_glob))
             if not file_list:
                 tf.logging.warning(msg='\tNo files found in \'%s\'. Class label omitted from data sets.' % dir_name)
             label_name = dir_name.lower()
@@ -247,16 +265,18 @@ class ImageExecutor:
         # self.df_images = self._get_raw_image_lists_df()
         self.image_lists = self._get_raw_image_lists()
         self.image_lists = self._clean_scientific_name()
-        self.cleaned_images = True
-
-    def get_image_lists(self, min_num_images_per_class):
-        if not self.cleaned_images:
-            self._clean_images()
         image_lists = copy.deepcopy(self.image_lists)
         for label in self.image_lists:
-            if len(self.image_lists[label]) <= min_num_images_per_class:
+            if len(self.image_lists[label]) <= self.min_num_imgs_per_class:
                 image_lists.pop(label)
-        return image_lists
+        self.image_lists = image_lists
+        self.class_labels_one_hot_encoded_list = list(image_lists.keys())
+        self.cleaned_images = True
+
+    def get_image_lists(self):
+        if not self.cleaned_images:
+            self._clean_images()
+        return self.image_lists
 
     # def _partition_image_lists(image_lists, train_percent, val_percent, test_percent, random_state):
     #     """
@@ -303,7 +323,7 @@ class ImageExecutor:
         if self.cleaned_images:
             image_lists = self.image_lists
         else:
-            image_lists = self.get_image_lists(min_num_images_per_class=20)
+            image_lists = self.get_image_lists()
         df_images_empty = pd.DataFrame(columns=['class', 'path', 'img'])
         for clss in image_lists.keys():
             for image_path in image_lists[clss]:
@@ -347,6 +367,47 @@ class ImageExecutor:
         img_raw = tf.read_file(img_path)
         return self._preprocess_image(img_raw)
 
+    @staticmethod
+    def get_partitioned_image_lists_same_as_dataframes(df_train_bottlenecks, df_val_bottlenecks, df_test_bottlenecks):
+        train_image_lists = OrderedDict()
+        val_image_lists = OrderedDict()
+        test_image_lists = OrderedDict()
+        for i, series in enumerate(df_train_bottlenecks.iterrows()):
+            clss = series[1]['class']
+            path = series[1]['path']
+            if clss not in train_image_lists:
+                train_image_lists[clss] = [path]
+            else:
+                train_image_lists[clss].append(path)
+        for i, series in enumerate(df_val_bottlenecks.iterrows()):
+            clss = series[1]['class']
+            path = series[1]['path']
+            if clss not in val_image_lists:
+                val_image_lists[clss] = [path]
+            else:
+                val_image_lists[clss].append(path)
+        for i, series in enumerate(df_test_bottlenecks.iterrows()):
+            clss = series[1]['class']
+            path = series[1]['path']
+            if clss not in test_image_lists:
+                test_image_lists[clss] = [path]
+            else:
+                test_image_lists[clss].append(path)
+        return train_image_lists, val_image_lists, test_image_lists
+
+    def get_partitioned_image_list_as_tensor_flow_dataset(self, image_lists_subset):
+        subset_image_paths = []
+        subset_image_labels_one_hot = []
+        for clss, clss_img_paths in image_lists_subset.items():
+            for img_path in clss_img_paths:
+                subset_image_paths.append(img_path)
+                subset_image_labels_one_hot.append(self.class_labels_one_hot_encoded_list.index(clss))
+        path_tf_ds = tf.data.Dataset.from_tensor_slices(subset_image_paths)
+        subset_image_tf_ds = path_tf_ds.map(self._load_and_preprocess_image, num_parallel_calls=AUTOTUNE)
+        subset_label_tf_ds = tf.data.Dataset.from_tensor_slices(tf.cast(subset_image_labels_one_hot, tf.int64))
+        subset_image_label_tf_ds = tf.data.Dataset.zip((subset_image_tf_ds, subset_label_tf_ds))
+        return subset_image_label_tf_ds
+
     def get_image_lists_as_tensor_flow_dataset(self):
         """
         get_image_lists_as_tensor_flow_dataset:
@@ -356,7 +417,7 @@ class ImageExecutor:
         if self.cleaned_images:
             image_lists = self.image_lists
         else:
-            image_lists = self.get_image_lists(min_num_images_per_class=20)
+            image_lists = self.get_image_lists()
         all_image_paths = []
         all_image_label_indices = []
         for i, (clss_label, img_paths) in enumerate(image_lists.items()):
@@ -379,11 +440,12 @@ class ImageExecutor:
         return tf_ds_images_and_labels
 
 
+
 def main(root_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
-    image_lists = img_executor.get_image_lists(min_num_images_per_class=20)
+    image_lists = img_executor.get_image_lists()
     # TensorFlow Dataset support for Keras integration:
-    tf_ds = img_executor.get_image_lists_as_tensor_flow_dataset()
+    # tf_ds = img_executor.get_image_lists_as_tensor_flow_dataset()
     # df_images = img_executor.get_image_lists_as_df()
 
 
