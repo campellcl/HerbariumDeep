@@ -15,16 +15,17 @@ import copy
 class ImageExecutor:
 
     img_root_dir = None
+    logging_dir = None
     accepted_extensions = None
     df_images = None
     image_lists = None
 
-    def __init__(self, img_root_dir, accepted_extensions):
+    def __init__(self, img_root_dir, logging_dir, accepted_extensions):
         self.img_root_dir = img_root_dir
+        self.logging_dir = logging_dir
         self.accepted_extensions = accepted_extensions
         self.df_images = None
         self._clean_images()
-        self.cleaned_images = True
 
     def _get_raw_image_lists_df(self):
         col_names = {'class', 'path', 'bottleneck'}
@@ -51,6 +52,7 @@ class ImageExecutor:
 
     def _get_raw_image_lists(self):
         image_lists = OrderedDict()
+        labels_with_no_files = []
         sub_dirs = sorted(x[0] for x in tf.gfile.Walk(self.img_root_dir))
         for i, sub_dir in enumerate(sub_dirs):
             file_list = []
@@ -58,17 +60,23 @@ class ImageExecutor:
             if i == 0:
                 # skip root dir
                 continue
-            tf.logging.info('Locating images in: \'%s\'' % dir_name)
+            tf.logging.info('\tLocating images in: \'%s\'' % dir_name)
             for extension in self.accepted_extensions:
                 file_glob = os.path.join(self.img_root_dir, dir_name, '*.' + extension)
                 file_list.extend(tf.gfile.Glob(file_glob))
             if not file_list:
-                tf.logging.warning(msg='\tNo files found in \'%s\'. Class label omitted from data sets.' % dir_name)
+                tf.logging.warning(msg='\t\tNo files found in \'%s\'. Class label omitted from data sets.' % dir_name)
+                labels_with_no_files.append(os.path.join(self.img_root_dir, dir_name))
             label_name = dir_name.lower()
             if label_name not in image_lists:
                 image_lists[label_name] = file_list
             else:
                 image_lists[label_name].extend(file_list)
+        with open(os.path.join(self.logging_dir, 'raw_labels_no_images.txt'), 'w') as fp:
+            for label in labels_with_no_files:
+                fp.write(label + '\n')
+        tf.logging.info(msg='\tExported list of excluded directories with no images (for verification) to \'%s\''
+                            % (self.logging_dir + '\\raw_labels_no_images.txt'))
         return image_lists
 
     def _remove_taxon_ranks_and_remap_categoricals(self):
@@ -124,6 +132,7 @@ class ImageExecutor:
 
     def _remove_taxon_ranks_and_merge_keys(self):
         unique_labels = np.unique(list(self.image_lists.keys()))
+        tf.logging.info(msg='\tDetected %d unique labels prior to cleaning.' % len(unique_labels))
         species_with_variety_info = []
         species_with_subspecies_info = []
         for label in unique_labels:
@@ -131,12 +140,15 @@ class ImageExecutor:
                 species_with_variety_info.append(label)
             elif 'subsp.' in label:
                 species_with_subspecies_info.append(label)
+        tf.logging.info(msg='\tDetected %d unique labels with variety (varietas) designation.' % len(species_with_variety_info))
+        tf.logging.info(msg='\tDetected %d unique labels with subspecies designation.' % len(species_with_subspecies_info))
+        tf.logging.info(msg='\tRemapping class labels with varietas designation...')
         ''' Remove 'var.' varietas from target label and merge keys: '''
         for label in species_with_variety_info:
             label_sans_var = label.split('var.')[0].strip()
             if label_sans_var in unique_labels:
                 # This class should be merged with an existing one:
-                tf.logging.warning(msg='Conflicting classes after dropping designation varietas:'
+                tf.logging.warning(msg='\t\tConflicting classes after dropping designation varietas:'
                                        '\n\tOriginal label: \'%s\' New label: \'%s\'' % (label, label_sans_var))
                 self.image_lists[label_sans_var].extend(self.image_lists[label])
                 self.image_lists.pop(label)
@@ -144,6 +156,8 @@ class ImageExecutor:
                 # No need to merge class with existing, but shorten the name:
                 self.image_lists[label_sans_var] = self.image_lists[label]
                 self.image_lists.pop(label)
+                tf.logging.info(msg='\t\tNo conflicting classes. Remapped class label: \'%s\' to \'%s\'' % (label, label_sans_var))
+
 
         ''' Remove 'subsp.' subspecies designation from target label and merge keys: '''
         for label in species_with_subspecies_info:
@@ -230,6 +244,7 @@ class ImageExecutor:
         # DwC scientificName: 'Genus + specificEpithet
         # Rename categoricals with 'genus species var. subspecies' to just 'genus species'. Also,
         #   rename 'genus species subsp. subspecie' to just 'genus species':
+        tf.logging.info(msg='Removing taxon ranks and merging keys...')
         self.image_lists = self._remove_taxon_ranks_and_merge_keys()
         # Remove 'Genus' level scientific names, it is assumed there will be too much variation within one genus:
         self.image_lists = self._remove_genus_level_scientific_names()
@@ -244,7 +259,9 @@ class ImageExecutor:
 
     def _clean_images(self):
         # self.df_images = self._get_raw_image_lists_df()
+        tf.logging.info(msg='Populating raw image lists prior to cleaning...')
         self.image_lists = self._get_raw_image_lists()
+        tf.logging.info(msg='Done, obtained raw image lists.')
         self.image_lists = self._clean_scientific_name()
         self.cleaned_images = True
 
@@ -258,8 +275,8 @@ class ImageExecutor:
         return image_lists
 
 
-def main(root_dir):
-    img_executor = ImageExecutor(img_root_dir=root_dir, accepted_extensions=['jpg', 'jpeg'])
+def main(root_dir, logging_dir):
+    img_executor = ImageExecutor(img_root_dir=root_dir, logging_dir=logging_dir,accepted_extensions=['jpg', 'jpeg'])
     image_lists = img_executor.get_image_lists(min_num_images_per_class=20)
 
 
@@ -270,4 +287,9 @@ if __name__ == '__main__':
     # GoingDeeper Configuration:
 
     # BOON Configuration:
-    main(root_dir='D:\\data\\BOON\\images')
+    root_dir = 'D:\\data\\BOON\\images'
+    logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    main(root_dir='D:\\data\\BOON\\images', logging_dir=logging_dir)
+
+    # SERNEC Configuration:
+    # main(root_dir='D:\\data\\SERNEC\\images')
