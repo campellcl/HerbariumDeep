@@ -163,7 +163,7 @@ class ImageExecutor:
                 # No need to merge class with existing, but shorten the name:
                 self.image_lists[label_sans_var] = self.image_lists[label]
                 self.image_lists.pop(label)
-                tf.logging.info(msg='\t\t\tNo conflictig classes. Remapped class label \'%s\' to \'%s\''
+                tf.logging.info(msg='\t\t\tNo conflicting classes. Remapped class label \'%s\' to \'%s\''
                                     % (label, label_sans_var))
                 if label not in species_with_variety_old_label_mappings:
                     species_with_variety_old_label_mappings[label_sans_var] = [label]
@@ -341,12 +341,20 @@ class ImageExecutor:
         tf.logging.info(msg='\tDone, purged user-identified anomalous class labels.')
         return self.image_lists
 
+    def _run_sanity_checks_on_cleaned_data(self):
+        # for clss_label, image_paths in self.image_lists.items():
+        #     assert len(clss_label.split(' ')) == 2, 'Length assertion failed for class label: \'%s\'' % clss_label
+        pass
+
     def _clean_images(self):
         # self.df_images = self._get_raw_image_lists_df()
         tf.logging.info(msg='Populating raw image lists prior to cleaning...')
         self.image_lists = self._get_raw_image_lists()
         tf.logging.info(msg='Done, obtained raw image lists. Now cleaning class label: \'scientificName\' in the obtained raw data...')
         self.image_lists = self._clean_scientific_name()
+        tf.logging.info(msg='Done, cleaned \'scientificName\' class labels. Running sanity checks on cleaned data...')
+        self._run_sanity_checks_on_cleaned_data()
+        tf.logging.info(msg='Sanity checks complete. ImageExector instance given permission to flag images as cleaned.')
         self.cleaned_images = True
 
     def get_image_lists(self, min_num_images_per_class):
@@ -368,12 +376,17 @@ if __name__ == '__main__':
     # Logging verbosity:
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    # GoingDeeper Configuration:
-
     # BOON Configuration:
-    root_dir = 'D:\\data\\BOON\\images'
-    logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
-    main(root_dir=root_dir, logging_dir=logging_dir)
+    # root_dir = 'D:\\data\\BOON\\images'
+    # logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    # main(root_dir=root_dir, logging_dir=logging_dir)
+
+    # GoingDeeper Configuration:
+    # root_dir = 'D:\\data\\GoingDeeperData\\images'
+    # logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+    # main(root_dir=root_dir, logging_dir=logging_dir)
 
     # SERNEC Configuration:
-    # main(root_dir='D:\\data\\SERNEC\\images')
+    root_dir = 'D:\\data\\SERNEC\\images'
+    logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
+    main(root_dir=root_dir, logging_dir=logging_dir)
