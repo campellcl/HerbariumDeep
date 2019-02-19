@@ -137,9 +137,9 @@ class ImageExecutor:
         species_with_variety_info = []
         species_with_subspecies_info = []
         for label in unique_labels:
-            if 'var.' in label:
+            if 'var.' in label or 'variety' in label:
                 species_with_variety_info.append(label)
-            elif 'subsp.' in label:
+            elif 'subsp.' in label or 'subspecies' in label:
                 species_with_subspecies_info.append(label)
         tf.logging.info(msg='\t\t\tDetected %d unique labels with variety (varietas) designation.' % len(species_with_variety_info))
         tf.logging.info(msg='\t\t\tDetected %d unique labels with subspecies designation.' % len(species_with_subspecies_info))
@@ -148,27 +148,27 @@ class ImageExecutor:
         tf.logging.info(msg='\t\tRemapping class labels with \'varietas\' designation...')
         ''' Remove 'var.' varietas from target label and merge keys: '''
         for label in species_with_variety_info:
-            label_sans_var = label.split('var.')[0].strip()
+            if 'var.' in label:
+                label_sans_var = label.split('var.')[0].strip()
+            else:
+                # 'variety' in label:
+                label_sans_var = label.split('variety')[0].strip()
             if label_sans_var in unique_labels:
                 # This class should be merged with an existing one:
-                tf.logging.info(msg='\t\t\tConflicting classes. Remapped class label \'%s\' to existing label: \'%s\''
-                                       % (label, label_sans_var))
                 self.image_lists[label_sans_var].extend(self.image_lists[label])
                 self.image_lists.pop(label)
-                if label not in species_with_variety_old_label_mappings:
-                    species_with_variety_old_label_mappings[label_sans_var] = [label]
-                else:
-                    species_with_variety_old_label_mappings[label_sans_var].append(label)
+                tf.logging.info(msg='\t\t\tConflicting classes. Remapped class label \'%s\' to existing label: \'%s\''
+                                       % (label, label_sans_var))
             else:
                 # No need to merge class with existing, but shorten the name:
                 self.image_lists[label_sans_var] = self.image_lists[label]
                 self.image_lists.pop(label)
                 tf.logging.info(msg='\t\t\tNo conflicting classes. Remapped class label \'%s\' to \'%s\''
                                     % (label, label_sans_var))
-                if label not in species_with_variety_old_label_mappings:
-                    species_with_variety_old_label_mappings[label_sans_var] = [label]
-                else:
-                    species_with_variety_old_label_mappings[label_sans_var].append(label)
+            if label not in species_with_variety_old_label_mappings:
+                species_with_variety_old_label_mappings[label_sans_var] = [label]
+            else:
+                species_with_variety_old_label_mappings[label_sans_var].append(label)
         tf.logging.info('\t\tDone, performed remapping of %d class labels with \'varietas\' designation.' % len(species_with_variety_info))
         with open(self.logging_dir + '\\labels_with_variety_old_to_new.txt', 'w') as fp:
             for new_label, old_labels in species_with_variety_old_label_mappings.items():
@@ -181,27 +181,27 @@ class ImageExecutor:
         tf.logging.info(msg='\t\tRemapping class labels with \'subspecies\' designation...')
         ''' Remove 'subsp.' subspecies designation from target label and merge keys: '''
         for label in species_with_subspecies_info:
-            label_sans_subsp = label.split('subsp.')[0].strip()
+            if 'subsp.' in label:
+                label_sans_subsp = label.split('subsp.')[0].strip()
+            else:
+                # 'subspecies' in label:
+                label_sans_subsp = label.split('subspecies')[0].strip()
             if label_sans_subsp in unique_labels:
                 # This class should be merged with an existing one:
                 tf.logging.info(msg='\t\t\tConflicting classes. Remapped class label \'%s\' to existing label: \'%s\''
                                        % (label, label_sans_subsp))
                 self.image_lists[label_sans_subsp].extend(self.image_lists[label])
                 self.image_lists.pop(label)
-                if label not in species_with_subspecies_old_label_mappings:
-                    species_with_subspecies_old_label_mappings[label_sans_subsp] = [label]
-                else:
-                    species_with_subspecies_old_label_mappings[label_sans_subsp].append(label)
             else:
                 # No need to merge class with existing, but shorten the name:
                 self.image_lists[label_sans_subsp] = self.image_lists[label]
                 self.image_lists.pop(label)
                 tf.logging.info(msg='\t\t\tNo conflictig classes. Remapped class label \'%s\' to \'%s\''
                                     % (label, label_sans_subsp))
-                if label not in species_with_subspecies_old_label_mappings:
-                    species_with_subspecies_old_label_mappings[label_sans_subsp] = [label]
-                else:
-                    species_with_subspecies_old_label_mappings[label_sans_subsp].append(label)
+            if label not in species_with_subspecies_old_label_mappings:
+                species_with_subspecies_old_label_mappings[label_sans_subsp] = [label]
+            else:
+                species_with_subspecies_old_label_mappings[label_sans_subsp].append(label)
         tf.logging.info('\t\tDone, performed remapping of %d class labels with \'subspecies\' designation.'
                         % len(species_with_subspecies_info))
         with open(self.logging_dir + '\\labels_with_subspecies_old_to_new.txt', 'w') as fp:
@@ -293,20 +293,28 @@ class ImageExecutor:
         return self.image_lists
 
     def _remove_user_identified_abnormalities(self):
-        problem_labels = ['asclepias incarnata pulchra']
-        problem_labels_mappings = OrderedDict()
-        for label in problem_labels:
-            if label in self.image_lists.keys():
-                if label == 'asclepias incarnata pulchra':
-                    if 'asclepias incarnata' in self.image_lists.keys():
-                        self.image_lists['asclepias incarnata'].extend(self.image_lists[label])
-                        self.image_lists.pop(label)
-                    else:
-                        self.image_lists['asclepias incarnata'] = self.image_lists[label]
-                        self.image_lists.pop(label)
-                    problem_labels_mappings[label] = 'asclepias incarnata'
+        explicit_mappings_incorrect_to_correct = OrderedDict({
+            'acer pennsylvanicum': 'acer pensylvanicum',
+            'asclepias incarnata pulchra': 'asclepias incarnata',
+            'agastache scrophulariaefolia': 'agastache scrophulariifolia',
+            'agrostis hiemalis': 'agrostis hyemalis',
+            'amphicarpa bracteata': 'amphicarpaea bracteata',
+            'andropogon gerardi': 'andropogon gerardii',
+            'zephyranthes atamasco' : 'zephyranthes atamasca',
+            'viola rafinesquei': 'viola rafinesquii',
+            'viburnum rafinesqueanum': 'viburnum rafinesquianum',
+            'spirodela polyrrhiza': 'spirodela polyrhiza'
+        })
+        for incorrect_label, correct_label in explicit_mappings_incorrect_to_correct.items():
+            if incorrect_label in self.image_lists.keys():
+                if correct_label in self.image_lists.keys():
+                    self.image_lists[correct_label].extend(self.image_lists[incorrect_label])
+                    self.image_lists.pop(incorrect_label)
+                else:
+                    self.image_lists[correct_label] = self.image_lists[incorrect_label]
+                    self.image_lists.pop(incorrect_label)
         with open(os.path.join(self.logging_dir, 'labels_with_user_identified_anomalies_old_to_new.txt'), 'w') as fp:
-            for old_label, new_label in problem_labels_mappings.items():
+            for old_label, new_label in explicit_mappings_incorrect_to_correct.items():
                 fp.write('\'%s\' -> \'%s\'\n' % (old_label, new_label))
         tf.logging.info(msg='\t\tExported list of anomalous user-identified class labels removed to: \'%s\'' % (self.logging_dir + '\\labels_with_user_identified_anomalies_old_to_new.txt'))
         return self.image_lists
@@ -344,7 +352,10 @@ class ImageExecutor:
     def _run_sanity_checks_on_cleaned_data(self):
         # for clss_label, image_paths in self.image_lists.items():
         #     assert len(clss_label.split(' ')) == 2, 'Length assertion failed for class label: \'%s\'' % clss_label
-        pass
+        unique_class_labels = np.unique(list(self.image_lists.keys()))
+        with open(os.path.join(self.logging_dir, 'cleaned_unique_labels.txt'), 'w') as fp:
+            for label in unique_class_labels:
+                fp.write('\'%s\'\n' % label)
 
     def _clean_images(self):
         # self.df_images = self._get_raw_image_lists_df()
