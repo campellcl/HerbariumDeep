@@ -20,11 +20,13 @@ class ImageExecutor:
     df_images = None
     image_lists = None
 
-    def __init__(self, img_root_dir, logging_dir, accepted_extensions):
+    def __init__(self, img_root_dir, logging_dir, min_num_images_per_class, accepted_extensions):
         self.img_root_dir = img_root_dir
         self.logging_dir = logging_dir
+        self.min_num_images_per_class = min_num_images_per_class
         self.accepted_extensions = accepted_extensions
         self.df_images = None
+        self.cleaned_images = False
         self._clean_images()
 
     def _get_raw_image_lists_df(self):
@@ -299,6 +301,7 @@ class ImageExecutor:
             'agastache scrophulariaefolia': 'agastache scrophulariifolia',
             'agrostis hiemalis': 'agrostis hyemalis',
             'amphicarpa bracteata': 'amphicarpaea bracteata',
+            'carex pennsylvanica': 'carex pensylvanica',
             'andropogon gerardi': 'andropogon gerardii',
             'zephyranthes atamasco' : 'zephyranthes atamasca',
             'viola rafinesquei': 'viola rafinesquii',
@@ -357,30 +360,44 @@ class ImageExecutor:
             for label in unique_class_labels:
                 fp.write('\'%s\'\n' % label)
 
+    def _ensure_min_num_sample_images(self):
+        cleaned_labels_with_more_than_min_num_samples = []
+        image_lists = copy.deepcopy(self.image_lists)
+        for label in self.image_lists:
+            if len(self.image_lists[label]) <= self.min_num_images_per_class:
+                image_lists.pop(label)
+            else:
+                cleaned_labels_with_more_than_min_num_samples.append(label)
+        self.image_lists = image_lists
+        with open(os.path.join(self.logging_dir, 'cleaned_labels_with_sample_count_enforced.txt'), 'w') as fp:
+            for label in cleaned_labels_with_more_than_min_num_samples:
+                fp.write('\'%s\'\n' % label)
+        return self.image_lists
+
     def _clean_images(self):
         # self.df_images = self._get_raw_image_lists_df()
         tf.logging.info(msg='Populating raw image lists prior to cleaning...')
         self.image_lists = self._get_raw_image_lists()
         tf.logging.info(msg='Done, obtained raw image lists. Now cleaning class label: \'scientificName\' in the obtained raw data...')
         self.image_lists = self._clean_scientific_name()
-        tf.logging.info(msg='Done, cleaned \'scientificName\' class labels. Running sanity checks on cleaned data...')
+        tf.logging.info(msg='Done, cleaned class label: \'scientificName\'. Now removing class labels with less than %d images...' % self.min_num_images_per_class)
+        self._ensure_min_num_sample_images()
+        tf.logging.info(msg='Running sanity checks on cleaned data...')
         self._run_sanity_checks_on_cleaned_data()
         tf.logging.info(msg='Sanity checks complete. ImageExector instance given permission to flag images as cleaned.')
         self.cleaned_images = True
 
-    def get_image_lists(self, min_num_images_per_class):
-        if not self.cleaned_images:
+    def get_image_lists(self):
+        if self.cleaned_images:
+            return self.image_lists
+        else:
             self._clean_images()
-        image_lists = copy.deepcopy(self.image_lists)
-        for label in self.image_lists:
-            if len(self.image_lists[label]) <= min_num_images_per_class:
-                image_lists.pop(label)
-        return image_lists
+            return self.image_lists
 
 
 def main(root_dir, logging_dir):
-    img_executor = ImageExecutor(img_root_dir=root_dir, logging_dir=logging_dir,accepted_extensions=['jpg', 'jpeg'])
-    image_lists = img_executor.get_image_lists(min_num_images_per_class=20)
+    img_executor = ImageExecutor(img_root_dir=root_dir, logging_dir=logging_dir,accepted_extensions=['jpg', 'jpeg'], min_num_images_per_class=20)
+    image_lists = img_executor.get_image_lists()
 
 
 if __name__ == '__main__':
