@@ -84,15 +84,21 @@ class BottleneckExecutor:
     jpeg_data_tensor = None
     decoded_image_tensor = None
 
-    def __init__(self, image_dir, tfhub_module_url, compressed_bottleneck_file_path):
+    def __init__(self, image_dir, logging_dir, tfhub_module_url, compressed_bottleneck_file_path):
         self.image_dir = image_dir
+        self.logging_dir = logging_dir
         self.tfhub_module_url = tfhub_module_url
         self.compressed_bottleneck_file_path = compressed_bottleneck_file_path
         # Set logging verbosity:
         tf.logging.set_verbosity(tf.logging.INFO)
         # Get image lists:
-        self.image_executor = ImageExecutor(img_root_dir=self.image_dir, accepted_extensions=['jpg', 'jpeg'])
-        self.image_lists = self.image_executor.get_image_lists(min_num_images_per_class=20)
+        self.image_executor = ImageExecutor(
+            img_root_dir=self.image_dir,
+            accepted_extensions=['jpg', 'jpeg'],
+            logging_dir=logging_dir,
+            min_num_images_per_class=20
+        )
+        self.image_lists = self.image_executor.get_image_lists()
         # Build computational graph for bottleneck generation:
         # self.tfhub_module_url = 'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'
         self.graph, self.bottleneck_tensor, self.resized_image_tensor, \
@@ -260,20 +266,23 @@ class BottleneckExecutor:
 
 if __name__ == '__main__':
     # Debug Configuration:
-    bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
-    debug_image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
+    # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
+    # debug_image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
 
     # BOON Configuration:
     bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    boon_image_path = 'D:\\data\\BOON\\images\\'
+    image_path = 'D:\\data\\BOON\\images\\'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
     # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
     # going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     bottleneck_executor = BottleneckExecutor(
-        image_dir=boon_image_path,
+        image_dir=image_path,
         tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
-        compressed_bottleneck_file_path=bottleneck_path
+        compressed_bottleneck_file_path=bottleneck_path,
+        logging_dir=logging_path
     )
     bottleneck_executor.cache_all_bottlenecks()
