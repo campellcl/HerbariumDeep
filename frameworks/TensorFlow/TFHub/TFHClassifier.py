@@ -347,7 +347,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # Run a training step, but don't capture the results at the mini-batch level:
                     # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
                     # Run a training step and capture the results in self._training_op
-                    train_summary, _ = sess.run([self._merged, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
+                     _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
 
                     # Export the results to the TensorBoard logging directory:
                     # self._train_writer.add_summary(train_summary, epoch)
@@ -429,10 +429,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         elif 'truncated_normal' in function_repr:
             return 'INIT_NORMAL_TRUNCATED'
         elif 'he_normal' in function_repr or 'init_ops.VarianceScaling' in function_repr:
-            # He normal
-            return 'INIT_HE_NORMAL'
-        elif 'he_uniform' in function_repr:
-            return 'INIT_HE_UNIFORM'
+            if initializer.distribution == 'uniform':
+                # He uniform
+                return 'INIT_HE_UNIFORM'
+            else:
+                # He normal
+                return 'INIT_HE_NORMAL'
         else:
             return 'INIT_UNKNOWN'
 
@@ -448,6 +450,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 return 'OPTIM_NESTEROV'
             else:
                 return 'OPTIM_MOMENTUM'
+        elif 'AdaDelta' in class_repr:
+            return 'OPTIM_ADADELTA'
         else:
             return 'OPTIM_UNKNOWN'
 
@@ -456,6 +460,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         function_repr = str(activation)
         if 'leaky_relu' in function_repr:
             return 'ACTIVATION_LEAKY_RELU'
+        elif 'elu' in function_repr:
+            return 'ACTIVATION_ELU'
         else:
             return 'ACTIVATION_UNKNOWN'
 
