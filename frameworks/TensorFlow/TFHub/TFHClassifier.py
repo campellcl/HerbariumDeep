@@ -354,8 +354,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
                 # Check to see if eval metrics should be computed this epoch on the validation dataset:
                 if (epoch % eval_freq == 0) or is_last_step:
-                    train_summary = sess.run(self._merged, feed_dict={self._X: X, self._y: y})
-                    self._train_writer.add_summary(train_summary, epoch)
+                    # train_summary = sess.run(self._merged, feed_dict={self._X: X, self._y: y})
+                    # self._train_writer.add_summary(train_summary, epoch)
                     if X_valid is not None and y_valid is not None:
                         # Run eval metrics on the entire validation dataset:
                         val_summary, loss_val, acc_val, top5_acc, preds = sess.run(
@@ -426,7 +426,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             return 'INIT_UNIFORM'
         elif 'random_normal' in function_repr:
             return 'INIT_NORMAL'
-        elif 'truncated_normal' in function_repr:
+        elif 'init_ops.TruncatedNormal' in function_repr:
             return 'INIT_NORMAL_TRUNCATED'
         elif 'he_normal' in function_repr or 'init_ops.VarianceScaling' in function_repr:
             if initializer.distribution == 'uniform':
@@ -466,9 +466,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             return 'ACTIVATION_UNKNOWN'
 
     def __repr__(self):
-        tfh_repr = '%s,%s,TRAIN_BATCH_SIZE__%d' % (
+        tfh_repr = '%s,%s,%s,TRAIN_BATCH_SIZE__%d' % (
             self._get_initializer_repr(self.initializer),
             self._get_optimizer_repr(self.optimizer),
+            self._get_activation_repr(self.activation),
             self.train_batch_size
         )
         return tfh_repr
