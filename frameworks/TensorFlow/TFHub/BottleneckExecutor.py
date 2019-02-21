@@ -76,6 +76,8 @@ class BottleneckExecutor:
     tfhub_module_url = None
     image_executor = None
     image_lists = None
+    df_bottlenecks = None
+    cached_all_bottlenecks = False
     # Tensors to maintain references to:
     graph = None
     _session = None
@@ -138,9 +140,9 @@ class BottleneckExecutor:
             except Exception as err:
                 tf.logging.error(msg=err)
 
-    def cache_all_bottlenecks(self):
+    def _cache_all_bottlenecks(self):
         """
-        cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
+        _cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
             sample's Tensor through the original source network. At the penultimate layer of the provided source network
             (that is, pre-softmax layer) each sample's output tensors are recorded in lieu of the original input image.
             These recorded output tensors constitute the 'bottlenecks' of the provided image_lists. This method computes
@@ -208,6 +210,8 @@ class BottleneckExecutor:
                 if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            self.df_bottlenecks = df_bottlenecks
+            self.cached_all_bottlenecks = True
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
             df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
 
@@ -231,14 +235,15 @@ class BottleneckExecutor:
             exit(-1)
         return bottlenecks
 
-    def resume_caching_bottlenecks(self):
+    def _resume_caching_bottlenecks(self):
         existing_bottlenecks = None
         df_bottlenecks = None
         if os.path.exists(self.compressed_bottleneck_file_path):
             existing_bottlenecks = self._load_bottlenecks()
             df_bottlenecks = existing_bottlenecks.copy(deep=True)
         else:
-            self.cache_all_bottlenecks()
+            self._cache_all_bottlenecks()
+            exit(0)
         image_lists = self.image_executor.get_image_lists()
         resume_class_label = None
         resume_class_label_index = -1
@@ -248,6 +253,12 @@ class BottleneckExecutor:
                 resume_class_label = clss_label
                 resume_class_label_index = i
                 break
+        if resume_class_label_index == -1:
+            tf.logging.info(msg='All bottlenecks have already been computed! BottleneckExecutor will provide access '
+                                'to verbatim loaded bottlenecks\' dataframe.')
+            self.df_bottlenecks = df_bottlenecks
+            self.cached_all_bottlenecks = True
+            return
         target_classes = list(self.image_lists.keys())
         num_classes = len(target_classes)
         tf.logging.info(msg='Resuming previously interrupted bottleneck computation at [%d/%d] class label: \'%s\'' % (resume_class_label_index, num_classes, resume_class_label))
@@ -302,9 +313,15 @@ class BottleneckExecutor:
                 if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            self.df_bottlenecks = df_bottlenecks
+            self.cached_all_bottlenecks = True
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
             df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
 
+    def get_bottlenecks(self):
+        if not self.cached_all_bottlenecks:
+            self._resume_caching_bottlenecks()
+        return self.df_bottlenecks
     # def cache_all_bottlenecks(self):
     #     """
     #     cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
@@ -370,9 +387,9 @@ if __name__ == '__main__':
 
 
     # BOON Configuration:
-    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    # image_path = 'D:\\data\\BOON\\images\\'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    image_path = 'D:\\data\\BOON\\images\\'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
     # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
@@ -380,9 +397,9 @@ if __name__ == '__main__':
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     # SERNEC Cofiguration:
-    bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
-    image_path = 'D:\\data\\SERNEC\\images'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
+    # bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\SERNEC\\images'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
 
 
     bottleneck_executor = BottleneckExecutor(
@@ -391,5 +408,6 @@ if __name__ == '__main__':
         compressed_bottleneck_file_path=bottleneck_path,
         logging_dir=logging_path
     )
-    # bottleneck_executor.cache_all_bottlenecks()
-    bottleneck_executor.resume_caching_bottlenecks()
+    # bottleneck_executor._cache_all_bottlenecks()
+    # bottleneck_executor._resume_caching_bottlenecks()
+    df_bottlenecks = bottleneck_executor.get_bottlenecks()
