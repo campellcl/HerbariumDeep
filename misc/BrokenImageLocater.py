@@ -41,3 +41,5 @@ with tf.Graph().as_default():
         for i, file in enumerate(file_paths):
             tf.logging.info(msg='Opening [%d/%d] \'%s\'' % (i, len(file_paths), file))
             image_result_tensor = sess.run(image, feed_dict={file_name_tensor: file})
+
+# Class label to resume at: 'Echinochloa muricata variety microstachya' at 'D:\data\SERNEC\images\Echinochloa muricata variety microstachya\1199967.jpg'
