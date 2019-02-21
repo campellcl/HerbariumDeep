@@ -98,6 +98,7 @@ class BottleneckExecutor:
             logging_dir=logging_dir,
             min_num_images_per_class=20
         )
+        # Clean and retrieve image lists:
         self.image_lists = self.image_executor.get_image_lists()
         # Build computational graph for bottleneck generation:
         # self.tfhub_module_url = 'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'
@@ -169,6 +170,100 @@ class BottleneckExecutor:
             sess.run(init)
 
             for i, clss in enumerate(target_classes):
+                image_paths = self.image_lists[clss]
+                images_data = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_paths]
+                '''
+                Use batch size for the forward propagation with actual images otherwise OOM GPU errors occur:
+                '''
+                image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
+                image_data_batches = [images_data[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
+                tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\''
+                                % (i+1, num_classes, len(image_paths), clss))
+                # Iterate over the batches:
+                for j, image_data_batch in enumerate(image_data_batches):
+                    tf.logging.info('\tComputing batch [%d/%d]...' % (j+1, len(image_data_batches)))
+                    ts = time.time()
+                    if len(image_data_batch) == 1:
+                        # The batch partitioning resulted in a single scalar by itself:
+                        bottleneck = self._calculate_bottleneck_value(
+                            image_path=image_path_batches[j][0],
+                            image_data=image_data_batch[0]
+                        )
+                        bottleneck_counts_and_time_stamps.append((1, time.time() - ts))
+                        # Append the generated bottleneck to the dataframe:
+                        df_bottlenecks.loc[len(df_bottlenecks)] = {
+                            'class': clss,
+                            'path': image_path_batches[j][0],
+                            'bottleneck': bottleneck
+                        }
+                    else:
+                        # A single batch of images:
+                        bottlenecks = self._calculate_bottleneck_values_in_batch(images_data=image_data_batch)
+                        bottleneck_counts_and_time_stamps.append((len(image_data_batch), time.time() - ts))
+                        # Append the generated bottlenecks to the dataframe:
+                        for k, img_path in enumerate(image_path_batches[j]):
+                            df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
+                average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
+                tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
+                if i % 10 == 0:
+                    tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+                    df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+            df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+
+    def _load_bottlenecks(self):
+        bottlenecks = None
+        bottleneck_path = self.compressed_bottleneck_file_path
+        if os.path.isfile(bottleneck_path):
+            # Bottlenecks .pkl file exists, read from disk:
+            tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'' % bottleneck_path)
+            try:
+                bottlenecks = pd.read_pickle(bottleneck_path)
+                tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
+                                    % os.path.basename(bottleneck_path))
+            except Exception as err:
+                tf.logging.error(msg=err)
+                bottlenecks = None
+                exit(-1)
+        else:
+            tf.logging.error(msg='Bottleneck file not located at the provided path: \'%s\'. '
+                                 'Have you run BottleneckExecutor.py?' % bottleneck_path)
+            exit(-1)
+        return bottlenecks
+
+    def resume_caching_bottlenecks(self):
+        existing_bottlenecks = None
+        df_bottlenecks = None
+        if os.path.exists(self.compressed_bottleneck_file_path):
+            existing_bottlenecks = self._load_bottlenecks()
+            df_bottlenecks = existing_bottlenecks.copy(deep=True)
+        else:
+            self.cache_all_bottlenecks()
+        image_lists = self.image_executor.get_image_lists()
+        resume_class_label = None
+        resume_class_label_index = -1
+        for i, (clss_label, image_paths) in enumerate(image_lists.items()):
+            if clss_label not in existing_bottlenecks['class'].values:
+                # Resume from this class label
+                resume_class_label = clss_label
+                resume_class_label_index = i
+                break
+        target_classes = list(self.image_lists.keys())
+        num_classes = len(target_classes)
+        tf.logging.info(msg='Resuming previously interrupted bottleneck computation at [%d/%d] class label: \'%s\'' % (resume_class_label_index, num_classes, resume_class_label))
+
+        # Keep track of the amount of bottlenecks created, and the elapsed time taken to create them:
+        bottleneck_counts_and_time_stamps = []
+
+        # Run the graph in a session to generate bottleneck tensors:
+        self._session = tf.Session(graph=self.graph)
+
+        with self._session as sess:
+            init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+            sess.run(init)
+            for i, clss in enumerate(target_classes):
+                if i < resume_class_label_index:
+                    continue
                 image_paths = self.image_lists[clss]
                 images_data = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_paths]
                 '''
@@ -296,4 +391,5 @@ if __name__ == '__main__':
         compressed_bottleneck_file_path=bottleneck_path,
         logging_dir=logging_path
     )
-    bottleneck_executor.cache_all_bottlenecks()
+    # bottleneck_executor.cache_all_bottlenecks()
+    bottleneck_executor.resume_caching_bottlenecks()
