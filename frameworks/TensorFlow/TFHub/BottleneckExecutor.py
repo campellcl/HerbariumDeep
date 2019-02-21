@@ -265,19 +265,30 @@ class BottleneckExecutor:
 
 
 if __name__ == '__main__':
-    # Debug Configuration:
+    # Debug Configurations:
     # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
     # debug_image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
 
+    # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\bottlenecks.pkl'
+    # image_path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
+
+
     # BOON Configuration:
-    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    image_path = 'D:\\data\\BOON\\images\\'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\BOON\\images\\'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
     # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    # going_deeper_image_path = 'D:\\data\\GoingDeeperData\\images'
+    # image_path = 'D:\\data\\GoingDeeperData\\images'
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+
+    # SERNEC Cofiguration:
+    bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
+    image_path = 'D:\\data\\SERNEC\\images'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
+
 
     bottleneck_executor = BottleneckExecutor(
         image_dir=image_path,
