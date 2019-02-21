@@ -1,7 +1,8 @@
 import tensorflow as tf
 import os
 
-image_dir = image_path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
+# image_dir = image_path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
+image_dir = 'D:\\data\\SERNEC\\images'
 accepted_extensions = ['jpg', 'jpeg']
 
 sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
@@ -37,6 +38,6 @@ with tf.Graph().as_default():
 
     with tf.Session() as sess:
         sess.run(init_op)
-        for file in file_paths:
-            tf.logging.info(msg='Opening \'%s\'' % file)
+        for i, file in enumerate(file_paths):
+            tf.logging.info(msg='Opening [%d/%d] \'%s\'' % (i, len(file_paths), file))
             image_result_tensor = sess.run(image, feed_dict={file_name_tensor: file})
