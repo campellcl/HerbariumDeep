@@ -387,9 +387,9 @@ if __name__ == '__main__':
 
 
     # BOON Configuration:
-    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    image_path = 'D:\\data\\BOON\\images\\'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\BOON\\images\\'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
     # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
@@ -397,9 +397,9 @@ if __name__ == '__main__':
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     # SERNEC Cofiguration:
-    # bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
-    # image_path = 'D:\\data\\SERNEC\\images'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
+    bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
+    image_path = 'D:\\data\\SERNEC\\images'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
 
 
     bottleneck_executor = BottleneckExecutor(
@@ -410,4 +410,4 @@ if __name__ == '__main__':
     )
     # bottleneck_executor._cache_all_bottlenecks()
     # bottleneck_executor._resume_caching_bottlenecks()
-    df_bottlenecks = bottleneck_executor.get_bottlenecks()
+    bottlenecks_df = bottleneck_executor.get_bottlenecks()
