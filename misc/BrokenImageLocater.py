@@ -1,8 +1,8 @@
 import tensorflow as tf
 import os
 
-# image_dir = image_path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
-image_dir = 'D:\\data\\SERNEC\\images'
+image_dir = image_path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
+# image_dir = 'D:\\data\\SERNEC\\images'
 accepted_extensions = ['jpg', 'jpeg']
 
 sub_dirs = sorted(x[0] for x in tf.gfile.Walk(image_dir))
