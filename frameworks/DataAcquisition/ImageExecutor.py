@@ -384,7 +384,7 @@ class ImageExecutor:
         self._ensure_min_num_sample_images()
         tf.logging.info(msg='Running sanity checks on cleaned data...')
         self._run_sanity_checks_on_cleaned_data()
-        tf.logging.info(msg='Sanity checks complete. ImageExector instance given permission to flag images as cleaned.')
+        tf.logging.info(msg='Sanity checks complete. ImageExector instance flagging images as cleaned.')
         self.cleaned_images = True
 
     def get_image_lists(self):
