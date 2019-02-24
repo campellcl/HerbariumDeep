@@ -354,8 +354,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
                 # Check to see if eval metrics should be computed this epoch on the validation dataset:
                 if (epoch % eval_freq == 0) or is_last_step:
-                    # train_summary = sess.run(self._merged, feed_dict={self._X: X, self._y: y})
-                    # self._train_writer.add_summary(train_summary, epoch)
+                    train_summary = sess.run(self._merged, feed_dict={self._X: X, self._y: y})
+                    self._train_writer.add_summary(train_summary, epoch)
                     if X_valid is not None and y_valid is not None:
                         # Run eval metrics on the entire validation dataset:
                         val_summary, loss_val, acc_val, top5_acc, preds = sess.run(
