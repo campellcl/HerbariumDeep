@@ -93,7 +93,7 @@ def main(run_config):
     model.fit(ds, epochs=10, steps_per_epoch=steps_per_epoch)
 
     # return the loss value and metric values for the model in test mode:
-    print(model.evaluate(ds, batch_size=BATCH_SIZE, steps=steps_per_epoch))
+    # print(model.evaluate(ds, batch_size=BATCH_SIZE, steps=steps_per_epoch))
 
 
 if __name__ == '__main__':
