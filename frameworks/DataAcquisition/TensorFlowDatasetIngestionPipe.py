@@ -1,6 +1,9 @@
 import tensorflow as tf
 import time
 import math
+from tensorflow.keras.applications.inception_v3 import InceptionV3
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 AUTOTUNE = tf.contrib.data.AUTOTUNE
 
@@ -45,6 +48,7 @@ def main(run_config):
     )
     bottlenecks = bottleneck_executor.get_bottlenecks()
     image_count = bottlenecks.shape[0]
+    num_classes = len(bottlenecks['class'].unique())
     all_image_paths = bottlenecks['path'].values
     all_image_labels = bottlenecks['class'].values
     label_to_index = dict((name, index) for index, name in enumerate(bottlenecks['class'].unique()))
@@ -53,17 +57,38 @@ def main(run_config):
     image_ds = path_ds.map(load_and_preprocess_image, num_parallel_calls=AUTOTUNE)
     label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(all_image_labels_one_hot, tf.int64))
     image_label_ds = tf.data.Dataset.zip((image_ds, label_ds))
-    steps_per_epoch=math.ceil(len(all_image_paths)/BATCH_SIZE)
-    # Setting a shuffle buffer size as large as the dataset ensures that the data is completely shuffled:
-    # ds = image_label_ds.shuffle(buffer_size=image_count)
-    # ds = ds.repeat()
-    # ds = ds.batch(BATCH_SIZE)
+    steps_per_epoch = math.ceil(len(all_image_paths)/BATCH_SIZE)
     ds = image_label_ds.cache()
     ds = ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=image_count))
     ds = ds.batch(BATCH_SIZE).prefetch(buffer_size=AUTOTUNE)
-    # 'prefetch' lets the dataset fetch batches, in the background while the model is training.
-    # ds = ds.prefetch(buffer_size=AUTOTUNE)
-    time_shuffle_and_repeat(ds, batches=2*steps_per_epoch+1)
+    # ds = ds.batch(BATCH_SIZE)
+    # time_shuffle_and_repeat(ds, batches=2*steps_per_epoch+1)
+    ''' Fixed-Feature Extractor InceptionV3 with Transfer Learning:'''
+    base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
+    # add a global spatial average pooling layer
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    # let's add a fully-connected layer
+    x = Dense(1024, activation='relu')(x)
+    # and a logistic layer -- let's say we have 200 classes
+    predictions = Dense(num_classes, activation='softmax')(x)
+
+    # this is the model we will train
+    model = Model(inputs=base_model.input, outputs=predictions)
+
+    # first: train only the top layers (which were randomly initialized)
+    # i.e. freeze all convolutional InceptionV3 layers
+    for layer in base_model.layers:
+        layer.trainable = False
+
+    # compile the model (should be done *after* setting layers to non-trainable)
+    model.compile(optimizer='rmsprop', loss='sparse_categorical_crossentropy')
+
+    # train the model on the new data for a few epochs
+    model.fit(ds, epochs=3, steps_per_epoch=steps_per_epoch)
+
+    # return the loss value and metric values for the model in test mode:
+    print(model.evaluate(ds, batch_size=BATCH_SIZE, steps=None))
 
 
 if __name__ == '__main__':
@@ -85,5 +110,6 @@ if __name__ == '__main__':
             'bottleneck_path': 'D:\\data\\SERNEC\\bottlenecks.pkl'
         }
     }
-    tf.enable_eager_execution()
+    print('TensorFlow Version: ', tf.VERSION)
+    print('TensorFlow.Keras Version: ', tf.keras.__version__)
     main(run_config=run_configs['BOON'])
