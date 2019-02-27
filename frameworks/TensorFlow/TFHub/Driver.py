@@ -136,7 +136,13 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
     tf.logging.info(msg='Running GridSearch...')
-    grid_search.fit(X=train_image_paths, y=train_ground_truth_labels, fed_bottlenecks=False)
+    grid_search.fit(
+        X=train_image_paths,
+        y=train_ground_truth_labels,
+        fed_bottlenecks=False,
+        X_val=val_image_paths,
+        y_val=val_ground_truth_labels
+    )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
 
 
@@ -252,10 +258,18 @@ def main(run_config):
     # Convert the labels into indices (one hot encoding by index):
     train_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
                                                       for ground_truth_label in train_bottleneck_ground_truth_labels])
+    val_bottleneck_values = val_bottlenecks['bottleneck'].tolist()
+    val_bottleneck_values = np.array(val_bottleneck_values)
+    val_bottleneck_ground_truth_labels = val_bottlenecks['class'].values
+    # Convert the labels into indices (one hot encoding by index):
+    val_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                                    for ground_truth_label in val_bottleneck_ground_truth_labels])
 
     _run_grid_search_from_drive(
         train_image_paths=train_bottlenecks['path'].values,
         train_ground_truth_labels=train_bottleneck_ground_truth_indices,
+        val_image_paths=val_bottlenecks['path'].values,
+        val_ground_truth_labels=val_bottleneck_ground_truth_indices,
         initializers=initializer_options,
         optimizers=optimizer_options,
         activations=activation_options,

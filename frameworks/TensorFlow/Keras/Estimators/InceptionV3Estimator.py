@@ -95,7 +95,40 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
     #     #   For a possible resolution, see: https://stackoverflow.com/a/9575426/3429090
     #     super(InceptionV3Estimator, self).compute_output_shape(input_shape)
 
-    def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0):
+    def _convert_to_tensorflow_dataset(self, sample_image_file_paths, sample_image_one_hot_encoded_class_labels, is_train_data):
+        """
+        _convert_to_tensorflow_dataset: Converts the provided X_train, y_train or X_val, y_val array-like in-memory
+            file paths to a TensorFlow.data.Dataset for use with Keras models with prefetch buffer allocation.
+        :param sample_image_file_paths: X_train or X_valid a list of file paths.
+        :param sample_image_one_hot_encoded_class_labels: y_train or y_valid, a list of one-hot encoded
+            class labels which correspond to the provided sample_image_file_paths_array_like.
+        :return ds: <TensorFlow.data.Dataset> Returns the provided sample images and one-hot encoded labels as a
+            TensorFlow Dataset object.
+        """
+        path_ds = tf.data.Dataset.from_tensor_slices(sample_image_file_paths)
+        image_ds = path_ds.map(
+            InceptionV3Estimator._load_and_preprocess_image,
+            num_parallel_calls=tf.contrib.data.AUTOTUNE
+        )
+        # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/):
+        categorical_labels = to_categorical(sample_image_one_hot_encoded_class_labels, num_classes=self.num_classes)
+        label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(categorical_labels, tf.int64))
+        image_label_ds = tf.data.Dataset.zip((image_ds, label_ds))
+        num_images = len(sample_image_file_paths)
+        # if is_train_data:
+        #     steps_per_epoch = math.ceil(num_images/self.train_batch_size)
+        # else:
+        #     steps_per_epoch = math.ceil(num_images/self.val_batch_size)
+        ds = image_label_ds.cache()
+        # Shuffle the data across all batches:
+        ds = ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=num_images))
+        if is_train_data:
+            ds = ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+        else:
+            ds = ds.batch(self.val_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+        return ds
+
+    def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0, X_val=None, y_val=None):
         """
         fit:
         :param X_train: What if this was a list of images? then could perform dataset conversions here...
@@ -103,41 +136,75 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         :param precomputed: True if X_train is
         :return:
         """
+        train_ds, val_ds = None, None
+        num_train_images, num_val_images = None, None
+        if X_val is not None and y_val is not None:
+            has_validation_data = True
+        else:
+            has_validation_data = False
+
         self._build_model_and_graph_def()
 
+        # Was a DataFrame with pre-computed bottlenecks fed to this method from memory, or just a list of image paths?
         if not fed_bottlenecks:
             # X_train is a list of image paths, y_train is the associated one-hot encoded labels.
-            num_images = len(X_train)
+            num_train_images = len(X_train)
             if self.train_batch_size == -1:
-                self.train_batch_size = num_images
-            train_path_ds = tf.data.Dataset.from_tensor_slices(X_train)
-            train_image_ds = train_path_ds.map(
-                InceptionV3Estimator._load_and_preprocess_image,
-                num_parallel_calls=tf.contrib.data.AUTOTUNE
+                self.train_batch_size = num_train_images
+
+            train_ds = self._convert_to_tensorflow_dataset(
+                sample_image_file_paths=X_train,
+                sample_image_one_hot_encoded_class_labels=y_train,
+                is_train_data=True
             )
-            # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/)
-            categorical_labels = to_categorical(y_train, num_classes=self.num_classes)
-            train_label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(categorical_labels, tf.int64))
-            train_image_label_ds = tf.data.Dataset.zip((train_image_ds, train_label_ds))
-            tf.logging.info(msg='Training Batch Size: %d' % self.train_batch_size)
-            steps_per_epoch = math.ceil(len(X_train)/self.train_batch_size)
-            train_ds = train_image_label_ds.cache()
-            # Data will not have been shuffled:
-            train_ds = train_ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=num_images))
-            train_ds = train_ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+
+            if has_validation_data:
+                num_val_images = len(X_val)
+                if self.val_batch_size == -1:
+                    self.val_batch_size = num_val_images
+
+                val_ds = self._convert_to_tensorflow_dataset(
+                    sample_image_file_paths=X_val,
+                    sample_image_one_hot_encoded_class_labels=y_val,
+                    is_train_data=False
+                )
 
             if self.is_fixed_feature_extractor:
+                steps_per_epoch = math.ceil(num_train_images/self.train_batch_size)
                 self._keras_model.compile(
                     optimizer=self.optimizer,
                     loss='categorical_crossentropy',
                     metrics=['accuracy']
                 )
-                self._keras_model.fit(
-                    train_ds,
-                    epochs=num_epochs,
-                    steps_per_epoch=steps_per_epoch,
-                    callbacks=[FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, write_graph=False)]
-                )
+                if has_validation_data:
+                    # Has validation data, train with that in mind.
+                    val_steps_per_epoch = math.ceil(num_val_images/self.val_batch_size)
+                    self._keras_model.fit(
+                        train_ds,
+                        validation_data=val_ds,
+                        epochs=num_epochs,
+                        steps_per_epoch=steps_per_epoch,
+                        validation_steps=val_steps_per_epoch,
+                        callbacks=[
+                            FileWritersTensorBoardCallback(
+                                log_dir=self.tb_log_dir,
+                                write_graph=False
+                            )
+                        ]
+                    )
+                else:
+                    # No validation data, just train on the training data:
+                    self._keras_model.fit(
+                        train_ds,
+                        epochs=num_epochs,
+                        steps_per_epoch=steps_per_epoch,
+                        callbacks=[
+                            FileWritersTensorBoardCallback(
+                                log_dir=self.tb_log_dir,
+                                write_graph=False
+                            )
+                        ]
+                    )
         else:
             # X_train is an array of bottlenecks, y_train is the associated one-hot encoded labels.
             num_images = X_train.shape[0]
