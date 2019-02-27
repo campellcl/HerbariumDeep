@@ -34,7 +34,7 @@ class FileWritersTensorBoardCallback(TensorBoard):
 
     def on_batch_end(self, batch, logs=None):
         logs = logs or {}
-        val_logs = {k.replace('val_', ''): v for k, v in logs.items() if k.startswith('val_')}
+        val_logs = {k.replace('val_', 'batch_'): v for k, v in logs.items() if k.startswith('val_')}
         self.counter += 1
         for name, value in val_logs.items():
             if name in ['batch', 'size']:
@@ -51,7 +51,7 @@ class FileWritersTensorBoardCallback(TensorBoard):
     def on_epoch_end(self, epoch, logs=None):
         #  Grab the val_writer logs. Rename the keys so that they can be plotted on the same figure with training metrics
         logs = logs or {}
-        val_logs = {k.replace('val_', ''): v for k, v in logs.items() if k.startswith('val_')}
+        val_logs = {k.replace('val_', 'epoch_'): v for k, v in logs.items() if k.startswith('val_')}
         for name, value in val_logs.items():
             summary = tf.Summary()
             summary_value = summary.value.add()
