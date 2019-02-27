@@ -102,7 +102,7 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
 
 
 def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, class_labels, initializers, activations,
-                                optimizers, val_image_paths, val_ground_truth_labels):
+                                optimizers, val_image_paths=None, val_ground_truth_labels=None):
     """
     _run_grid_search_from_drive: Performs an exhaustive hyperparameter Grid Search via SKLearn directly from images on
         the hard drive. Data is coerced into a tf.Dataset to take advantage of the prefetch buffering to raise GPU
@@ -230,7 +230,7 @@ def main(run_config):
     train_bottleneck_ground_truth_labels = train_bottlenecks['class'].values
     # Convert the labels into indices (one hot encoding by index):
     train_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
-                                                for ground_truth_label in train_bottleneck_ground_truth_labels])
+                                                      for ground_truth_label in train_bottleneck_ground_truth_labels])
 
     _run_grid_search_from_drive(
         train_image_paths=train_bottlenecks['path'].values,
