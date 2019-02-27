@@ -14,7 +14,8 @@ from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 
 class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
-    def __init__(self, num_classes, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu, optimizer=tf.train.AdamOptimizer, is_fixed_feature_extractor=True, random_state=None):
+    def __init__(self, num_classes, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu,
+                 optimizer=tf.train.AdamOptimizer, is_fixed_feature_extractor=True, random_state=None):
         super(InceptionV3Estimator, self).__init__(name='inception_v3_estimator')
         self.num_classes = num_classes
         self.train_batch_size = train_batch_size
@@ -73,7 +74,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
     def call(self, resized_input_tensors):
         """
-        call: The SKLearn fit method will invoke this equivalent Keras method if necessary when called. For additional
+        call: The SKLearn fit method will invoke this equivalent Keras method (if necessary) when called. For additional
             information see: https://www.tensorflow.org/guide/keras#model_subclassing
         :param resized_input_tensors: A Tensor of shape (None, 299, 299, 3) for imagenet, where None = batch size.
         :return:
@@ -102,7 +103,10 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             if self.train_batch_size == -1:
                 self.train_batch_size = num_images
             train_path_ds = tf.data.Dataset.from_tensor_slices(X_train)
-            train_image_ds = train_path_ds.map(InceptionV3Estimator._load_and_preprocess_image, num_parallel_calls=tf.contrib.data.AUTOTUNE)
+            train_image_ds = train_path_ds.map(
+                InceptionV3Estimator._load_and_preprocess_image,
+                num_parallel_calls=tf.contrib.data.AUTOTUNE
+            )
             # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/)
             categorical_labels = to_categorical(y_train, num_classes=self.num_classes)
             train_label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(categorical_labels, tf.int64))
