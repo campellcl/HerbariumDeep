@@ -103,7 +103,8 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
 def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, class_labels, initializers, activations, optimizers):
     params = {
         'is_fixed_feature_extractor': [True],
-        'optimizer': [optimizers['Adam']]
+        'optimizer': [optimizers['Adam']],
+        'train_batch_size': [20]
     }
     num_epochs = 100
     eval_freq = 10
@@ -122,6 +123,7 @@ def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, 
         'optimizer': [optimizers['Adam']],
         'train_batch_size': [20, 40]
     }
+
     # params = {
     #     'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
     #     'activation': [activations['LeakyReLU'], activations['ELU']],

@@ -86,7 +86,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
     #     #   For a possible resolution, see: https://stackoverflow.com/a/9575426/3429090
     #     super(InceptionV3Estimator, self).compute_output_shape(input_shape)
 
-    def fit(self, X_train, y_train, bottlenecks=False, train_batch_size=-1, num_epochs=1000):
+    def fit(self, X_train, y_train, bottlenecks=False, num_epochs=1000):
         """
         fit:
         :param X_train: What if this was a list of images? then could perform dataset conversions here...
@@ -99,27 +99,27 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         if not bottlenecks:
             # X_train is a list of image paths, y_train is the associated one-hot-encoded labels.
             num_images = len(X_train)
-            if train_batch_size == -1:
-                train_batch_size = num_images
+            if self.train_batch_size == -1:
+                self.train_batch_size = num_images
             train_path_ds = tf.data.Dataset.from_tensor_slices(X_train)
             train_image_ds = train_path_ds.map(InceptionV3Estimator._load_and_preprocess_image, num_parallel_calls=tf.contrib.data.AUTOTUNE)
             # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/)
             categorical_labels = to_categorical(y_train, num_classes=self.num_classes)
             train_label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(categorical_labels, tf.int64))
             train_image_label_ds = tf.data.Dataset.zip((train_image_ds, train_label_ds))
-            tf.logging.info(msg='Training Batch Size: %d' % train_batch_size)
-            steps_per_epoch = math.ceil(len(X_train)/train_batch_size)
+            tf.logging.info(msg='Training Batch Size: %d' % self.train_batch_size)
+            steps_per_epoch = math.ceil(len(X_train)/self.train_batch_size)
             train_ds = train_image_label_ds.cache()
             # Data will not have been shuffled:
             train_ds = train_ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=num_images))
-            train_ds = train_ds.batch(train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+            train_ds = train_ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
 
             if self.is_fixed_feature_extractor:
                 self._keras_model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
                 self._keras_model.fit(train_ds, epochs=num_epochs, steps_per_epoch=steps_per_epoch)
         else:
             num_images = X_train.shape[0]
-            if train_batch_size == -1:
+            if self.train_batch_size == -1:
                 train_batch_size = num_images
             # X_train is bottleneck data of size (?, 2048):
             if self.is_fixed_feature_extractor:
