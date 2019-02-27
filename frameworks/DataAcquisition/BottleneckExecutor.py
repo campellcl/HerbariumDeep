@@ -8,9 +8,9 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_hub as hub
 import collections
+from sklearn import model_selection
 import numpy as np
 import time
-from sklearn import model_selection
 from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
