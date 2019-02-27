@@ -479,27 +479,6 @@ def main(run_config):
     main:
     :return:
     """
-
-    """
-    Path to folders of labeled images. If this script is being invoked in training mode this directory will later be
-    partitioned into training, validation, and testing datasets. However, if this script is being invoked in evaluation
-    mode, this entire directory will be inferred solely as a testing dataset.
-    """
-    # if DEBUG:
-    #     image_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
-    # else:
-    #     image_dir = 'D:\\data\\GoingDeeperData\\images'
-
-    """
-    The path to the dataframe storing the cached bottleneck layer values. It is standard to name this file: 
-    \'bottlenecks.pkl\'. If this file does not exist, or if the network architecture is changed, run 
-    BottleneckExecutor.py to regenerate the bottleneck dataframe.
-    """
-    # if DEBUG:
-    #     bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
-    # else:
-    #     bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-
     """
     TensorBoard summaries directory:
     """
@@ -518,7 +497,6 @@ def main(run_config):
         bottleneck_dataframe=bottleneck_dataframes['val'],
         class_labels=class_labels
     )
-
     tf.logging.info(msg='Obtained bottleneck values from dataframe. Performed corresponding one-hot encoding of class labels')
     initializer_options = get_initializer_options()
     activation_options = get_activation_options(leaky_relu_alpha=0.2)
