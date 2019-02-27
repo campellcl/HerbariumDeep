@@ -2,7 +2,7 @@ import math
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import GridSearchCV
-from frameworks.TensorFlow.Keras.Estimators.InceptionV3 import InceptionV3Estimator
+from frameworks.TensorFlow.Keras.Estimators.InceptionV3Estimator import InceptionV3Estimator
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
 
