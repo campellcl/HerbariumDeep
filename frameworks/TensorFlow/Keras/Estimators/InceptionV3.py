@@ -4,6 +4,7 @@ from sklearn.metrics import accuracy_score
 from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.utils import to_categorical
 import tensorflow as tf
 import numpy as np
 import math
@@ -58,10 +59,10 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             # add a global spatial average pooling layer:
             x = base_model.output
             bottlenecks = GlobalAveragePooling2D()(x)
-            # let's add a fully-connected layer
+            # let's add a fully-connected layer output shape 1024
             logits = Dense(1024, activation='relu')(bottlenecks)
             # and a fully connected logistic layer for self.num_classes
-            predictions = Dense(1, activation='softmax')(logits)
+            predictions = Dense(self.num_classes, activation='softmax')(logits)
 
             # this is the model we will train
             self._keras_model = Model(inputs=base_model.input, outputs=predictions)
@@ -92,7 +93,9 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 self.train_batch_size = len(X_train)
             train_path_ds = tf.data.Dataset.from_tensor_slices(X_train)
             train_image_ds = train_path_ds.map(InceptionV3Estimator._load_and_preprocess_image, num_parallel_calls=tf.contrib.data.AUTOTUNE)
-            train_label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(y_train, tf.int64))
+            # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/)
+            categorical_labels = to_categorical(y_train, num_classes=self.num_classes)
+            train_label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(categorical_labels, tf.int64))
             train_image_label_ds = tf.data.Dataset.zip((train_image_ds, train_label_ds))
             steps_per_epoch = math.ceil(len(X_train)/self.train_batch_size)
             train_ds = train_image_label_ds.cache()
