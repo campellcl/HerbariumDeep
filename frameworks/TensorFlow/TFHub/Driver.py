@@ -100,10 +100,27 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations, optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
+def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, class_labels, initializers, activations, optimizers):
     params = {
         'is_fixed_feature_extractor': [True],
         'optimizer': [optimizers['Adam']]
+    }
+    num_epochs = 100
+    eval_freq = 10
+    ckpt_freq = 0
+    keras_classifier = InceptionV3Estimator(num_classes=len(class_labels), random_state=42)
+    cv = [(slice(None), slice(None))]
+    grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
+    tf.logging.info(msg='Running GridSearch...')
+    grid_search.fit(X=train_image_paths, y=train_ground_truth_labels, bottlenecks=False)
+    tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
+
+
+def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations, optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
+    params = {
+        'is_fixed_feature_extractor': [True],
+        'optimizer': [optimizers['Adam']],
+        'train_batch_size': [20]
     }
     # params = {
     #     'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
@@ -119,7 +136,7 @@ def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, 
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
     tf.logging.info(msg='Running GridSearch...')
-    grid_search.fit(X=train_bottlenecks, y=train_ground_truth_indices)
+    grid_search.fit(X=train_bottlenecks, y=train_ground_truth_indices, is_bottlenecks=True)
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
 
 
@@ -172,14 +189,24 @@ def main(run_config):
     # Convert the labels into indices (one hot encoding by index):
     train_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
                                                 for ground_truth_label in train_bottleneck_ground_truth_labels])
-    _run_grid_search_from_memory(
-        train_bottlenecks=train_bottleneck_values,
-        train_ground_truth_indices=train_bottleneck_ground_truth_indices,
+
+    _run_grid_search_from_drive(
+        train_image_paths=train_bottlenecks['path'].values,
+        train_ground_truth_labels=train_bottleneck_ground_truth_indices,
         initializers=initializer_options,
-        activations=activation_options,
         optimizers=optimizer_options,
+        activations=activation_options,
         class_labels=class_labels
     )
+
+    # _run_grid_search_from_memory(
+    #     train_bottlenecks=train_bottleneck_values,
+    #     train_ground_truth_indices=train_bottleneck_ground_truth_indices,
+    #     initializers=initializer_options,
+    #     activations=activation_options,
+    #     optimizers=optimizer_options,
+    #     class_labels=class_labels
+    # )
 
     # train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
     #     bottleneck_dataframe=bottlenecks['train'],
@@ -233,7 +260,7 @@ if __name__ == '__main__':
     run_configs = {
         'DEBUG': {
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
-            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl',
+            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
         },
         'BOON': {
