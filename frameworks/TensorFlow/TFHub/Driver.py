@@ -50,7 +50,8 @@ def get_activation_options(leaky_relu_alpha=None):
     return activation_options
 
 
-def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=None, adam_beta2=None, adam_epsilon=None, adagrad_init_accum=None, adadelta_rho=None, adadelta_epsilon=None):
+def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=None, adam_beta2=None,
+                          adam_epsilon=None, adagrad_init_accum=None, adadelta_rho=None, adadelta_epsilon=None):
     """
     get_optimizer_options: Returns a dictionary of optimizer methods for use with SKLearn's GridSearch. Ensures that the
         method invoker supplies all arguments for the desired optimizer class (no defaults allowed). For details
@@ -100,7 +101,28 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, class_labels, initializers, activations, optimizers):
+def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, class_labels, initializers, activations,
+                                optimizers, val_image_paths, val_ground_truth_labels):
+    """
+    _run_grid_search_from_drive: Performs an exhaustive hyperparameter Grid Search via SKLearn directly from images on
+        the hard drive. Data is coerced into a tf.Dataset to take advantage of the prefetch buffering to raise GPU
+        efficiency. Preliminary tests show an increase from 20% to 85% GPU utilization when streaming direct from the
+        prefetch buffer to the GPU.
+    :param train_image_paths: A list of images that comprise the training dataset.
+    :param train_ground_truth_labels: A list of ground truth labels (one-hot encoded) which correspond to the provided
+        train_image_paths.
+    :param class_labels: A list of human readable labels for use in visualization and metrics.
+    :param initializers: A list of possible weight initializers dependent upon the provided meta-hyperparameters at
+        runtime.
+    :param activations: A list of possible activation functions dependent upon the provided meta-hyperparameters at
+        runtime.
+    :param optimizers: A list of possible optimizers (loss minimizers) dependent upon the provided meta-hyperparameters
+        at runtime.
+    :param val_image_paths: A list of images that comprise the validation training dataset.
+    :param val_ground_truth_labels: A list of ground truth labels (one-hot encoded) which correspond to the provided
+        val_image_paths.
+    :return:
+    """
     params = {
         'is_fixed_feature_extractor': [True],
         'optimizer': [optimizers['Adam']],
@@ -117,7 +139,25 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
 
 
-def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations, optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
+def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations,
+                                 optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
+    """
+    _run_grid_search_from_memory: Utilizes a feed-dict based approach to input bottleneck tensors which have already
+        undergone forward propagation in the source network directly from memory. This method is included to support
+        legacy code which has already leveraged TFHub modules (and by association TFSlim modules) to pre-compute
+        bottleneck vectors in the ConvNet as Fixed-Feature Extractor transfer learning context. If this was production
+        code, this method would be slated for deprecation; as upward of a 60% increase in GPU utilization was achieved
+        by not relying on feed-dicts and instead opting for tf.Dataset interoperability.
+    :param train_bottlenecks:
+    :param train_ground_truth_indices:
+    :param class_labels:
+    :param initializers:
+    :param activations:
+    :param optimizers:
+    :param val_bottlenecks:
+    :param val_ground_truth_indices:
+    :return:
+    """
     params = {
         'is_fixed_feature_extractor': [True],
         'optimizer': [optimizers['Adam']],
