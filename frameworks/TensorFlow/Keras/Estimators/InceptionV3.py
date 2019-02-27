@@ -53,8 +53,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             self._session = tf.keras.backend.get_session()
             self._graph = self._session.graph
             # add a global spatial average pooling layer:
-            x = base_model.output
-            x = GlobalAveragePooling2D()(x)
+            bottlenecks = base_model.output
+            x = GlobalAveragePooling2D()(bottlenecks)
             # let's add a fully-connected layer
             x = Dense(1024, activation='relu')(x)
             # and a fully connected logistic layer for self.num_classes
@@ -75,6 +75,13 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         return self._keras_model(inputs=resized_input_tensors)
 
     def fit(self, X_train, y_train):
+        """
+        fit:
+        :param X_train: What if this was a list of images? then could perform dataset conversions here...
+        :param y_train:
+        :return:
+        """
+
         # self._session = tf.keras.backend.get_session()
         self._build_model_and_graph_def()
         if self.is_fixed_feature_extractor:
