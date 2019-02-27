@@ -120,7 +120,7 @@ def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, 
     params = {
         'is_fixed_feature_extractor': [True],
         'optimizer': [optimizers['Adam']],
-        'train_batch_size': [20]
+        'train_batch_size': [20, 40]
     }
     # params = {
     #     'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
@@ -276,4 +276,4 @@ if __name__ == '__main__':
         'SERNEC': {}
     }
 
-    main(run_configs['DEBUG'])
+    main(run_configs['BOON'])
