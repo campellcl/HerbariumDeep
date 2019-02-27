@@ -10,12 +10,13 @@ import numpy as np
 import math
 
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
+from frameworks.TensorFlow.Keras.Callbacks.CustomCallbacks import FileWritersTensorBoardCallback
 
 
 class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
     def __init__(self, num_classes, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu,
-                 optimizer=tf.train.AdamOptimizer, is_fixed_feature_extractor=True, random_state=None):
+                 optimizer=tf.train.AdamOptimizer, is_fixed_feature_extractor=True, random_state=None, tb_log_dir=None):
         super(InceptionV3Estimator, self).__init__(name='inception_v3_estimator')
         self.num_classes = num_classes
         self.train_batch_size = train_batch_size
@@ -23,6 +24,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         self.activation = activation
         self.optimizer = optimizer
         self.random_state = random_state
+        self.tb_log_dir = tb_log_dir
+
         self.is_fixed_feature_extractor = is_fixed_feature_extractor
         self._keras_model = None
 
@@ -92,7 +95,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
     #     #   For a possible resolution, see: https://stackoverflow.com/a/9575426/3429090
     #     super(InceptionV3Estimator, self).compute_output_shape(input_shape)
 
-    def fit(self, X_train, y_train, bottlenecks=False, num_epochs=1000):
+    def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0):
         """
         fit:
         :param X_train: What if this was a list of images? then could perform dataset conversions here...
@@ -102,7 +105,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         """
         self._build_model_and_graph_def()
 
-        if not bottlenecks:
+        if not fed_bottlenecks:
             # X_train is a list of image paths, y_train is the associated one-hot encoded labels.
             num_images = len(X_train)
             if self.train_batch_size == -1:
@@ -132,7 +135,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 self._keras_model.fit(
                     train_ds,
                     epochs=num_epochs,
-                    steps_per_epoch=steps_per_epoch
+                    steps_per_epoch=steps_per_epoch,
+                    callbacks=[FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, write_graph=False)]
                 )
         else:
             # X_train is an array of bottlenecks, y_train is the associated one-hot encoded labels.

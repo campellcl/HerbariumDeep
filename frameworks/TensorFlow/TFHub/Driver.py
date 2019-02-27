@@ -1,4 +1,5 @@
 import math
+import os
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import GridSearchCV
@@ -102,7 +103,7 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
 
 
 def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, class_labels, initializers, activations,
-                                optimizers, val_image_paths=None, val_ground_truth_labels=None):
+                                optimizers, tb_log_dir, val_image_paths=None, val_ground_truth_labels=None):
     """
     _run_grid_search_from_drive: Performs an exhaustive hyperparameter Grid Search via SKLearn directly from images on
         the hard drive. Data is coerced into a tf.Dataset to take advantage of the prefetch buffering to raise GPU
@@ -131,11 +132,11 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     num_epochs = 100
     eval_freq = 10
     ckpt_freq = 0
-    keras_classifier = InceptionV3Estimator(num_classes=len(class_labels), random_state=42)
+    keras_classifier = InceptionV3Estimator(num_classes=len(class_labels), random_state=42, tb_log_dir=tb_log_dir)
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
     tf.logging.info(msg='Running GridSearch...')
-    grid_search.fit(X=train_image_paths, y=train_ground_truth_labels, bottlenecks=False)
+    grid_search.fit(X=train_image_paths, y=train_ground_truth_labels, fed_bottlenecks=False)
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
 
 
@@ -203,8 +204,28 @@ def _get_all_cached_bottlenecks(bottleneck_dataframe, class_labels):
     return bottleneck_values, bottleneck_ground_truth_indices
 
 
+def _prepare_tensor_board_directories(tb_summaries_dir, intermediate_output_graphs_dir=None):
+    """
+    _prepare_tensor_board_directories: Ensures that if a TensorBoard storage directory is defined in the command line
+        flags, that said directory is purged of old TensorBoard files, and that this program has sufficient permissions
+        to write new TensorBoard summaries to the specified path.
+    :return None: see above ^
+    """
+    # Check to see if the file exists:
+    if tf.gfile.Exists(tb_summaries_dir):
+        # Delete everything in the file recursively:
+        tf.gfile.DeleteRecursively(tb_summaries_dir)
+    # Re-create (or create for the first time) the storage directory:
+    tf.gfile.MakeDirs(tb_summaries_dir)
+    # Check to see if intermediate computational graphs are to be stored:
+    if intermediate_output_graphs_dir is not None:
+        if not os.path.exists(intermediate_output_graphs_dir):
+            os.makedirs(intermediate_output_graphs_dir)
+    return
+
 def main(run_config):
-    BATCH_SIZE = 20
+    tb_log_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
+    _prepare_tensor_board_directories(tb_summaries_dir=tb_log_dir, intermediate_output_graphs_dir=None)
     # image_executor = ImageExecutor(img_root_dir=run_config['image_dir'], logging_dir=run_config['logging_dir'], min_num_images_per_class=20, accepted_extensions=['jpg', 'jpeg'])
     bottleneck_executor = BottleneckExecutor(
         image_dir=run_config['image_dir'],
@@ -238,7 +259,8 @@ def main(run_config):
         initializers=initializer_options,
         optimizers=optimizer_options,
         activations=activation_options,
-        class_labels=class_labels
+        class_labels=class_labels,
+        tb_log_dir=tb_log_dir
     )
 
     # _run_grid_search_from_memory(
@@ -318,4 +340,4 @@ if __name__ == '__main__':
         'SERNEC': {}
     }
 
-    main(run_configs['BOON'])
+    main(run_configs['DEBUG'])
