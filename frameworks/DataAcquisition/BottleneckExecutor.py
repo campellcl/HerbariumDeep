@@ -10,6 +10,7 @@ import tensorflow_hub as hub
 import collections
 import numpy as np
 import time
+from sklearn import model_selection
 from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
@@ -85,21 +86,25 @@ class BottleneckExecutor:
     resized_image_tensor = None
     jpeg_data_tensor = None
     decoded_image_tensor = None
+    # bottlenecks compressed dataframe:
+    bottlenecks = None
 
-    def __init__(self, image_dir, logging_dir, tfhub_module_url, compressed_bottleneck_file_path):
+    def __init__(self, image_dir, logging_dir, tfhub_module_url, compressed_bottleneck_file_path, image_executor_instance=None):
         self.image_dir = image_dir
         self.logging_dir = logging_dir
         self.tfhub_module_url = tfhub_module_url
         self.compressed_bottleneck_file_path = compressed_bottleneck_file_path
         # Set logging verbosity:
         tf.logging.set_verbosity(tf.logging.INFO)
-        # Get image lists:
-        self.image_executor = ImageExecutor(
-            img_root_dir=self.image_dir,
-            accepted_extensions=['jpg', 'jpeg'],
-            logging_dir=logging_dir,
-            min_num_images_per_class=20
-        )
+        if image_executor_instance is not None:
+            self.image_executor = image_executor_instance
+        else:
+            self.image_executor = ImageExecutor(
+                img_root_dir=self.image_dir,
+                accepted_extensions=['jpg', 'jpeg'],
+                logging_dir=logging_dir,
+                min_num_images_per_class=20
+            )
         # Clean and retrieve image lists:
         self.image_lists = self.image_executor.get_image_lists()
         # Build computational graph for bottleneck generation:
@@ -317,6 +322,20 @@ class BottleneckExecutor:
             self.cached_all_bottlenecks = True
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
             df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+
+    def get_partitioned_bottlenecks(self, train_percent=.80, val_percent=.20, test_percent=.20, random_state=42):
+        bottlenecks = self.get_bottlenecks()
+        train_bottlenecks, test_bottlenecks = model_selection.train_test_split(
+            bottlenecks, train_size=train_percent,
+            test_size=test_percent, shuffle=True,
+            random_state=random_state
+        )
+        train_bottlenecks, val_bottlenecks = model_selection.train_test_split(
+            train_bottlenecks, train_size=train_percent,
+            test_size=val_percent, shuffle=True,
+            random_state=random_state
+        )
+        return train_bottlenecks, val_bottlenecks, test_bottlenecks
 
     def get_bottlenecks(self):
         if not self.cached_all_bottlenecks:
