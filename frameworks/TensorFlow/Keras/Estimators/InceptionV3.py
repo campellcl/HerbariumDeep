@@ -72,15 +72,20 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             for layer in base_model.layers:
                 layer.trainable = False
 
-    def call(self, resized_input_tensors):
+    def call(self, inputs, training=None, mask=None):
         """
         call: The SKLearn fit method will invoke this equivalent Keras method (if necessary) when called. For additional
             information see: https://www.tensorflow.org/guide/keras#model_subclassing
-        :param resized_input_tensors: A Tensor of shape (None, 299, 299, 3) for imagenet, where None = batch size.
+        :param inputs: In parent method, a tensor or list of tensors. For this subclass, a re-sized input tensor of
+            shape (None, 299, 299, 3) for InceptionV3, where None = batch size.
+        :param training: Boolean or boolean scalar tensor, indicating whether to run
+          the `Network` in training mode or inference mode.
+        :param mask: A mask or list of masks. A mask can be
+            either a tensor or None (no mask).
         :return:
         """
         # Define forward pass here, using layers defined in _build_model_and_graph
-        return self._keras_model(inputs=resized_input_tensors)
+        return self._keras_model(inputs=inputs)
 
     # def compute_output_shape(self, input_shape):
     #     # TODO: Multiple inheritance issue with Keras and SKLearn super classes.
@@ -98,7 +103,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         self._build_model_and_graph_def()
 
         if not bottlenecks:
-            # X_train is a list of image paths, y_train is the associated one-hot-encoded labels.
+            # X_train is a list of image paths, y_train is the associated one-hot encoded labels.
             num_images = len(X_train)
             if self.train_batch_size == -1:
                 self.train_batch_size = num_images
@@ -119,15 +124,28 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             train_ds = train_ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
 
             if self.is_fixed_feature_extractor:
-                self._keras_model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-                self._keras_model.fit(train_ds, epochs=num_epochs, steps_per_epoch=steps_per_epoch)
+                self._keras_model.compile(
+                    optimizer=self.optimizer,
+                    loss='categorical_crossentropy',
+                    metrics=['accuracy']
+                )
+                self._keras_model.fit(
+                    train_ds,
+                    epochs=num_epochs,
+                    steps_per_epoch=steps_per_epoch
+                )
         else:
+            # X_train is an array of bottlenecks, y_train is the associated one-hot encoded labels.
             num_images = X_train.shape[0]
             if self.train_batch_size == -1:
                 train_batch_size = num_images
             # X_train is bottleneck data of size (?, 2048):
             if self.is_fixed_feature_extractor:
-                self._keras_model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+                self._keras_model.compile(
+                    optimizer=self.optimizer,
+                    loss='categorical_crossentropy',
+                    metrics=['accuracy']
+                )
                 self._keras_model.fit(X_train, y_train)
 
         # TODO: When to kill session?
