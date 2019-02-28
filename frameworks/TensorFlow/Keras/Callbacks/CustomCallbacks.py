@@ -18,12 +18,15 @@ class FileWritersTensorBoardCallback(TensorBoard):
     train_writer = None
     counter = None
 
-    def __init__(self, log_dir='./logs', **kwargs):
+    def __init__(self, hyperparameter_string_repr, log_dir='./logs', **kwargs):
+        self.hyperparameter_string_repr = hyperparameter_string_repr
         # Make the original 'TensorBoard' log to a subdirectory 'train'
         self.train_log_dir = os.path.join(log_dir, 'train')
+        self.train_log_dir = os.path.join(self.train_log_dir, self.hyperparameter_string_repr)
         super(FileWritersTensorBoardCallback, self).__init__(self.train_log_dir, **kwargs)
         # Log validation metrics to val dir:
         self.val_log_dir = os.path.join(log_dir, 'val')
+        self.val_log_dir = os.path.join(self.val_log_dir, self.hyperparameter_string_repr)
         self.counter = 0
 
     def set_model(self, model):

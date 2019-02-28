@@ -16,13 +16,15 @@ from frameworks.TensorFlow.Keras.Callbacks.CustomCallbacks import FileWritersTen
 class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
     def __init__(self, num_classes, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu,
-                 optimizer=tf.train.AdamOptimizer, is_fixed_feature_extractor=True, random_state=None, tb_log_dir=None):
+                 optimizer=tf.train.AdamOptimizer, initializer=tf.variance_scaling_initializer(),
+                 is_fixed_feature_extractor=True, random_state=None, tb_log_dir=None):
         super(InceptionV3Estimator, self).__init__(name='inception_v3_estimator')
         self.num_classes = num_classes
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.activation = activation
         self.optimizer = optimizer
+        self.initializer = initializer
         self.random_state = random_state
         self.tb_log_dir = tb_log_dir
 
@@ -188,6 +190,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         callbacks=[
                             FileWritersTensorBoardCallback(
                                 log_dir=self.tb_log_dir,
+                                hyperparameter_string_repr=self.__repr__(),
                                 write_graph=False
                             )
                         ]
@@ -201,6 +204,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         callbacks=[
                             FileWritersTensorBoardCallback(
                                 log_dir=self.tb_log_dir,
+                                hyperparameter_string_repr=self.__repr__(),
                                 write_graph=False
                             )
                         ]
@@ -222,3 +226,58 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         # TODO: When to kill session?
         # self._session.close()
         return self
+
+    @staticmethod
+    def _get_initializer_repr(initializer):
+        function_repr = str(initializer)
+        if 'random_uniform' in function_repr:
+            return 'INIT_UNIFORM'
+        elif 'random_normal' in function_repr:
+            return 'INIT_NORMAL'
+        elif 'init_ops.TruncatedNormal' in function_repr:
+            return 'INIT_NORMAL_TRUNCATED'
+        elif 'he_normal' in function_repr or 'init_ops.VarianceScaling' in function_repr:
+            if initializer.distribution == 'uniform':
+                # He uniform
+                return 'INIT_HE_UNIFORM'
+            else:
+                # He normal
+                return 'INIT_HE_NORMAL'
+        else:
+            return 'INIT_UNKNOWN'
+
+    @staticmethod
+    def _get_optimizer_repr(optimizer):
+        class_repr = str(optimizer)
+        if 'GradientDescentOptimizer' in class_repr:
+            return 'OPTIM_GRAD_DESCENT'
+        elif 'AdamOptimizer' in class_repr:
+            return 'OPTIM_ADAM'
+        elif 'MomentumOptimizer' in class_repr:
+            if optimizer._use_nesterov:
+                return 'OPTIM_NESTEROV'
+            else:
+                return 'OPTIM_MOMENTUM'
+        elif 'AdaDelta' in class_repr:
+            return 'OPTIM_ADADELTA'
+        else:
+            return 'OPTIM_UNKNOWN'
+
+    @staticmethod
+    def _get_activation_repr(activation):
+        function_repr = str(activation)
+        if 'leaky_relu' in function_repr:
+            return 'ACTIVATION_LEAKY_RELU'
+        elif 'elu' in function_repr:
+            return 'ACTIVATION_ELU'
+        else:
+            return 'ACTIVATION_UNKNOWN'
+
+    def __repr__(self):
+        inception_v3_estimator_repr = '%s,%s,%s,TRAIN_BATCH_SIZE__%d' % (
+            self._get_initializer_repr(self.initializer),
+            self._get_optimizer_repr(self.optimizer),
+            self._get_activation_repr(self.activation),
+            self.train_batch_size
+        )
+        return inception_v3_estimator_repr
