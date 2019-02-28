@@ -273,8 +273,16 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         else:
             return 'ACTIVATION_UNKNOWN'
 
+    @staticmethod
+    def _get_transfer_learning_type_repr(is_fixed_feature_extractor):
+        if is_fixed_feature_extractor:
+            return 'FFE_TRUE'
+        else:
+            return 'FFE_FALSE'
+
     def __repr__(self):
-        inception_v3_estimator_repr = '%s,%s,%s,TRAIN_BATCH_SIZE__%d' % (
+        inception_v3_estimator_repr = '%s,%s,%s,%s,TRAIN_BATCH_SIZE__%d' % (
+            self._get_transfer_learning_type_repr(self.is_fixed_feature_extractor),
             self._get_initializer_repr(self.initializer),
             self._get_optimizer_repr(self.optimizer),
             self._get_activation_repr(self.activation),

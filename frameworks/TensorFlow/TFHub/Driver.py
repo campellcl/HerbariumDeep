@@ -126,7 +126,7 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     """
     params = {
         'is_fixed_feature_extractor': [True],
-        'optimizer': [optimizers['Adam']],
+        'optimizer': [optimizers['Adam'], optimizers['Nesterov']],
         'train_batch_size': [20]
     }
     num_epochs = 100
@@ -139,6 +139,9 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     grid_search.fit(
         X=train_image_paths,
         y=train_ground_truth_labels,
+        num_epochs=num_epochs,
+        eval_freq=eval_freq,
+        ckpt_freq=ckpt_freq,
         fed_bottlenecks=False,
         X_val=val_image_paths,
         y_val=val_ground_truth_labels
