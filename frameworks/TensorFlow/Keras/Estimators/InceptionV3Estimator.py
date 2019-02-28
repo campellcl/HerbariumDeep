@@ -59,32 +59,27 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             # input_tensor = tf.placeholder(dtype=tf.float32, shape=(None, 299, 299, 3), name='resized_input_tensor')
             # base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))(input_tensor)
             # self._session = tf.Session()
-            self._graph = tf.Graph()
-            self._session = tf.Session(graph=self._graph)
-            with self._session as sess:
-                # K.set_session(session=sess)
-                tf.keras.backend.set_session(session=sess)
-                base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
-                # add a global spatial average pooling layer:
-                x = base_model.output
-                bottlenecks = GlobalAveragePooling2D()(x)
-                # let's add a fully-connected layer output shape 1024
-                logits = Dense(1024, activation='relu')(bottlenecks)
-                # and a fully connected logistic layer for self.num_classes
-                predictions = Dense(self.num_classes, activation='softmax')(logits)
+            base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
+            # add a global spatial average pooling layer:
+            x = base_model.output
+            bottlenecks = GlobalAveragePooling2D()(x)
+            # let's add a fully-connected layer output shape 1024
+            logits = Dense(1024, activation='relu')(bottlenecks)
+            # and a fully connected logistic layer for self.num_classes
+            predictions = Dense(self.num_classes, activation='softmax')(logits)
 
-                # this is the model we will train
-                self._keras_model = Model(inputs=base_model.input, outputs=predictions)
+            # this is the model we will train
+            self._keras_model = Model(inputs=base_model.input, outputs=predictions)
 
-                # first: train only the top layers (which were randomly initialized)
-                # i.e. freeze all convolutional InceptionV3 layers
-                for layer in base_model.layers:
-                    layer.trainable = False
+            # first: train only the top layers (which were randomly initialized)
+            # i.e. freeze all convolutional InceptionV3 layers
+            for layer in base_model.layers:
+                layer.trainable = False
 
-                self._keras_resized_input_handle_ = base_model.input
-                # self._session = tf.keras.backend.get_session()
-                tf.logging.info(msg='self._session set to: %s' % self._session)
-                # self._graph = self._session.graph
+            self._keras_resized_input_handle_ = base_model.input
+            # self._session = tf.keras.backend.get_session()
+            tf.logging.info(msg='self._session set to: %s' % self._session)
+            # self._graph = self._session.graph
         else:
             raise NotImplementedError
 
@@ -311,17 +306,17 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                     #     ]
                     # )
 
-                    # self._keras_model.fit(
-                    #     train_ds.make_one_shot_iterator(),
-                    #     validation_data=val_ds.make_one_shot_iterator(),
-                    #     epochs=num_epochs,
-                    #     steps_per_epoch=steps_per_epoch,
-                    #     validation_steps=val_steps_per_epoch,
-                    #     workers=0
-                    #     # callbacks=[
-                    #     #     FileWritersTensorBoardCallback(log_dir=self.tb_log_dir,hyperparameter_string_repr=self.__repr__(), write_graph=False)
-                    #     # ]
-                    # )
+                    self._keras_model.fit(
+                        train_ds.make_one_shot_iterator(),
+                        validation_data=val_ds.make_one_shot_iterator(),
+                        epochs=num_epochs,
+                        steps_per_epoch=steps_per_epoch,
+                        validation_steps=val_steps_per_epoch,
+                        workers=0
+                        # callbacks=[
+                        #     FileWritersTensorBoardCallback(log_dir=self.tb_log_dir,hyperparameter_string_repr=self.__repr__(), write_graph=False)
+                        # ]
+                    )
                 else:
                     # No validation data, just train on the training data:
                     raise NotImplementedError
