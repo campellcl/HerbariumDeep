@@ -5,6 +5,7 @@ from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.keras.utils import to_categorical
+from keras import backend as K
 import tensorflow as tf
 import numpy as np
 import math
@@ -57,10 +58,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         if self.is_fixed_feature_extractor:
             # input_tensor = tf.placeholder(dtype=tf.float32, shape=(None, 299, 299, 3), name='resized_input_tensor')
             # base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))(input_tensor)
+            self._session = tf.Session()
             base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
-            self._keras_resized_input_handle_ = base_model.input
-            self._session = tf.keras.backend.get_session()
-            self._graph = self._session.graph
             # add a global spatial average pooling layer:
             x = base_model.output
             bottlenecks = GlobalAveragePooling2D()(x)
@@ -76,6 +75,14 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             # i.e. freeze all convolutional InceptionV3 layers
             for layer in base_model.layers:
                 layer.trainable = False
+
+            self._keras_resized_input_handle_ = base_model.input
+            # self._session = tf.keras.backend.get_session()
+            tf.logging.info(msg='self._session set to: %s' % self._session)
+            self._graph = self._session.graph
+
+        else:
+            raise NotImplementedError
 
     def call(self, inputs, training=None, mask=None):
         """
@@ -97,10 +104,10 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
     #     #   For a possible resolution, see: https://stackoverflow.com/a/9575426/3429090
     #     super(InceptionV3Estimator, self).compute_output_shape(input_shape)
 
-    def _convert_to_tensorflow_dataset(self, sample_image_file_paths, sample_image_one_hot_encoded_class_labels, is_train_data):
+    def _numpy_array_tensorflow_dataset_generator(self, sample_image_file_paths, sample_image_one_hot_encoded_class_labels, is_train_data):
         """
-        _convert_to_tensorflow_dataset: Converts the provided X_train, y_train or X_val, y_val array-like in-memory
-            file paths to a TensorFlow.data.Dataset for use with Keras models with prefetch buffer allocation.
+        _convert_to_tensorflow_dataset_generator: Converts the provided X_train, y_train or X_val, y_val array-like in-memory
+            file paths to a generator which yields TensorFlow.data.Dataset's for use with Keras models with prefetch buffer allocation.
         :param sample_image_file_paths: X_train or X_valid a list of file paths.
         :param sample_image_one_hot_encoded_class_labels: y_train or y_valid, a list of one-hot encoded
             class labels which correspond to the provided sample_image_file_paths_array_like.
@@ -122,12 +129,49 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         # else:
         #     steps_per_epoch = math.ceil(num_images/self.val_batch_size)
         ds = image_label_ds.cache()
-        # Shuffle the data across all batches:
-        ds = ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=num_images))
+        # Shuffle the data:
+        ds = ds.shuffle(buffer_size=num_images)
+        # ds = ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=num_images))
         if is_train_data:
+            # ds = ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+            ds = ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE).repeat()
+        else:
+            ds = ds.batch(self.val_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE).repeat()
+        ds_iterator = ds.make_one_shot_iterator()
+        next_batch = ds_iterator.get_next()
+        while True:
+            tf.logging.info(msg='self._session is now: %s' % self._session)
+            yield self._session.run(next_batch)
+            # yield tf.keras.backend.get_session().run(next_batch)
+
+    def _convert_to_tensorflow_dataset(self, sample_image_file_paths, sample_image_one_hot_encoded_class_labels, is_train_data):
+        path_ds = tf.data.Dataset.from_tensor_slices(sample_image_file_paths)
+        image_ds = path_ds.map(
+            InceptionV3Estimator._load_and_preprocess_image,
+            num_parallel_calls=tf.contrib.data.AUTOTUNE
+        )
+        # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/):
+        categorical_labels = to_categorical(sample_image_one_hot_encoded_class_labels, num_classes=self.num_classes)
+        label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(categorical_labels, tf.int64))
+        image_label_ds = tf.data.Dataset.zip((image_ds, label_ds))
+        num_images = len(sample_image_file_paths)
+        # if is_train_data:
+        #     steps_per_epoch = math.ceil(num_images/self.train_batch_size)
+        # else:
+        #     steps_per_epoch = math.ceil(num_images/self.val_batch_size)
+        ds = image_label_ds.cache()
+        # Shuffle the data:
+        ds = ds.shuffle(buffer_size=num_images).repeat()
+        # ds = ds.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=num_images))
+        if is_train_data:
+            # ds = ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
             ds = ds.batch(self.train_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
         else:
             ds = ds.batch(self.val_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+        # ds_iterator = ds.make_one_shot_iterator()
+        # next_batch = ds_iterator.get_next()
+        # while True:
+        #     yield self._session.run(next_batch)
         return ds
 
     def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0, X_val=None, y_val=None):
@@ -181,9 +225,23 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 if has_validation_data:
                     # Has validation data, train with that in mind.
                     val_steps_per_epoch = math.ceil(num_val_images/self.val_batch_size)
-                    self._keras_model.fit(
-                        train_ds,
-                        validation_data=val_ds,
+                    # self._keras_model.fit_generator(
+                    #     train_ds,
+                    #     validation_data=val_ds,
+                    #     epochs=num_epochs,
+                    #     steps_per_epoch=steps_per_epoch,
+                    #     validation_steps=val_steps_per_epoch,
+                    #     callbacks=[
+                    #         FileWritersTensorBoardCallback(
+                    #             log_dir=self.tb_log_dir,
+                    #             hyperparameter_string_repr=self.__repr__(),
+                    #             write_graph=False
+                    #         )
+                    #     ]
+                    # )
+                    self._keras_model.fit_generator(
+                        self._numpy_array_tensorflow_dataset_generator(sample_image_file_paths=X_train, sample_image_one_hot_encoded_class_labels=y_train, is_train_data=True),
+                        validation_data=self._numpy_array_tensorflow_dataset_generator(sample_image_file_paths=X_val, sample_image_one_hot_encoded_class_labels=y_val, is_train_data=False),
                         epochs=num_epochs,
                         steps_per_epoch=steps_per_epoch,
                         validation_steps=val_steps_per_epoch,
@@ -197,31 +255,33 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                     )
                 else:
                     # No validation data, just train on the training data:
-                    self._keras_model.fit(
-                        train_ds,
-                        epochs=num_epochs,
-                        steps_per_epoch=steps_per_epoch,
-                        callbacks=[
-                            FileWritersTensorBoardCallback(
-                                log_dir=self.tb_log_dir,
-                                hyperparameter_string_repr=self.__repr__(),
-                                write_graph=False
-                            )
-                        ]
-                    )
+                    raise NotImplementedError
+                    # self._keras_model.fit_generator(
+                    #     train_ds,
+                    #     epochs=num_epochs,
+                    #     steps_per_epoch=steps_per_epoch,
+                    #     callbacks=[
+                    #         FileWritersTensorBoardCallback(
+                    #             log_dir=self.tb_log_dir,
+                    #             hyperparameter_string_repr=self.__repr__(),
+                    #             write_graph=False
+                    #         )
+                    #     ]
+                    # )
         else:
             # X_train is an array of bottlenecks, y_train is the associated one-hot encoded labels.
-            num_images = X_train.shape[0]
-            if self.train_batch_size == -1:
-                train_batch_size = num_images
-            # X_train is bottleneck data of size (?, 2048):
-            if self.is_fixed_feature_extractor:
-                self._keras_model.compile(
-                    optimizer=self.optimizer,
-                    loss='categorical_crossentropy',
-                    metrics=['accuracy']
-                )
-                self._keras_model.fit(X_train, y_train)
+            raise NotImplementedError
+            # num_images = X_train.shape[0]
+            # if self.train_batch_size == -1:
+            #     train_batch_size = num_images
+            # # X_train is bottleneck data of size (?, 2048):
+            # if self.is_fixed_feature_extractor:
+            #     self._keras_model.compile(
+            #         optimizer=self.optimizer,
+            #         loss='categorical_crossentropy',
+            #         metrics=['accuracy']
+            #     )
+            #     self._keras_model.fit(X_train, y_train)
 
         # TODO: When to kill session?
         # self._session.close()

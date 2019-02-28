@@ -129,8 +129,8 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
         'optimizer': [optimizers['Adam'], optimizers['Nesterov']],
         'train_batch_size': [20]
     }
-    num_epochs = 100
-    eval_freq = 10
+    num_epochs = 10
+    eval_freq = 1
     ckpt_freq = 0
     keras_classifier = InceptionV3Estimator(num_classes=len(class_labels), random_state=42, tb_log_dir=tb_log_dir)
     cv = [(slice(None), slice(None))]
