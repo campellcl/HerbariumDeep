@@ -58,29 +58,32 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         if self.is_fixed_feature_extractor:
             # input_tensor = tf.placeholder(dtype=tf.float32, shape=(None, 299, 299, 3), name='resized_input_tensor')
             # base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))(input_tensor)
-            self._session = tf.Session()
-            base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
-            # add a global spatial average pooling layer:
-            x = base_model.output
-            bottlenecks = GlobalAveragePooling2D()(x)
-            # let's add a fully-connected layer output shape 1024
-            logits = Dense(1024, activation='relu')(bottlenecks)
-            # and a fully connected logistic layer for self.num_classes
-            predictions = Dense(self.num_classes, activation='softmax')(logits)
+            # self._session = tf.Session()
+            self._graph = tf.Graph()
+            self._session = tf.Session(graph=self._graph)
+            with self._session as sess:
+                K.set_session(session=sess)
+                base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
+                # add a global spatial average pooling layer:
+                x = base_model.output
+                bottlenecks = GlobalAveragePooling2D()(x)
+                # let's add a fully-connected layer output shape 1024
+                logits = Dense(1024, activation='relu')(bottlenecks)
+                # and a fully connected logistic layer for self.num_classes
+                predictions = Dense(self.num_classes, activation='softmax')(logits)
 
-            # this is the model we will train
-            self._keras_model = Model(inputs=base_model.input, outputs=predictions)
+                # this is the model we will train
+                self._keras_model = Model(inputs=base_model.input, outputs=predictions)
 
-            # first: train only the top layers (which were randomly initialized)
-            # i.e. freeze all convolutional InceptionV3 layers
-            for layer in base_model.layers:
-                layer.trainable = False
+                # first: train only the top layers (which were randomly initialized)
+                # i.e. freeze all convolutional InceptionV3 layers
+                for layer in base_model.layers:
+                    layer.trainable = False
 
-            self._keras_resized_input_handle_ = base_model.input
-            # self._session = tf.keras.backend.get_session()
-            tf.logging.info(msg='self._session set to: %s' % self._session)
-            self._graph = self._session.graph
-
+                self._keras_resized_input_handle_ = base_model.input
+                # self._session = tf.keras.backend.get_session()
+                tf.logging.info(msg='self._session set to: %s' % self._session)
+                # self._graph = self._session.graph
         else:
             raise NotImplementedError
 
@@ -139,10 +142,13 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             ds = ds.batch(self.val_batch_size).prefetch(buffer_size=tf.contrib.data.AUTOTUNE).repeat()
         ds_iterator = ds.make_one_shot_iterator()
         next_batch = ds_iterator.get_next()
-        while True:
-            tf.logging.info(msg='self._session is now: %s' % self._session)
-            yield self._session.run(next_batch)
-            # yield tf.keras.backend.get_session().run(next_batch)
+        self._session.close()
+        with self._session as sess:
+            tf.logging.info(msg='self._session is now: %s' % sess)
+            while True:
+
+                yield self._session.run(next_batch)
+                # yield tf.keras.backend.get_session().run(next_batch)
 
     def _convert_to_tensorflow_dataset(self, sample_image_file_paths, sample_image_one_hot_encoded_class_labels, is_train_data):
         path_ds = tf.data.Dataset.from_tensor_slices(sample_image_file_paths)
