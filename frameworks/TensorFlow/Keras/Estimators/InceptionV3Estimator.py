@@ -312,13 +312,14 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         epochs=num_epochs,
                         steps_per_epoch=steps_per_epoch,
                         validation_steps=val_steps_per_epoch,
-                        workers=0
-                        # callbacks=[
-                        #     FileWritersTensorBoardCallback(log_dir=self.tb_log_dir,hyperparameter_string_repr=self.__repr__(), write_graph=False)
-                        # ]
+                        callbacks=[
+                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir,hyperparameter_string_repr=self.__repr__(), write_graph=False)
+                        ]
                     )
+
                 else:
                     # No validation data, just train on the training data:
+                    tf.logging.error(msg='Not implemented yet.')
                     raise NotImplementedError
                     # self._keras_model.fit_generator(
                     #     train_ds,
@@ -334,6 +335,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                     # )
         else:
             # X_train is an array of bottlenecks, y_train is the associated one-hot encoded labels.
+            tf.logging.error(msg='Not implemented yet.')
             raise NotImplementedError
             # num_images = X_train.shape[0]
             # if self.train_batch_size == -1:
