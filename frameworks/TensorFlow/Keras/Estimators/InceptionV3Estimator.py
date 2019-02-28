@@ -353,6 +353,20 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         # self._session.close()
         return self
 
+    def predict(self, X):
+        tf.logging.error(msg='Not implemented yet.')
+        raise NotImplementedError
+
+    def predict_proba(self, X):
+        tf.logging.error(msg='Not implemented yet')
+        raise NotImplementedError
+
+    def _get_model_params(self):
+        raise NotImplementedError
+
+    def _restore_model_params(self):
+        raise NotImplementedError
+
     @staticmethod
     def _get_initializer_repr(initializer):
         function_repr = str(initializer)
