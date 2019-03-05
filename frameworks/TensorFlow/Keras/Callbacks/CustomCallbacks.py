@@ -18,14 +18,34 @@ class FileWritersTensorBoardCallback(TensorBoard):
     train_writer = None
     counter = None
 
-    def __init__(self, hyperparameter_string_repr, log_dir='./logs', **kwargs):
+    @staticmethod
+    def _ensure_dir_read_write_exist(dir):
+        if os.path.exists(dir):
+            if os.access(dir, os.R_OK) and os.access(dir, os.W_OK):
+                return True
+            else:
+                raise PermissionError('The provided directory: \'%s\' is not readable or writeable.' % dir)
+        else:
+            raise NotADirectoryError('The provided directory: \'%s\' does not exist.' % dir)
+
+
+    def __init__(self, hyperparameter_string_repr, is_refit, log_dir='./logs', **kwargs):
         self.hyperparameter_string_repr = hyperparameter_string_repr
-        # Make the original 'TensorBoard' log to a subdirectory 'train'
-        self.train_log_dir = os.path.join(log_dir, 'train')
+        # If this is a refit of an existing hyperparameter set by sklearn, then create a new relative directory:
+        if is_refit:
+            # Make the original 'TensorBoard' log to a subdirectory 'train'
+            self.train_log_dir = os.path.join(log_dir, 'train')
+            # Custom implementation for val logging:
+            self.val_log_dir = os.path.join(log_dir, 'val')
+        else:
+            # Not a refit operation, this is part of the grid search:
+            self.train_log_dir = os.path.join(log_dir, 'gs')
+            self.train_log_dir = os.path.join(self.train_log_dir, 'train')
+            self.val_log_dir = os.path.join(log_dir, 'gs')
+            self.val_log_dir = os.path.join(self.val_log_dir, 'val')
+
         self.train_log_dir = os.path.join(self.train_log_dir, self.hyperparameter_string_repr)
         super(FileWritersTensorBoardCallback, self).__init__(self.train_log_dir, **kwargs)
-        # Log validation metrics to val dir:
-        self.val_log_dir = os.path.join(log_dir, 'val')
         self.val_log_dir = os.path.join(self.val_log_dir, self.hyperparameter_string_repr)
         self.counter = 0
 

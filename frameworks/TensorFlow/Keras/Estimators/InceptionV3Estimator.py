@@ -18,7 +18,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
     def __init__(self, num_classes, class_labels, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu,
                  optimizer=tf.train.AdamOptimizer, initializer=tf.variance_scaling_initializer(),
-                 is_fixed_feature_extractor=True, random_state=None, tb_log_dir=None):
+                 is_fixed_feature_extractor=True, random_state=None, tb_log_dir=None, is_refit=False):
         super(InceptionV3Estimator, self).__init__(name='inception_v3_estimator')
         self.num_classes = num_classes
         self.class_labels = class_labels
@@ -40,6 +40,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         # TensorBoard setup:
         self._train_writer = None
         self._val_writer = None
+        self.is_refit = is_refit
 
     @staticmethod
     def _preprocess_image(image, height=299, width=299, num_channels=3):
@@ -320,7 +321,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         steps_per_epoch=steps_per_epoch,
                         validation_steps=val_steps_per_epoch,
                         callbacks=[
-                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False)
+                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False, is_refit=self.is_refit)
                         ]
                     )
 

@@ -148,6 +148,8 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
     best_params = grid_search.best_params_
+    # If this is a refit operation, notify TensorBoard to log to a different directory to avoid conflicting summaries:
+    best_params['is_refit'] = True
     current_params = keras_classifier.get_params()
     current_params.update(best_params)
     # TODO: ON RESUME: HANDLE MULTIPLE WRITES TO TENSORBOARD (PREVIOUSLY USED REFIT=TRUE FLAG for this functionality)
