@@ -16,11 +16,12 @@ from frameworks.TensorFlow.Keras.Callbacks.CustomCallbacks import FileWritersTen
 
 class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
-    def __init__(self, num_classes, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu,
+    def __init__(self, num_classes, class_labels, train_batch_size=-1, val_batch_size=-1, activation=tf.nn.elu,
                  optimizer=tf.train.AdamOptimizer, initializer=tf.variance_scaling_initializer(),
                  is_fixed_feature_extractor=True, random_state=None, tb_log_dir=None):
         super(InceptionV3Estimator, self).__init__(name='inception_v3_estimator')
         self.num_classes = num_classes
+        self.class_labels = class_labels
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.activation = activation
@@ -28,6 +29,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         self.initializer = initializer
         self.random_state = random_state
         self.tb_log_dir = tb_log_dir
+        self._y_proba = None
+        self._is_trained = False
 
         self.is_fixed_feature_extractor = is_fixed_feature_extractor
         self._keras_model = None
@@ -60,24 +63,27 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             # base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))(input_tensor)
             # self._session = tf.Session()
             base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
-            # add a global spatial average pooling layer:
-            x = base_model.output
-            bottlenecks = GlobalAveragePooling2D()(x)
-            # let's add a fully-connected layer output shape 1024
-            logits = Dense(1024, activation='relu')(bottlenecks)
-            # and a fully connected logistic layer for self.num_classes
-            predictions = Dense(self.num_classes, activation='softmax')(logits)
-
-            # this is the model we will train
-            self._keras_model = Model(inputs=base_model.input, outputs=predictions)
 
             # first: train only the top layers (which were randomly initialized)
             # i.e. freeze all convolutional InceptionV3 layers
             for layer in base_model.layers:
                 layer.trainable = False
 
-            self._keras_resized_input_handle_ = base_model.input
-            # self._session = tf.keras.backend.get_session()
+            # add a global spatial average pooling layer:
+            x = base_model.output
+            bottlenecks = GlobalAveragePooling2D()(x)
+            # let's add a fully-connected layer output shape 1024
+            logits = Dense(1024, activation='relu')(bottlenecks)
+            # and a fully connected logistic layer for self.num_classes
+            y_proba = Dense(self.num_classes, activation='softmax')(logits)
+
+            # this is the model we will train
+            self._keras_model = Model(inputs=base_model.input, outputs=y_proba)
+
+
+            self._keras_resized_input_handle_ = self._keras_model.input
+            self._y_proba = self._keras_model.output
+            self._session = tf.keras.backend.get_session()
             tf.logging.info(msg='self._session set to: %s' % self._session)
             # self._graph = self._session.graph
         else:
@@ -96,6 +102,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         :return:
         """
         # Define forward pass here, using layers defined in _build_model_and_graph
+        # super(InceptionV3Estimator, self).call()
         return self._keras_model(inputs=inputs)
 
     # def compute_output_shape(self, input_shape):
@@ -313,7 +320,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         steps_per_epoch=steps_per_epoch,
                         validation_steps=val_steps_per_epoch,
                         callbacks=[
-                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir,hyperparameter_string_repr=self.__repr__(), write_graph=False)
+                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False)
                         ]
                     )
 
@@ -351,15 +358,47 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
         # TODO: When to kill session?
         # self._session.close()
+        self._is_trained = True
         return self
 
     def predict(self, X):
-        tf.logging.error(msg='Not implemented yet.')
-        raise NotImplementedError
+        if not self._is_trained:
+            class_indices = np.argmax(self.predict_proba(X, batch_size=self.train_batch_size), axis=1)
+        else:
+            class_indices = np.argmax(self.predict_proba(X, batch_size=self.val_batch_size), axis=1)
+        return np.array(class_indices, np.int32)
+        # tf.logging.error(msg='Not implemented yet.')
+        # raise NotImplementedError
 
-    def predict_proba(self, X):
-        tf.logging.error(msg='Not implemented yet')
-        raise NotImplementedError
+    def predict_proba(self, X, batch_size):
+        # TODO: Currently assuming X is image list and not bottleneck dataframe.
+        # if not self._session:
+        #     raise NotFittedError('This %s instance is not fitted yet' % self.__class__.__name__)
+        if not self._is_trained:
+            raise NotFittedError('This %s instance is not fitted yet' % self.__class__.__name__)
+        num_images = len(X)
+        path_ds = tf.data.Dataset.from_tensor_slices(X)
+        image_ds = path_ds.map(
+            InceptionV3Estimator._load_and_preprocess_image,
+            num_parallel_calls=tf.contrib.data.AUTOTUNE
+        )
+        ds = image_ds.shuffle(buffer_size=num_images)
+        ds = ds.batch(batch_size=batch_size)
+        ds = ds.repeat()
+        ds = ds.prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+        steps_per_epoch = math.ceil(num_images/batch_size)
+        y_proba = self._keras_model.predict(ds.make_one_shot_iterator(), batch_size=batch_size, verbose=0, steps=steps_per_epoch)
+        # y_proba is a [1 x 3] vector for each image where each column is: p(class) for class in all_classes;
+        # y_proba = np.argmax(y_proba, axis=1)
+        # return self.call(inputs=ds, training=self._is_trained, mask=None)
+        return y_proba
+
+
+        # with self._session.as_default() as sess:
+        #     return self._y_proba.eval(feed_dict={self._keras_resized_input_handle_: X})
+
+        # tf.logging.error(msg='Not implemented yet')
+        # raise NotImplementedError
 
     def _get_model_params(self):
         raise NotImplementedError

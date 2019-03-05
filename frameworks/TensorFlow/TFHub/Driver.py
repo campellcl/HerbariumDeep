@@ -132,7 +132,7 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     num_epochs = 10
     eval_freq = 1
     ckpt_freq = 0
-    keras_classifier = InceptionV3Estimator(num_classes=len(class_labels), random_state=42, tb_log_dir=tb_log_dir)
+    keras_classifier = InceptionV3Estimator(class_labels=class_labels, num_classes=len(class_labels), random_state=42, tb_log_dir=tb_log_dir)
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
     tf.logging.info(msg='Running GridSearch...')
@@ -147,6 +147,7 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
         y_val=val_ground_truth_labels
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
+    exit(0)
 
 
 def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations,
