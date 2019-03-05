@@ -401,10 +401,17 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         # raise NotImplementedError
 
     def _get_model_params(self):
-        raise NotImplementedError
+        with self._session.graph.as_default():
+            gvars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+        return {gvar.op.name: value for gvar, value in zip(gvars, self._session.run(gvars))}
+        # raise NotImplementedError
 
-    def _restore_model_params(self):
-        raise NotImplementedError
+    def _restore_model_params(self, model_params):
+        gvar_names = list(model_params.keys())
+        assign_ops = {gvar_name: self._graph.get_operation_by_name(gvar_name + '/Assign') for gvar_name in gvar_names}
+        init_values = {gvar_name: assign_op.inputs[1] for gvar_name, assign_op in assign_ops.items()}
+        feed_dict = {init_values[gvar_name]: model_params[gvar_name] for gvar_name in gvar_names}
+        self._session.run(assign_ops, feed_dict=feed_dict)
 
     @staticmethod
     def _get_initializer_repr(initializer):

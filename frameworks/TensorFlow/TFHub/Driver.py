@@ -147,8 +147,26 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
         y_val=val_ground_truth_labels
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
-    exit(0)
-
+    best_params = grid_search.best_params_
+    current_params = keras_classifier.get_params()
+    current_params.update(best_params)
+    # TODO: ON RESUME: HANDLE MULTIPLE WRITES TO TENSORBOARD (PREVIOUSLY USED REFIT=TRUE FLAG for this functionality)
+    keras_classifier.set_params(**current_params)
+    tf.logging.info(msg='Model hyperparameters have been set to the highest scoring settings reported by GridSearch. Now fitting a classifier with these hyperparameters: %s' % (current_params))
+    # Re-fit the model using the best parameter combination from the GridSearch:
+    keras_classifier.fit(
+        X_train=train_image_paths,
+        y_train=train_ground_truth_labels,
+        num_epochs=num_epochs,
+        eval_freq=eval_freq,
+        ckpt_freq=ckpt_freq,
+        fed_bottlenecks=False,
+        X_val=val_image_paths,
+        y_val=val_ground_truth_labels
+    )
+    tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
+    y_pred = keras_classifier.predict(X=val_image_paths)
+    # print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
 
 def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations,
                                  optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
