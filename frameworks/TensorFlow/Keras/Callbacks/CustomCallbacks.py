@@ -80,6 +80,10 @@ class FileWritersTensorBoardCallback(TensorBoard):
     #     logs = {k: v for k, v in logs.items() if not k.startswith('val_')}
     #     super(FileWritersTensorBoardCallback, self).on_batch_end(batch, logs)
 
+
+    def on_epoch_begin(self, epoch, logs=None):
+        super(FileWritersTensorBoardCallback, self).on_epoch_begin(epoch, logs)
+
     def on_epoch_end(self, epoch, logs=None):
         is_first_epoch = (epoch == 0)
         if (self.counter % self.write_freq == 0) or is_first_epoch:
@@ -99,7 +103,19 @@ class FileWritersTensorBoardCallback(TensorBoard):
             super(FileWritersTensorBoardCallback, self).on_epoch_end(epoch, logs)
         self.counter += 1
 
+    def on_train_begin(self, logs=None):
+        super(FileWritersTensorBoardCallback, self).on_train_begin(logs)
+
     def on_train_end(self, logs=None):
-        # TODO: Dump val longs on final epoch here in case final_epoch mod self.write_freq != 0:
+        logs = logs or {}
+        val_logs = {k.replace('val_', 'epoch_'): v for k, v in logs.items() if k.startswith('val_')}
+        for name, value in val_logs.items():
+            summary = tf.Summary()
+            summary_value = summary.value.add()
+            summary_value.simple_value = value.item()
+            summary_value.tag = name
+            self.val_writer.add_summary(summary, self.counter)
+        self.val_writer.flush()
+        logs = {k: v for k, v in logs.items() if k.startswith('val_')}
         super(FileWritersTensorBoardCallback, self).on_train_end(logs)
         self.val_writer.close()

@@ -154,7 +154,6 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     best_params['is_refit'] = True
     current_params = keras_classifier.get_params()
     current_params.update(best_params)
-    # TODO: ON RESUME: HANDLE MULTIPLE WRITES TO TENSORBOARD (PREVIOUSLY USED REFIT=TRUE FLAG for this functionality)
     keras_classifier.set_params(**current_params)
     tf.logging.info(msg='Model hyperparameters have been set to the highest scoring settings reported by GridSearch. Now fitting a classifier with these hyperparameters: %s' % (current_params))
     # Re-fit the model using the best parameter combination from the GridSearch:
