@@ -126,11 +126,13 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     """
     params = {
         'is_fixed_feature_extractor': [True],
+        'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
+        'activation': [activations['LeakyReLU'], activations['ELU']],
         'optimizer': [optimizers['Adam'], optimizers['Nesterov']],
-        'train_batch_size': [20]
+        'train_batch_size': [16, 20, 60]
     }
-    num_epochs = 10
-    eval_freq = 1
+    num_epochs = 1000
+    eval_freq = 10
     ckpt_freq = 0
     keras_classifier = InceptionV3Estimator(class_labels=class_labels, num_classes=len(class_labels), random_state=42, tb_log_dir=tb_log_dir)
     cv = [(slice(None), slice(None))]
@@ -378,4 +380,4 @@ if __name__ == '__main__':
         'SERNEC': {}
     }
 
-    main(run_configs['DEBUG'])
+    main(run_configs['BOON'])

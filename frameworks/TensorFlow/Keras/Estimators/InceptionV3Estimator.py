@@ -30,6 +30,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         self.random_state = random_state
         self.tb_log_dir = tb_log_dir
         self._y_proba = None
+        self.eval_freq = None
         self._is_trained = False
 
         self.is_fixed_feature_extractor = is_fixed_feature_extractor
@@ -245,6 +246,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         else:
             has_validation_data = False
 
+        self.eval_freq = eval_freq
+
         self._build_model_and_graph_def()
 
         # Was a DataFrame with pre-computed bottlenecks fed to this method from memory, or just a list of image paths?
@@ -321,7 +324,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         steps_per_epoch=steps_per_epoch,
                         validation_steps=val_steps_per_epoch,
                         callbacks=[
-                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False, is_refit=self.is_refit)
+                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False, is_refit=self.is_refit, write_freq=self.eval_freq)
                         ]
                     )
 
