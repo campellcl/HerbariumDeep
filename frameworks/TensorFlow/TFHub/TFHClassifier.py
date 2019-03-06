@@ -7,7 +7,6 @@ import tensorflow_hub as hub
 import numpy as np
 import os
 import shutil
-import pycm
 
 he_init = tf.variance_scaling_initializer()
 # he_init = tf.initializers.he_normal
@@ -16,7 +15,7 @@ he_init = tf.variance_scaling_initializer()
 class TFHClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, class_labels, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
                  activation=tf.nn.elu, initializer=he_init,
-                 batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp/summaries/',
+                 batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp\\summaries\\',
                  ckpt_dir='tmp/', saved_model_dir='tmp/trained_model/', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
@@ -314,16 +313,19 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
         '''Some TensorBoard setup: '''
         # TB TrainWriter logging directory:
-        tb_log_path_train = self.tb_logdir + '/train/' + self.__repr__()
+        if not self.refit:
+            tb_log_dir_train = os.path.join(self.tb_logdir, 'gs')
+            tb_log_dir_train = os.path.join(tb_log_dir_train, 'train')
+        else:
+            tb_log_dir_train = os.path.join(self.tb_logdir, 'train')
+        tb_log_dir_train = os.path.join(tb_log_dir_train, self.__repr__())
         # TB ValidationWriter logging directory:
-        tb_log_path_val = self.tb_logdir + '/val/' + self.__repr__()
-
-        # If this is a refit of an existing hyperparameter combination, purge TB logging directories:
-        if self.refit:
-            # Remove the TB logging directory from the first training fit with these parameters:
-            shutil.rmtree(tb_log_path_train, ignore_errors=True)
-            # Remove the TB logging directory from the first validation fit with these parameters:
-            shutil.rmtree(tb_log_path_val, ignore_errors=True)
+        if not self.refit:
+            tb_log_dir_val = os.path.join(self.tb_logdir, 'gs')
+            tb_log_dir_val = os.path.join(tb_log_dir_val, 'val')
+        else:
+            tb_log_dir_val = os.path.join(self.tb_logdir, 'val')
+        tb_log_dir_val = os.path.join(tb_log_dir_val, self.__repr__())
 
         ''' Build the computational graph: '''
         self._graph = tf.Graph()
@@ -335,8 +337,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         ''' Train the model! '''
         self._session = tf.Session(graph=self._graph)
         with self._session.as_default() as sess:
-            self._train_writer = tf.summary.FileWriter(tb_log_path_train, sess.graph)
-            self._val_writer = tf.summary.FileWriter(tb_log_path_val)
+            self._train_writer = tf.summary.FileWriter(tb_log_dir_train, sess.graph)
+            self._val_writer = tf.summary.FileWriter(tb_log_dir_val)
             self._init.run()
             # self.running_vars_init.run()
 

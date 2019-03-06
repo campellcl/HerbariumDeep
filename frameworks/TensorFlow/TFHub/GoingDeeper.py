@@ -397,7 +397,7 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, val_bottlenecks=None, val_ground_truth_indices=None):
+def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, val_bottlenecks=None, val_ground_truth_indices=None):
     # params = {
     #     'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
     #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
@@ -434,7 +434,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     ckpt_freq = 0
 
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
-    tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels)
+    tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels, tb_logdir=log_dir)
     tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
     cv = [(slice(None), slice(None))]
@@ -508,6 +508,7 @@ def main(run_config):
         adam_beta2=0.999,
         adam_epsilon=1e-08
     )
+    tb_log_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
     _run_grid_search(
         train_bottlenecks=train_bottlenecks,
         train_ground_truth_indices=train_ground_truth_indices,
@@ -516,7 +517,8 @@ def main(run_config):
         optimizers=optimizer_options,
         class_labels=class_labels,
         val_bottlenecks=val_bottlenecks,
-        val_ground_truth_indices=val_ground_truth_indices
+        val_ground_truth_indices=val_ground_truth_indices,
+        log_dir=tb_log_dir
     )
 
     # minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
