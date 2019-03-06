@@ -317,6 +317,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                     #     ]
                     # )
 
+
+
                     self._keras_model.fit(
                         train_ds.make_one_shot_iterator(),
                         validation_data=val_ds.make_one_shot_iterator(),
@@ -324,7 +326,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         steps_per_epoch=steps_per_epoch,
                         validation_steps=val_steps_per_epoch,
                         callbacks=[
-                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False, is_refit=self.is_refit, write_freq=self.eval_freq)
+                            FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False, is_refit=self.is_refit, write_freq=self.eval_freq),
+                            tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=20, verbose=0, mode='min', baseline=None, restore_best_weights=False)
                         ]
                     )
 
