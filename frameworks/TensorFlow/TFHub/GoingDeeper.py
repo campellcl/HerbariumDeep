@@ -415,19 +415,19 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     #     'optimizer': list(optimizers.values())
     # }
 
-    params = {
-        'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
-        'activation': [activations['LeakyReLU'], activations['ELU']],
-        'optimizer': [optimizers['Adam'], optimizers['Nesterov']],
-        'train_batch_size': [20, 60, 100]
-    }
-
     # params = {
     #     'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
     #     'activation': [activations['LeakyReLU'], activations['ELU']],
     #     'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
     #     'train_batch_size': [20, 60, 100]
     # }
+
+    params = {
+        'initializer': [initializers['he_normal']],
+        'activation': [activations['LeakyReLU']],
+        'optimizer': [optimizers['Nesterov']],
+        'train_batch_size': [10, 20]
+    }
 
     num_epochs = 1000
     eval_freq = 10
@@ -542,7 +542,7 @@ if __name__ == '__main__':
     run_configs = {
         'debug': {
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
-            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\bottlenecks.pkl'
+            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl'
         },
         'BOON': {
             'image_dir': 'D:\\data\\BOON\\images',
@@ -554,7 +554,7 @@ if __name__ == '__main__':
         },
         'SERNEC': {}
     }
-    main(run_configs['BOON'])
+    main(run_configs['debug'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
