@@ -39,8 +39,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
         # TFHub module spec instance:
         self._module_spec = None
-
         self.class_labels = class_labels
+        self.num_classes = len(class_labels)
         self.optimizer = optimizer
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
@@ -49,19 +49,43 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.batch_norm_momentum = batch_norm_momentum
         self.dropout_rate = dropout_rate
         self.random_state = random_state
-        self._session = None
-        self._graph = None
         self.classes_ = None
+
+        # TensorFlow Low-Level API: tf.Graph(), tf.Session(), and training graph initializers:
+        self._train_graph = None
+        self._train_graph_global_init = None
+        self._train_session = None
+        # TensorFlow Low-Level API: tf.Graph(), tf.Session(), and evaluation graph initializers:
+        self._eval_graph = None
+        self._eval_graph_global_init = None
+        self._eval_session = None
+
+
         # Create a FileWriter object to export tensorboard information:
         self._train_writer = None
         self._val_writer = None
         ''' TensorBoard Related Variables: '''
+        self._train_graph_merged_summaries = None
+        self._eval_graph_merged_summaries = None
         self.ckpt_dir = ckpt_dir
         self.saved_model_dir = saved_model_dir
         self.tb_logdir = tb_logdir
         self.refit = refit
 
-    def _build_graph(self, n_inputs, n_outputs):
+    def _build_graphs(self, n_inputs, n_outputs):
+        """
+        _build_graph: Builds and returns a TensorFlow graph containing the TFHub module sub-graph augmented with
+            transfer learning re-train Operations, as well as evaluation step operations. Do NOT invoke this method
+            without care, see the note below.
+        CRITICAL: This method is to be called only within the scope of the global 'tf.Graph()' context manager associated
+            with this class instance (self). Failing to call this method from within the associated global context
+            manager's scope will result in the augmented graph components being added to a separate computational graph.
+            The implications of this will become apparent when the tf.train.Saver() instance fails to restore the
+            checkpoint for evaluation and inference due to conflicting graph definitions.
+        :param n_inputs:
+        :param n_outputs:
+        :return:
+        """
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
             np.random.seed(self.random_state)
@@ -73,111 +97,55 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
         # Load TFHub module spec/blueprint:
         tfhub_module_spec = hub.load_module_spec('https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1')
+        tf.logging.info(msg='Loaded the provided TensorFlowHub module spec: \'%s\'' % tfhub_module_spec)
         self._module_spec = tfhub_module_spec
 
-        # Create the TensorFlow-Hub Module Graph:
-        # graph, bottleneck_tensor, resized_input_tensor = self.create_module_graph(module_spec=self._module_spec)
+        self._train_graph = tf.Graph()
+        self._eval_graph = tf.Graph()
 
-        height, width = hub.get_expected_image_size(tfhub_module_spec)
-        tf.logging.info(msg='Loaded the provided TensorFlowHub module spec: \'%s\'' % tfhub_module_spec)
+        # Create the TensorFlow-Hub Module Graphs:
+        augmented_train_graph, train_graph_bottleneck_tensor, train_graph_resized_input_tensor = TFHClassifier.create_module_graph(graph=self._train_graph, module_spec=self._module_spec)
+        augmented_eval_graph, eval_graph_bottleneck_tensor, eval_graph_resized_input_tensor = TFHClassifier.create_module_graph(graph=self._eval_graph, module_spec=self._module_spec)
 
-        # Create a placeholder tensor for image input to the model (when bottleneck has not been pre-computed).
-        resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
+        # Add transfer learning re-train Ops to training graph:
+        with augmented_train_graph.as_default():
+            (training_op, xentropy, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
+                bottleneck_tensor=train_graph_bottleneck_tensor,
+                is_training=True,
+                final_tensor_name='y_proba'
+            )
+            acc_eval_step, top_five_acc_eval_step, predictions = self._add_evaluation_step(
+                y_proba_tensor=y_proba_tensor,
+                y_tensor=y_tensor
+            )
 
-        # Declare the model in accordance with the chosen architecture:
-        m = hub.Module(tfhub_module_spec)
+        # # Add transfer learning re-train Ops to evaluation graph:
+        # with augmented_eval_graph.as_default():
+        #     # Add the transfer learning re-train layers:
+        #     (_, _, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
+        #         bottleneck_tensor=eval_graph_bottleneck_tensor,
+        #         is_training=False,
+        #         final_tensor_name='y_proba'
+        #     )
+        #
+        #     # TODO: Can't restore values from the training graph to eval graph on instantiation.
+        #     # Restore the values from the training graph to the eval graph:
+        #     # tf.train.Saver().restore(eval_sess, self.ckpt_dir)
+        #
+        #     # TODO: Will need to add the prediction Ops to the eval session graph for export after restore ^:
+        #     # acc_eval_step, top_five_acc_eval_step, predictions = self._add_evaluation_step(
+        #     #     y_proba_tensor=y_proba_tensor,
+        #     #     y_tensor=y_tensor
+        #     # )
+        return augmented_train_graph, augmented_eval_graph
 
-        # Create a placeholder tensor to catch the output of the pre-activation layer:
-        bottleneck_tensor = m(resized_input_tensor)
+    def close_train_session(self):
+        if self._train_session:
+            self._train_session.close()
 
-        '''
-        Add re-train operations:
-        '''
-        batch_size, bottleneck_tensor_size = bottleneck_tensor.get_shape().as_list()
-        assert batch_size is None, 'We want to work with arbitrary batch size when ' \
-                                   'constructing fully-connected and softmax layers for fine-tuning.'
-
-        X = tf.placeholder_with_default(
-            bottleneck_tensor,
-            shape=[batch_size, bottleneck_tensor_size],
-            name='X'
-        )
-        y = tf.placeholder(
-            tf.int64,
-            shape=[batch_size],
-            name='y'
-        )
-        num_classes = tf.placeholder(tf.int32, shape=(), name='NumClasses')
-        predictions = tf.placeholder(
-            tf.int64,
-            shape=[batch_size],
-            name='predictions'
-        )
-
-        ''' Add transfer learning target domain final retrain operations: '''
-        final_layer_name = 'final_retrain_ops'
-        with tf.variable_scope(final_layer_name):
-            # The final layer of target domain re-train Operations is composed of the following:
-            logits = tf.layers.dense(X, n_outputs, activation=self.activation, use_bias=True, kernel_initializer=self.initializer, trainable=True, name='logits')
-            tf.summary.histogram('logits', logits)
-
-        Y_proba = tf.nn.softmax(logits, name="Y_proba")
-
-        ''' The logic here is for computing a running accuracy on a class-by-class basis: '''
-        # Create a tensor containing the predicted class label for each training sample (the argmax of the probability tensor)
-        preds = tf.math.argmax(Y_proba, axis=1)
-        # Create a confusion matrix:
-        # confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=num_classes, dtype=tf.float32, name='confusion_matrix')
-        # tf.summary.tensor_summary('confusion_matrix', confusion_matrix)
-
-        xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y,
-                                                                  logits=logits)
-        tf.summary.histogram('xentropy', xentropy)
-
-        loss = tf.reduce_mean(xentropy, name="loss")
-        tf.summary.scalar('loss', loss)
-
-        training_op = self.optimizer.minimize(loss)
-
-        # correct = tf.nn.in_top_k(logits, y, 1)
-        correct = tf.nn.in_top_k(predictions=Y_proba, targets=y, k=1)
-        accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name="accuracy")
-        tf.summary.scalar('accuracy', accuracy)
-
-        top5_pred= tf.nn.in_top_k(predictions=Y_proba, targets=y, k=5)
-        top5_acc = tf.reduce_mean(tf.cast(top5_pred, tf.float32))
-        tf.summary.scalar('top5_accuracy', top5_acc)
-
-        # Shape mis-match incompatible shapes: [5850] vs. [650]
-        # per_class_acc, per_class_acc_update = tf.metrics.mean_per_class_accuracy(y, predictions, len(self.classes_), name='PerClassAcc')
-        # tf.summary.scalar('per_class_acc', per_class_acc)
-
-        # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
-        init = tf.global_variables_initializer()
-
-        # Merge all tensorboard summaries into one object:
-        tb_merged_summaries = tf.summary.merge_all()
-
-        # Create a saver for checkpoint file creation and restore:
-        # ON RESUME: Run to debug here, then explore tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES) need some way
-        #     to get the logits name to stay consistent. The problem is this graph is not the same as the eval graph,
-        #     so when the saver calls restore it is confused. Can run the program and see what tensor names the restore call fails to find.
-        # saved_vars_mapping = {logits.name: logits}
-        # train_saver = tf.train.Saver(saved_vars_mapping)
-        train_saver = tf.train.Saver()
-
-        # Make the important operations available easily through instance variables:
-        self._X, self._y, self._Y_proba, self._predictions = X, y, Y_proba, predictions
-        self._Y_proba, self._preds, self._loss = Y_proba, preds, loss
-        self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top5_acc
-        # self._per_class_acc_update_op = per_class_acc_update
-        self.num_classes = num_classes
-        self._init, self._train_saver = init, train_saver
-        self._merged = tb_merged_summaries
-
-    def close_session(self):
-        if self._session:
-            self._session.close()
+    def close_eval_session(self):
+        if self._eval_session:
+            self._eval_session.close()
 
     def _get_model_params(self):
         """Get all variable values (used for early stopping, faster than saving to disk)"""
@@ -195,7 +163,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._session.run(assign_ops, feed_dict=feed_dict)
 
     @staticmethod
-    def create_module_graph(module_spec):
+    def create_module_graph(graph, module_spec):
         """
         create_module_graph: Creates a tensorflow graph from the provided TFHub module.
         source: https://github.com/tensorflow/hub/blob/master/examples/image_retraining/retrain.py
@@ -211,7 +179,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Define the receptive field in accordance with the chosen architecture:
         height, width = hub.get_expected_image_size(module_spec)
         # Create a new default graph:
-        with tf.Graph().as_default() as graph:
+        with graph.as_default() as graph:
             with tf.variable_scope('source_model'):
                 # Create a placeholder tensor for input to the model.
                 resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
@@ -220,9 +188,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     m = hub.Module(module_spec, name='inception_v3_hub')
                     # Create another place holder tensor to catch the output of the pre-activation layer:
                     bottleneck_tensor = m(resized_input_tensor)
-        return graph, bottleneck_tensor, resized_input_tensor
+        augmented_graph = graph
+        return augmented_graph, bottleneck_tensor, resized_input_tensor
 
-    def _add_final_retrain_ops(self, num_classes, bottleneck_tensor, is_training, final_tensor_name='y_proba'):
+    def _add_final_retrain_ops(self, bottleneck_tensor, is_training, final_tensor_name='y_proba'):
         """
         add_final_retrain_ops: Adds a new softmax and fully-connected layer for training and model evaluation. In order to
             use the TFHub model as a fixed feature extractor, we need to retrain the top fully connected layer of the graph
@@ -259,20 +228,81 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     shape=[batch_size],
                     name='y'
                 )
+                predictions = tf.placeholder(
+                    tf.int64,
+                    shape=[batch_size],
+                    name='predictions'
+                )
             with tf.variable_scope('final_retrain_ops'):
                 # The final layer of target domain re-train operations is composed of the following:
-                logits = tf.layers.dense(X, num_classes, activation=self.activation, use_bias=True, kernel_initializer=self.initializer, trainable=True, name='logits')
+                logits = tf.layers.dense(X, self.num_classes, activation=self.activation, use_bias=True, kernel_initializer=self.initializer, trainable=True, name='logits')
                 # tf.summary.histogram('logits', logits)
                 # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
                 y_proba = tf.nn.softmax(logits=logits, name=final_tensor_name)
 
+        # TODO: Update self references if still necessary:
+        self._X, self._y, self._predictions = X, y, predictions
+        self._y_proba = y_proba
+
         if not is_training:
+            # No need to add loss Ops and an optimizer.
+
+            # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+            eval_graph_global_init = tf.global_variables_initializer()
+
+            # Merge all TensorBoard summaries into one object:
+            # eval_graph_merged_summaries = tf.summary.merge_all()
+
+            # TODO: Update self references if still necessary:
+            self._eval_graph_global_init = eval_graph_global_init
+
             X_tensor = X
             y_tensor = y
             y_proba_tensor = y_proba
             return None, None, X_tensor, y_tensor, logits, y_proba_tensor
         else:
-            raise NotImplementedError
+            # Training graph, add loss Ops and an optimizer:
+            with tf.variable_scope('final_retrain_ops'):
+                preds = tf.math.argmax(y_proba, axis=1)
+
+                xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
+                tf.summary.histogram('xentropy', xentropy)
+
+                loss = tf.reduce_mean(xentropy, name='loss')
+                tf.summary.scalar('loss', loss)
+
+                training_op = self.optimizer.minimize(loss)
+
+                # correct = tf.nn.in_top_k(logits, y, 1)
+                correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
+                accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name='accuracy')
+                tf.summary.scalar('accuracy', accuracy)
+
+                top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
+                top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
+                tf.summary.scalar('top_five_accuracy', top_five_acc)
+
+            # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+            train_graph_global_init = tf.global_variables_initializer()
+
+            # Merge all TensorBoard summaries into one object:
+            train_graph_merged_summaries = tf.summary.merge_all()
+
+            # Create a saver for checkpoint file creation and restore:
+            # ON RESUME: Run to debug here, then explore tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES) need some way
+            #     to get the logits name to stay consistent. The problem is this graph is not the same as the eval graph,
+            #     so when the saver calls restore it is confused. Can run the program and see what tensor names the restore call fails to find.
+            # saved_vars_mapping = {logits.name: logits}
+            # train_saver = tf.train.Saver(saved_vars_mapping)
+            train_saver = tf.train.Saver()
+
+            # TODO: Update self references if still necessary:
+            self._train_graph_global_init = train_graph_global_init
+            self._preds, self._loss = preds, loss
+            self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top_five_acc
+            self._train_graph_merged_summaries, self._train_saver = train_graph_merged_summaries, train_saver
+
+            return training_op, xentropy, X, y, logits, y_proba
 
     @staticmethod
     def _add_evaluation_step(y_proba_tensor, y_tensor):
@@ -305,7 +335,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         with eval_graph.as_default():
             # Add the retrained layers for exporting:
             (_, _, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
-                num_classes=num_classes,
                 final_tensor_name='y_proba',
                 bottleneck_tensor=bottleneck_tensor,
                 is_training=False
@@ -434,7 +463,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         """
         ''' Generic cleanup, and some lazy instantiation: '''
         # Close the session in case it was previously left open for some reason:
-        self.close_session()
+        self.close_train_session()
+        self.close_eval_session()
 
         # If the batch size was set to -1 during initialization, infer the training size at runtime from the X matrix:
         if self.train_batch_size == -1:
@@ -470,19 +500,19 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             tb_log_dir_val = os.path.join(self.tb_logdir, 'val')
         tb_log_dir_val = os.path.join(tb_log_dir_val, self.__repr__())
 
-        ''' Build the computational graph: '''
-        self._graph = tf.Graph()
-        with self._graph.as_default():
-            self._build_graph(n_inputs, n_outputs)
-            # extra ops for batch normalization
-            extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        ''' Build the computational graphs: '''
+        self._train_graph = tf.Graph()
+        # with self._graph.as_default():
+        self._train_graph, self._eval_graph = self._build_graphs(n_inputs, n_outputs)
+        # extra ops for batch normalization
+        extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
         ''' Train the model! '''
-        self._session = tf.Session(graph=self._graph)
-        with self._session.as_default() as sess:
+        self._train_session = tf.Session(graph=self._train_graph)
+        with self._train_session.as_default() as sess:
             self._train_writer = tf.summary.FileWriter(tb_log_dir_train, sess.graph)
             self._val_writer = tf.summary.FileWriter(tb_log_dir_val)
-            self._init.run()
+            self._train_graph_global_init.run()
             # self.running_vars_init.run()
 
             for epoch in range(n_epochs):
@@ -495,13 +525,13 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 # Check to see if eval metrics should be computed this epoch:
                 if (epoch % eval_freq == 0) or is_last_step:
                     # Compute evaluation metrics on the entire training dataset:
-                    train_summary, train_preds = sess.run([self._merged, self._preds], feed_dict={self._X: X, self._y: y})
+                    train_summary, train_preds = sess.run([self._train_graph_merged_summaries, self._preds], feed_dict={self._X: X, self._y: y})
                     self._train_writer.add_summary(train_summary, epoch)
 
                     if X_valid is not None and y_valid is not None:
                         # Run eval metrics on the entire validation dataset:
                         val_summary, loss_val, acc_val, top5_acc, val_preds = sess.run(
-                            [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
+                            [self._train_graph_merged_summaries, self._loss, self._accuracy, self._top_five_acc, self._preds],
                             feed_dict={self._X: X_valid, self._y: y_valid}
                         )
 
