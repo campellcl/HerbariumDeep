@@ -80,7 +80,6 @@ class FileWritersTensorBoardCallback(TensorBoard):
     #     logs = {k: v for k, v in logs.items() if not k.startswith('val_')}
     #     super(FileWritersTensorBoardCallback, self).on_batch_end(batch, logs)
 
-
     def on_epoch_begin(self, epoch, logs=None):
         super(FileWritersTensorBoardCallback, self).on_epoch_begin(epoch, logs)
 

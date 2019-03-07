@@ -321,6 +321,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         else:
             tb_log_dir_train = os.path.join(self.tb_logdir, 'train')
         tb_log_dir_train = os.path.join(tb_log_dir_train, self.__repr__())
+
         # TB ValidationWriter logging directory:
         if not self.refit:
             tb_log_dir_val = os.path.join(self.tb_logdir, 'gs')
