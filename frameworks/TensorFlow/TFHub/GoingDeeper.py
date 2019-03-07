@@ -472,6 +472,9 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
     print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
+    model_export_dir = os.path.join(log_dir, 'trained_model')
+    tf.logging.info(msg='Exporting model for future inference and evaluation to: %s' % model_export_dir)
+    tfh_classifier.export_model(saved_model_dir=model_export_dir)
 
 
 def main(run_config):
