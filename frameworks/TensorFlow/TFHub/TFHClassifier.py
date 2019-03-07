@@ -7,6 +7,7 @@ import tensorflow_hub as hub
 import numpy as np
 import os
 import pycm
+import json
 
 he_init = tf.variance_scaling_initializer()
 # he_init = tf.initializers.he_normal
@@ -355,25 +356,33 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # Export the results to the TensorBoard logging directory:
                     # self._train_writer.add_summary(train_summary, epoch)
 
-                # Check to see if eval metrics should be computed this epoch on the validation dataset:
+                # Check to see if eval metrics should be computed this epoch:
                 if (epoch % eval_freq == 0) or is_last_step:
-                    train_summary = sess.run(self._merged, feed_dict={self._X: X, self._y: y})
+                    train_summary, train_preds = sess.run([self._merged, self._preds], feed_dict={self._X: X, self._y: y})
                     self._train_writer.add_summary(train_summary, epoch)
+
                     if X_valid is not None and y_valid is not None:
                         # Run eval metrics on the entire validation dataset:
-                        val_summary, loss_val, acc_val, top5_acc, preds = sess.run(
+                        val_summary, loss_val, acc_val, top5_acc, val_preds = sess.run(
                             [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
                             feed_dict={self._X: X_valid, self._y: y_valid}
                         )
 
                         if is_last_step:
-                            cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
-                            one_hot_class_label_as_chars = cm.classes
-                            mapping = {one_hot_label: clss_name for one_hot_label, clss_name in zip(one_hot_class_label_as_chars, self.class_labels)}
-                            print(mapping)
-                            # cm.relabel(mapping=mapping)
-                            cm.save_html(os.path.join(self.tb_logdir, 'testcm'))
-                            cm.save_csv(os.path.join(self.tb_logdir, 'testcm'))
+                            train_cm = pycm.ConfusionMatrix(actual_vector=y, predict_vector=train_preds)
+                            val_cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=val_preds)
+                            val_one_hot_class_label_as_chars = val_cm.classes
+                            mapping = {one_hot_label: clss_name for one_hot_label, clss_name in zip(val_one_hot_class_label_as_chars, self.class_labels)}
+                            # print(mapping)
+                            # val_cm.relabel(mapping=mapping)
+                            with open(os.path.join(tb_log_dir_train, 'mappings.json'), 'w') as fp:
+                                json.dump(mapping, fp, indent=0)
+                            with open(os.path.join(tb_log_dir_val, 'mappings.json'), 'w') as fp:
+                                json.dump(mapping, fp, indent=0)
+                            train_cm.save_html(os.path.join(tb_log_dir_train, 'confusion_matrix'))
+                            train_cm.save_csv(os.path.join(tb_log_dir_train, 'confusion_matrix'))
+                            val_cm.save_html(os.path.join(tb_log_dir_val, 'confusion_matrix'))
+                            val_cm.save_csv(os.path.join(tb_log_dir_val, 'confusion_matrix'))
 
                         # Update TensorBoard on the results:
                         self._val_writer.add_summary(val_summary, epoch)
@@ -389,13 +398,20 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             epoch, loss_val, best_loss, acc_val * 100, top5_acc * 100))
                         if checks_without_progress > max_checks_without_progress:
                             print("Early stopping!")
-                            cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
-                            one_hot_class_label_as_chars = cm.classes
-                            mapping = {one_hot_label: clss_name for one_hot_label, clss_name in zip(one_hot_class_label_as_chars, self.class_labels)}
-                            print(mapping)
+                            train_cm = pycm.ConfusionMatrix(actual_vector=y, predict_vector=train_preds)
+                            val_cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=val_preds)
+                            one_hot_class_label_as_chars = val_cm.classes
+                            mapping = {int(one_hot_label_char): clss_name for one_hot_label_char, clss_name in zip(one_hot_class_label_as_chars, self.class_labels)}
+                            # print(mapping)
                             # cm.relabel(mapping=mapping)
-                            cm.save_html(os.path.join(self.tb_logdir, 'testcm'))
-                            cm.save_csv(os.path.join(self.tb_logdir, 'testcm'))
+                            with open(os.path.join(tb_log_dir_train, 'mappings.json'), 'w') as fp:
+                                json.dump(mapping, fp, indent=0)
+                            with open(os.path.join(tb_log_dir_val, 'mappings.json'), 'w') as fp:
+                                json.dump(mapping, fp, indent=0)
+                            train_cm.save_html(os.path.join(tb_log_dir_train, 'confusion_matrix'))
+                            train_cm.save_csv(os.path.join(tb_log_dir_train, 'confusion_matrix'))
+                            val_cm.save_html(os.path.join(tb_log_dir_val, 'confusion_matrix'))
+                            val_cm.save_csv(os.path.join(tb_log_dir_val, 'confusion_matrix'))
                             break
                     else:
                         # Run eval metrics on the entire training dataset (as no validation set is available):
