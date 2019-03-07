@@ -108,7 +108,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         augmented_eval_graph, eval_graph_bottleneck_tensor, eval_graph_resized_input_tensor = TFHClassifier.create_module_graph(graph=self._eval_graph, module_spec=self._module_spec)
 
         # Add transfer learning re-train Ops to training graph:
-        with augmented_train_graph.as_default():
+        with augmented_train_graph.as_default() as further_augmented_train_graph:
             (training_op, xentropy, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
                 bottleneck_tensor=train_graph_bottleneck_tensor,
                 is_training=True,
@@ -118,25 +118,29 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 y_proba_tensor=y_proba_tensor,
                 y_tensor=y_tensor
             )
+        augmented_train_graph = further_augmented_train_graph
+        tf.reset_default_graph()
 
-        # # Add transfer learning re-train Ops to evaluation graph:
-        # with augmented_eval_graph.as_default():
-        #     # Add the transfer learning re-train layers:
-        #     (_, _, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
-        #         bottleneck_tensor=eval_graph_bottleneck_tensor,
-        #         is_training=False,
-        #         final_tensor_name='y_proba'
-        #     )
-        #
-        #     # TODO: Can't restore values from the training graph to eval graph on instantiation.
-        #     # Restore the values from the training graph to the eval graph:
-        #     # tf.train.Saver().restore(eval_sess, self.ckpt_dir)
-        #
-        #     # TODO: Will need to add the prediction Ops to the eval session graph for export after restore ^:
-        #     # acc_eval_step, top_five_acc_eval_step, predictions = self._add_evaluation_step(
-        #     #     y_proba_tensor=y_proba_tensor,
-        #     #     y_tensor=y_tensor
-        #     # )
+        # Add transfer learning re-train Ops to evaluation graph:
+        with augmented_eval_graph.as_default() as further_augmented_eval_graph:
+            # Add the transfer learning re-train layers:
+            (_, _, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
+                bottleneck_tensor=eval_graph_bottleneck_tensor,
+                is_training=False,
+                final_tensor_name='y_proba'
+            )
+
+            # TODO: Can't restore values from the training graph to eval graph on instantiation.
+            # Restore the values from the training graph to the eval graph:
+            # tf.train.Saver().restore(eval_sess, self.ckpt_dir)
+
+            # TODO: Will need to add the prediction Ops to the eval session graph for export after restore ^:
+            # acc_eval_step, top_five_acc_eval_step, predictions = self._add_evaluation_step(
+            #     y_proba_tensor=y_proba_tensor,
+            #     y_tensor=y_tensor
+            # )
+        augmented_eval_graph = further_augmented_eval_graph
+        tf.reset_default_graph()
         return augmented_train_graph, augmented_eval_graph
 
     def close_train_session(self):
