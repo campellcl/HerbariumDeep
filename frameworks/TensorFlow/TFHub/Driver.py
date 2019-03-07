@@ -254,6 +254,7 @@ def _prepare_tensor_board_directories(tb_summaries_dir, intermediate_output_grap
             os.makedirs(intermediate_output_graphs_dir)
     return
 
+
 def main(run_config):
     tb_log_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
     _prepare_tensor_board_directories(tb_summaries_dir=tb_log_dir, intermediate_output_graphs_dir=None)

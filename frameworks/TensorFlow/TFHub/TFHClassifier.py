@@ -6,7 +6,7 @@ import tensorflow.contrib.slim as slim
 import tensorflow_hub as hub
 import numpy as np
 import os
-import shutil
+import pycm
 
 he_init = tf.variance_scaling_initializer()
 # he_init = tf.initializers.he_normal
@@ -120,7 +120,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         # Create a tensor containing the predicted class label for each training sample (the argmax of the probability tensor)
         preds = tf.math.argmax(Y_proba, axis=1)
         # Create a confusion matrix:
-        # confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=num_classes, dtype=tf.float32, name='BatchConfusionMatrix')
+        # confusion_matrix = tf.confusion_matrix(y, predictions, num_classes=num_classes, dtype=tf.float32, name='confusion_matrix')
+        # tf.summary.tensor_summary('confusion_matrix', confusion_matrix)
 
         xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y,
                                                                   logits=logits)
@@ -364,6 +365,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             [self._merged, self._loss, self._accuracy, self._top_five_acc, self._preds],
                             feed_dict={self._X: X_valid, self._y: y_valid}
                         )
+
+                        if is_last_step:
+                            cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
+                            one_hot_class_label_as_chars = cm.classes
+                            mapping = {one_hot_label: clss_name for one_hot_label, clss_name in zip(one_hot_class_label_as_chars, self.class_labels)}
+                            print(mapping)
+                            # cm.relabel(mapping=mapping)
+                            cm.save_html(os.path.join(self.tb_logdir, 'testcm'))
+                            cm.save_csv(os.path.join(self.tb_logdir, 'testcm'))
+
                         # Update TensorBoard on the results:
                         self._val_writer.add_summary(val_summary, epoch)
 
@@ -378,6 +389,13 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             epoch, loss_val, best_loss, acc_val * 100, top5_acc * 100))
                         if checks_without_progress > max_checks_without_progress:
                             print("Early stopping!")
+                            cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=preds)
+                            one_hot_class_label_as_chars = cm.classes
+                            mapping = {one_hot_label: clss_name for one_hot_label, clss_name in zip(one_hot_class_label_as_chars, self.class_labels)}
+                            print(mapping)
+                            # cm.relabel(mapping=mapping)
+                            cm.save_html(os.path.join(self.tb_logdir, 'testcm'))
+                            cm.save_csv(os.path.join(self.tb_logdir, 'testcm'))
                             break
                     else:
                         # Run eval metrics on the entire training dataset (as no validation set is available):
