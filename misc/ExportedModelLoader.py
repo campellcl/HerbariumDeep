@@ -34,7 +34,7 @@ def read_tensor_from_image_file(file_name, input_height=299, input_width=299, in
 
 
 class TFHClassifier:
-    relative_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
+    relative_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp'
     model_path = os.path.join(relative_path, 'trained_model')
 
 
@@ -64,9 +64,9 @@ class TFHClassifier:
         return labels, results
 
 if __name__ == '__main__':
-    model_label_file_path = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp', 'class_labels.txt')
+    model_label_file_path = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\trained_model', 'class_labels.txt')
     tfh_classifier = TFHClassifier(
-        model_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model',
+        model_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\trained_model',
         model_label_file_path=model_label_file_path
     )
     # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg')

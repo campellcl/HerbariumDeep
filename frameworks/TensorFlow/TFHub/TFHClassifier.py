@@ -468,7 +468,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             builder.save()
 
         # Export labels as text file for use in inference:
-        with tf.gfile.GFile(os.path.join(self.ckpt_dir, 'class_labels.txt'), 'w') as fp:
+        with tf.gfile.GFile(os.path.join(saved_model_dir, 'class_labels.txt'), 'w') as fp:
             fp.write('\n'.join(human_readable_class_labels) + '\n')
             # Build signature definition map:
             # feature_configs = {

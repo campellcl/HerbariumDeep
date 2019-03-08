@@ -472,8 +472,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
     print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
-    model_export_dir = os.path.join(log_dir, 'trained_model')
-    tf.logging.info(msg='Exporting model for future inference and evaluation to: %s' % model_export_dir)
+    model_export_dir = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp', 'trained_model')
+    tf.logging.info(msg='Exporting re-fit model for future inference and evaluation to: %s' % model_export_dir)
     tfh_classifier.export_model(saved_model_dir=model_export_dir, human_readable_class_labels=class_labels)
 
 
@@ -486,6 +486,7 @@ def main(run_config):
     TensorBoard summaries directory:
     """
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
+    _prepare_tensor_board_directories(tb_summaries_dir='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model\\')
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
     bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir)
