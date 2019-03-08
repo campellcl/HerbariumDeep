@@ -418,7 +418,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._eval_session = tf.Session(graph=augmented_eval_graph)
 
         # Add transfer learning re-train Ops to the evaluation graph:
-        with augmented_eval_graph.as_default() as further_augmented_eval_graph:
+        with self._eval_session.graph.as_default() as further_augmented_eval_graph:
             with further_augmented_eval_graph.name_scope('eval_graph') as scope:
                 # Add the transfer learning re-train layers:
                 (_, _, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
@@ -427,7 +427,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     is_training=False
                 )
 
-                # Restore the values form the training graph to the eval graph:
+                # Restore the trained values form the training graph to the eval graph:
                 tf.train.Saver().restore(self._eval_session, os.path.join(self.ckpt_dir, 'model.ckpt'))
 
                 # Add the prediction operations to the eval session graph for export:
@@ -435,12 +435,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     y_proba_tensor=y_proba_tensor,
                     y_tensor=y_tensor
                 )
-        augmented_eval_graph = further_augmented_eval_graph
-        self._eval_graph = augmented_eval_graph
         tf.reset_default_graph()
         return self._eval_session, self._eval_graph_resized_input_tensor, X_tensor, y_tensor, acc_eval_step, top_five_acc_eval_step, predictions
 
-    def export_model(self, saved_model_dir, final_tensor_name='y_proba'):
+    def export_model(self, saved_model_dir, human_readable_class_labels, final_tensor_name='y_proba'):
         """
         Exports a trained model for use with TensorFlow serving.
 
@@ -469,6 +467,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             )
             builder.save()
 
+        # Export labels as text file for use in inference:
+        with tf.gfile.GFile(os.path.join(self.ckpt_dir, 'class_labels.txt'), 'w') as fp:
+            fp.write('\n'.join(human_readable_class_labels) + '\n')
             # Build signature definition map:
             # feature_configs = {
             #     'resized_input_tensor': tf.FixedLenFeature(shape=self._eval_graph_resized_input_tensor.shape, dtype=tf.float32)
