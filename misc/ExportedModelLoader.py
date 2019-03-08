@@ -72,5 +72,17 @@ if __name__ == '__main__':
     # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg')
     # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.JPG')
     labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg")
+    print('True Sample Class: \'aconitum napellus l\'')
     print('labels: %s' % labels)
     print('y_proba: %s' % results)
+
+    labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\anemone coronaria l\\1441326217337cmDHzGcGpgMbbZ1H.jpg")
+    print('True Sample Class: \'anemone coronaria l\'')
+    print('labels: %s' % labels)
+    print('y_proba: %s' % results)
+
+    labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\ajuga iva (l.) schreb\\1441351317032Va9XmHMbLugbA56p.jpg")
+    print('True Sample Class: \'ajuga iva\'')
+    print('labels: %s' % labels)
+    print('y_proba: %s' % results)
+
