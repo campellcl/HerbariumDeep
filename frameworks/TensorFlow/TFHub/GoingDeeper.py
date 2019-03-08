@@ -486,7 +486,11 @@ def main(run_config):
     TensorBoard summaries directory:
     """
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
-    _prepare_tensor_board_directories(tb_summaries_dir='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model\\')
+    # Ensure model export directory does not exist:
+    saved_model_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\trained_model\\'
+    if tf.gfile.Exists(saved_model_dir):
+        # Delete everything in the directory recursively:
+        tf.gfile.DeleteRecursively(saved_model_dir)
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
     bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir)

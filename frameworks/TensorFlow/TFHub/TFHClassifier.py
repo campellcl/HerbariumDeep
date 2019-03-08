@@ -17,7 +17,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, class_labels, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
                  activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp\\summaries\\',
-                 ckpt_dir='tmp\\', saved_model_dir='tmp/trained_model/', refit=False):
+                 ckpt_dir='tmp\\', saved_model_dir='tmp\\trained_models\\', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
         :param optimizer: The type of optimizer to use during training (tf.train.AdamOptimizer by default).
@@ -60,14 +60,15 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._eval_graph_global_init = None
         self._eval_session = None
 
-
         # Create a FileWriter object to export tensorboard information:
         self._train_writer = None
         self._val_writer = None
         ''' TensorBoard Related Variables: '''
         self._train_graph_merged_summaries = None
         self._eval_graph_merged_summaries = None
+        # TODO: Replace seperate logging directories with one output logging dir and handle TB separation internally:
         self.ckpt_dir = ckpt_dir
+        self.relative_ckpt_dir = None
         self.saved_model_dir = saved_model_dir
         self.tb_logdir = tb_logdir
         self.refit = refit
@@ -653,6 +654,15 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             tb_log_dir_val = os.path.join(self.tb_logdir, 'val')
         tb_log_dir_val = os.path.join(tb_log_dir_val, self.__repr__())
 
+        # Model Checkpoint directory for save and restore:
+        if not self.refit:
+            # Checkpoint directory relative to this specific instance's hyperparmater combination:
+            relative_checkpoint_dir = os.path.join(self.ckpt_dir, 'trained_models\\gs\\')
+            relative_checkpoint_dir = os.path.join(relative_checkpoint_dir, self.__repr__())
+        else:
+            relative_checkpoint_dir = os.path.join(self.ckpt_dir, 'trained_models')
+        relative_checkpoint_dir = os.path.join(relative_checkpoint_dir, 'checkpoints')
+        self.relative_ckpt_dir = relative_checkpoint_dir
         ''' Build the computational graphs: '''
         self._train_graph = tf.Graph()
         self._eval_graph = tf.Graph()
@@ -749,16 +759,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
                 # Check to see if a checkpoint should be recorded this epoch:
                 if is_last_step:
-                    tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % os.path.join(self.ckpt_dir, 'model.ckpt'))
-                    self._train_saver.save(sess, os.path.join(self.ckpt_dir, 'model.ckpt'))
+                    tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.relative_ckpt_dir)
+                    self._train_saver.save(sess, os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
                     # Constant OP for tf.Serving export code of stand-alone model goes here:
                     # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
                     # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
                     # self.save_graph_to_file(graph_file_name=intermediate_file_name, module_spec=self._module_spec, class_count=n_outputs)
                 else:
                     if ckpt_freq != 0 and epoch > 0 and ((epoch % ckpt_freq == 0)):
-                        tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % os.path.join(self.ckpt_dir, 'model.ckpt'))
-                        self._train_saver.save(sess, os.path.join(self.ckpt_dir, 'model.ckpt'))
+                        tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % self.relative_ckpt_dir)
+                        self._train_saver.save(sess, os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
                     else:
                         # Don't save checkpoint
                         pass
@@ -769,6 +779,13 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 self._restore_model_params(best_params)
 
             # Export the trained model for use with serving:
+            if not self.refit:
+                saved_model_relative_dir = os.path.join(self.saved_model_dir, 'gs')
+                saved_model_relative_dir = os.path.join(saved_model_relative_dir, self.__repr__())
+            else:
+                relative_dir = os.path.join(self.saved_model_dir, self.__repr__())
+            # Export the trained model:
+            self.export_model(saved_model_dir=relative_dir, human_readable_class_labels=self.class_labels, final_tensor_name='y_proba')
             # export_model(module_spec=self._module_spec, class_count=n_outputs, saved_model_dir=self.saved_model_dir)
             return self
 
