@@ -464,7 +464,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 self._eval_session, [tf.saved_model.tag_constants.SERVING],
                 signature_def_map={
                     tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: signature
-                }
+                },
+                main_op=tf.tables_initializer()
             )
             builder.save()
 
