@@ -769,7 +769,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 self._restore_model_params(best_params)
 
             # Export the trained model for use with serving:
-            # export_model(module_spec=self._module_spec, class_count=n_outputs, saved_model_dir=self.saved_model_dir)
+            # saved_model_dir = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\trained_models', self.__repr__())
+            # self.export_model(saved_model_dir=saved_model_dir, human_readable_class_labels=self.class_labels, final_tensor_name='y_proba')
             return self
 
     def predict_proba(self, X):
