@@ -132,6 +132,7 @@ def tf_event_files_to_csv(event_files, output_path):
     events_df.to_csv(output_path)
     return events_df
 
+
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\val\\"
@@ -145,7 +146,8 @@ if __name__ == '__main__':
         file_glob = os.path.join(sub_dir, 'events.out.tfevents.*')
         file_list.extend(tf.gfile.Glob(file_glob))
         output_dir = os.path.join(path, dir_name)
-        output_dir = os.path.join(output_dir, dir_name.replace(',', '_') + '.csv')
+        # output_dir = os.path.join(output_dir, dir_name.replace(',', '_') + '.csv')
+        output_dir = os.path.join(output_dir, 'events.csv')
         events_df = tf_event_files_to_csv(file_list, output_path=output_dir)
 
         # events_df.to_csv(os.path.join())
