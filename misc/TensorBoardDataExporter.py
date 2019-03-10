@@ -108,7 +108,8 @@ def tabulate_tensorboard_events(event_files):
     return event_steps, accumulated_output
 
 
-def tf_event_files_to_csv(event_files):
+def tf_event_files_to_csv(event_files, output_path):
+    events_df = None
     log_dir = os.path.abspath(os.path.join(event_files[0], os.pardir))
     steps, accumulated_output = tabulate_tensorboard_events(event_files=event_files)
     mean_loss = np.mean(accumulated_output['train_graph/final_retrain_ops/loss_1'])
@@ -122,12 +123,18 @@ def tf_event_files_to_csv(event_files):
         # df = pd.DataFrame(as_np_array[i], index=np.array(steps), columns=np.array(tags[i]))
         df = pd.DataFrame(as_np_array[i])
         df = df.rename(columns={0: os.path.basename(tag)})
-        output_fname = tag.replace('/', '_') + '.csv'
-        df.to_csv(os.path.join(log_dir, output_fname))
+        if i == 0:
+            events_df = df.copy()
+        else:
+            events_df = events_df.join(df)
+        # output_fname = tag.replace('/', '_') + '.csv'
+        # df.to_csv(os.path.join(log_dir, output_fname))
+    events_df.to_csv(output_path)
+    return events_df
 
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
-    path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\train\\"
+    path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\val\\"
     sub_dirs = sorted(x[0] for x in tf.gfile.Walk(path))
     for i, sub_dir in enumerate(sub_dirs):
         file_list = []
@@ -137,6 +144,10 @@ if __name__ == '__main__':
         tf.logging.info('Converting TensorBoard events to csv files in: \'%s\'' % sub_dir)
         file_glob = os.path.join(sub_dir, 'events.out.tfevents.*')
         file_list.extend(tf.gfile.Glob(file_glob))
-        tf_event_files_to_csv(file_list)
+        output_dir = os.path.join(path, dir_name)
+        output_dir = os.path.join(output_dir, dir_name.replace(',', '_') + '.csv')
+        events_df = tf_event_files_to_csv(file_list, output_path=output_dir)
+
+        # events_df.to_csv(os.path.join())
         # to_csv(file_list[0])
     # to_csv(path)
