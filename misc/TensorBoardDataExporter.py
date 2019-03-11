@@ -300,16 +300,16 @@ def plot_scatter_plot_with_sliders(hyperparams_df):
     data = [trace]
 
     steps = []
-    for i in range(len([10, 20])):
+    for i in range(len(hyperparams_df['train_batch_size'].unique())):
         step = dict(
-            method='restyle',
-            args=['visible', [False] * len([10, 20])],
+            method='update',
+            args=['visible', [False] * len(hyperparams_df['train_batch_size'].unique())],
         )
         step['args'][1][i] = True
         steps.append(step)
 
     sliders = [dict(
-        active=2,
+        active=0,
         currentvalue={'prefix': 'Frequency'},
         pad={'t': 50},
         steps=steps
