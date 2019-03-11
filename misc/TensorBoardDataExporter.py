@@ -26,8 +26,9 @@ import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import plotly
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 
@@ -111,6 +112,8 @@ class TensorBoardDataExporter:
         return events_df
 
     def export_all_summaries_as_csv(self):
+        hyper_strings = []
+        event_dataframes = []
         for i, dir in enumerate(self.target_dirs):
             file_list = []
             dir_name = os.path.basename(dir)
@@ -119,6 +122,72 @@ class TensorBoardDataExporter:
             file_list.extend(tf.gfile.Glob(file_glob))
             output_dir = os.path.join(dir, 'events.csv')
             events_df = TensorBoardDataExporter._tf_event_files_to_csv(file_list, output_path=output_dir)
+            hyper_strings.append(dir_name)
+            event_dataframes.append(events_df)
+        return hyper_strings, event_dataframes
+
+    @staticmethod
+    def generate_hyperparameter_heatmap(hyperparameter_strings, hyperparameter_event_dataframes):
+        hyperstring_stats = OrderedDict()
+        mean_losses = []
+        mean_accuracies = []
+        mean_top_five_accuracies = []
+        for (hyper_string, event_dataframe) in zip(hyperparameter_strings, hyperparameter_event_dataframes):
+            mean_loss = np.mean(event_dataframe['loss_1'])
+            mean_losses.append(mean_loss)
+
+            mean_acc = np.mean(event_dataframe['accuracy_1'])
+            mean_accuracies.append(mean_acc)
+
+            mean_top_five_acc = np.mean(event_dataframe['top_five_accuracy'])
+            mean_top_five_accuracies.append(mean_top_five_acc)
+
+            hyperstring_statistics = {'mean_loss': mean_loss, 'mean_acc': mean_acc, 'mean_top_five_acc': mean_top_five_acc}
+            hyperstring_stats[hyper_string] = hyperstring_statistics
+        hyper_string = list(hyperstring_stats.keys())[0]
+
+        hyper_params_df = pd.DataFrame(columns=['mean_acc', 'mean'])
+        raise NotImplementedError
+
+def convert_to_hyperparameter_dataframe(hyper_strings, event_dataframes):
+    hyperparams_df = pd.DataFrame(columns=['initializer', 'optimizer', 'activation', 'train_batch_size', 'mean_acc', 'mean_loss', 'mean_top_five_acc'])
+    for hyper_string, event_dataframe in zip(hyper_strings, event_dataframes):
+        initializer = hyper_string.split(',')[0]
+        optimizer = hyper_string.split(',')[1]
+        activation = hyper_string.split(',')[2]
+        train_batch_size = int((hyper_string.split(',')[3]).split('__')[-1])
+        mean_acc = np.mean(event_dataframe['accuracy_1'])
+        mean_loss = np.mean(event_dataframe['loss_1'])
+        mean_top_five_acc = np.mean(event_dataframe['top_five_accuracy'])
+        df_series = pd.Series({
+            'initializer': initializer, 'optimizer': optimizer, 'activation': activation,
+            'train_batch_size': train_batch_size, 'mean_acc': mean_acc, 'mean_loss': mean_loss,
+            'mean_top_five_acc': mean_top_five_acc
+        })
+        hyperparams_df = hyperparams_df.append(df_series, ignore_index=True)
+    hyperparams_df['train_batch_size'] = hyperparams_df.train_batch_size.astype(int)
+    hyperparams_df['mean_acc'] = hyperparams_df.mean_acc.astype(float)
+    hyperparams_df['mean_loss'] = hyperparams_df.mean_loss.astype(float)
+    hyperparams_df['mean_top_five_acc'] = hyperparams_df.mean_top_five_acc.astype(float)
+    return hyperparams_df
+
+def plot_scatter_plot(hyperparams_df):
+    """
+    plot_scatter_plot: Uses plotly to create a 3d scatter plot of the hyperparameter combinations and their accuracies.
+    :source url: https://github.com/xoelop/Medium-posts/blob/master/3d%20cross%20validation/ML%206%20-%20Gridsearch%20visulizations%20.ipynb
+    :author: Xoel Lopez Barata (modified by Chris Campell)
+    :param hyperparams_df:
+    :return:
+    """
+    trace = plotly.graph_objs.Scatter3d(
+        x=hyperparams_df['initializer'],
+        y=hyperparams_df['optimizer'],
+        z=hyperparams_df['activation'],
+        mode='markers',
+        marker=dict(
+            size=hyperparams_df
+        )
+    )
 
 
 if __name__ == '__main__':
@@ -126,5 +195,7 @@ if __name__ == '__main__':
     # path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\val\\"
     __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\'
     tb_exporter = TensorBoardDataExporter(root_summaries_dir=__path)
-    tb_exporter.export_all_summaries_as_csv()
-
+    __hyper_strings, __event_dataframes = tb_exporter.export_all_summaries_as_csv()
+    hyperparams_df = convert_to_hyperparameter_dataframe(__hyper_strings, __event_dataframes)
+    plot_scatter_plot(hyperparams_df)
+    # hyperparameter_heatmap = TensorBoardDataExporter.generate_hyperparameter_heatmap(hyperparameter_strings=__hyper_strings, hyperparameter_event_dataframes=__event_dataframes)
