@@ -423,11 +423,18 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     # }
 
     params = {
-        'initializer': [initializers['he_normal']],
-        'activation': [activations['LeakyReLU']],
-        'optimizer': [optimizers['Nesterov']],
+        'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
+        'activation': [activations['LeakyReLU'], activations['ELU']],
+        'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
         'train_batch_size': [10, 20]
     }
+
+    # params = {
+    #     'initializer': [initializers['he_normal']],
+    #     'activation': [activations['LeakyReLU']],
+    #     'optimizer': [optimizers['Nesterov']],
+    #     'train_batch_size': [10, 20]
+    # }
 
     num_epochs = 10
     eval_freq = 1
