@@ -1,6 +1,7 @@
 import pandas as pd
+import numpy as np
 from sklearn.datasets import load_iris
-from pandas.plotting import parallel_coordinates
+# from pandas.plotting import parallel_coordinates
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import inflect
@@ -100,22 +101,96 @@ import inflect
     #
     # parallel_coordinates(data, style=colors).show()
 
+def parallel_coords(df):
+    cols = ['optimizer', 'activation', 'mean_acc']
+    x = [i for i in range(len(cols) - 1)]
+    optimizer_colors = ['blue', 'black', 'red', 'green']
+    mean_acc_colors = ['#2e8ad8', '#cd3785', 'yellow', 'green', 'blue']
+    mean_acc_cut = pd.cut(df.mean_acc, [0.0, 0.25, 0.5, 0.75, 1.0])
+    mean_acc_color_mappings = {mean_acc_cut.cat.categories[i]: mean_acc_colors[i] for i, _ in enumerate(mean_acc_cut.cat.categories)}
+
+    # color_mapping = {pd.cut(df['mean_acc']}
+    fig, axes = plt.subplots(1, len(x), sharey='none', figsize=(15,2))
+
+    # min, max, and range for each column:
+    min_max_range = {}
+    for col in cols:
+        if col == 'optimizer' or col == 'activation':
+            min_max_range[col] = [df[col].cat.codes.min(), df[col].cat.codes.max(), np.ptp(df[col].cat.codes)]
+        else:
+            min_max_range[col] = [df[col].min(), df[col].max(), np.ptp(df[col])]
+            # Normalize the column:
+            df[col] = np.true_divide(df[col] - df[col].min(), np.ptp(df[col]))
+
+    # Plot each row
+    for i, ax in enumerate(axes):
+        for idx in df.index:
+            mean_acc_interval = mean_acc_cut.loc[idx]
+            ax.plot(x, df.loc[idx, ['optimizer', 'activation']], mean_acc_color_mappings[mean_acc_interval])
+        if len(axes) == 2:
+            if i == 0:
+                ax.set_xlim([x[i], x[i+1]])
+            elif i == 1:
+                ax.set_xlim(x[i], x[i]+1)
+        else:
+            ax.set_xlim([x[i], x[i+1]])
+
+    # set tick positions and labels on y axis for each plot
+    def set_ticks_for_axis(dim, ax, ticks):
+        min_val, max_val, val_range = min_max_range[cols[dim]]
+        step = val_range / float(ticks-1)
+
+        if dim == 0 or dim == 1:
+            tick_labels = [df[cols[dim]].cat.categories[code] for code in df[cols[dim]].cat.codes.unique()]
+        else:
+            tick_labels = [round(min_val + step * i, 2) for i in range(ticks)]
+        try:
+            norm_min = df[cols[dim]].min()
+        except TypeError:
+            norm_min = df[cols[dim]].cat.codes.min()
+        try:
+            norm_range = np.ptp(df[cols[dim]])
+        except TypeError:
+            norm_range = np.ptp(df[cols[dim]].cat.codes)
+        norm_step = norm_range / float(ticks-1)
+        ticks = [round(norm_min + norm_step * i, 2) for i in range(ticks)]
+        ax.yaxis.set_ticks(ticks)
+        ax.set_yticklabels(tick_labels)
+
+    for dim, ax in enumerate(axes):
+        ax.xaxis.set_major_locator(ticker.FixedLocator([dim]))
+        set_ticks_for_axis(dim, ax, ticks=2)
+        ax.set_xticklabels([cols[dim]])
+
+    # Move final axis' ticks to right-hand side
+    ax = plt.twinx(axes[-1])
+    dim = len(axes)
+    ax.xaxis.set_major_locator(ticker.FixedLocator([x[-2], x[-1]]))
+    set_ticks_for_axis(dim, ax, ticks=2)
+    ax.set_xticklabels([cols[-2], cols[-1]])
+
+    # Remove space between subplots:
+    plt.subplots_adjust(wspace=0)
+
+    plt.show()
 
 if __name__ == '__main__':
     _path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\hyperparams.pkl'
     df = pd.read_pickle(_path)
-    scale = 10
-    df['initializer_encoded'] = df.initializer.cat.codes * scale
-    df['optimizer_encoded'] = df.optimizer.cat.codes * scale
-    df['activation_encoded'] = df.activation.cat.codes * scale
-    # df['train_batch_size'] = df.train_batch_size.astype('category')
-    df['mean_acc'] = pd.cut(df['mean_acc'], [0, 0.25, 0.5, 0.75, 1.0])
-    plt.figure()
-    parallel_coordinates(df[['initializer_encoded', 'activation_encoded', 'optimizer_encoded', 'train_batch_size', 'mean_acc']], class_column='mean_acc', colormap='viridis')
-    ax = plt.gca()
-    for i, (label, val) in df.loc[:, ['initializer', 'initializer_encoded']].drop_duplicates().iterrows():
-        ax.annotate(label, xy=(0, val), ha='left', va='center')
-    plt.show()
+    parallel_coords(df)
+
+    # scale = 10
+    # df['initializer_encoded'] = df.initializer.cat.codes * scale
+    # df['optimizer_encoded'] = df.optimizer.cat.codes * scale
+    # df['activation_encoded'] = df.activation.cat.codes * scale
+    # # df['train_batch_size'] = df.train_batch_size.astype('category')
+    # df['mean_acc'] = pd.cut(df['mean_acc'], [0, 0.25, 0.5, 0.75, 1.0])
+    # parallel_coordinates(df[['initializer_encoded', 'activation_encoded', 'optimizer_encoded', 'train_batch_size', 'mean_acc']], class_column='mean_acc', colormap='viridis')
+    # ax = plt.gca()
+    # for i, (label, val) in df.loc[:, ['initializer', 'initializer_encoded']].drop_duplicates().iterrows():
+    #     ax.annotate(label, xy=(0, val), ha='left', va='center')
+    # plt.show()
+
     # data = load_iris()
     # df = pd.DataFrame(data.data, columns=data.feature_names)
     # mappings = {'setosa': 0, 'versicolor': 1, 'virginica': 2}

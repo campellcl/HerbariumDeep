@@ -24,7 +24,61 @@ df['Text'] = text
 
 app.layout = html.Div(
     children=[html.H1(children='Hello Dash'),
-    html.Div(children='''Dash: A web appplication framework for Python.'''),
+        html.Div(children=[
+            html.Div(children=[
+                dcc.Graph(
+                id='my-graph',
+                style={'height': '100%'},
+                figure={
+                    'data': [
+                        go.Scatter3d(
+                            x=df['initializer'],
+                            y=df['optimizer'],
+                            z=df['activation'],
+                            mode='markers',
+                            marker=dict(
+                                # size=mean_fit_time ** (1 / 3),
+                                color=df.mean_acc,
+                                opacity=0.99,
+                                colorscale='Viridis',
+                                colorbar=dict(title='Mean Acc', tickmode='auto', nticks=10),
+                                line=dict(color='rgb(140, 140, 170)')
+                            ),
+                            text=df.Text,
+                            hoverinfo='text'
+                        )
+                    ],
+                    'layout': [
+                        go.Layout(
+                            title='3D Scatter Plot of Grid Search Results',
+                            margin=dict(
+                                l=30,
+                                r=30,
+                                b=30,
+                                t=30
+                            ),
+                            # height=600,
+                            # width=960,
+                            scene=dict(
+                                xaxis=dict(
+                                    title='initializer',
+                                    nticks=10
+                                ),
+                                yaxis=dict(
+                                    title='optimizer'
+                                ),
+                                zaxis=dict(
+                                    title='activation'
+                                ),
+                            )
+                        )
+                    ]
+                }
+            )
+
+            ])
+        ])]
+)
     # dcc.Graph(
     #     id='example-graph',
     #     figure={
@@ -38,55 +92,8 @@ app.layout = html.Div(
     #     }
     # )
 
-    dcc.Graph(
-        id='my-graph',
-        figure={
-            'data': [
-                go.Scatter3d(
-                    x=df['initializer'],
-                    y=df['optimizer'],
-                    z=df['activation'],
-                    mode='markers',
-                    marker=dict(
-                        # size=mean_fit_time ** (1 / 3),
-                        color=df.mean_acc,
-                        opacity=0.99,
-                        colorscale='Viridis',
-                        colorbar=dict(title='Mean Acc', tickmode='auto', nticks=10),
-                        line=dict(color='rgb(140, 140, 170)')
-                    ),
-                    text=df.Text,
-                    hoverinfo='text'
-                )
-            ],
-            'layout': [
-                go.Layout(
-                    title='3D Scatter Plot of Grid Search Results',
-                    margin=dict(
-                        l=30,
-                        r=30,
-                        b=30,
-                        t=30
-                    ),
-                    # height=600,
-                    # width=960,
-                    scene=dict(
-                        xaxis=dict(
-                            title='initializer',
-                            nticks=10
-                        ),
-                        yaxis=dict(
-                            title='optimizer'
-                        ),
-                        zaxis=dict(
-                            title='activation'
-                        ),
-                    )
-                )
-            ]
-        }
-    )
-])
+
+], style={'height': '900px'})
 
 
 
