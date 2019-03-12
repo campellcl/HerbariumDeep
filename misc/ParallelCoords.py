@@ -4,7 +4,8 @@ from sklearn.datasets import load_iris
 # from pandas.plotting import parallel_coordinates
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import inflect
+from matplotlib import cm
+# import inflect
 
 
 
@@ -101,16 +102,18 @@ import inflect
     #
     # parallel_coordinates(data, style=colors).show()
 
+
 def parallel_coords(df):
     cols = ['optimizer', 'activation', 'mean_acc']
     x = [i for i in range(len(cols) - 1)]
     optimizer_colors = ['blue', 'black', 'red', 'green']
-    mean_acc_colors = ['#2e8ad8', '#cd3785', 'yellow', 'green', 'blue']
+    mean_acc_colors = ['red', 'orange', 'yellow', 'green', 'blue']
     mean_acc_cut = pd.cut(df.mean_acc, [0.0, 0.25, 0.5, 0.75, 1.0])
     mean_acc_color_mappings = {mean_acc_cut.cat.categories[i]: mean_acc_colors[i] for i, _ in enumerate(mean_acc_cut.cat.categories)}
 
     # color_mapping = {pd.cut(df['mean_acc']}
-    fig, axes = plt.subplots(1, len(x), sharey='none', figsize=(15,2))
+    # fig, axes = plt.subplots(1, len(x), sharey='none', figsize=(15, 2))
+    fig, axes = plt.subplots(1, len(x) + 1, sharey='none') # + 1 for color bar
 
     # min, max, and range for each column:
     min_max_range = {}
@@ -124,16 +127,20 @@ def parallel_coords(df):
 
     # Plot each row
     for i, ax in enumerate(axes):
+        if i == len(axes) - 1:
+            continue
         for idx in df.index:
             mean_acc_interval = mean_acc_cut.loc[idx]
             ax.plot(x, df.loc[idx, ['optimizer', 'activation']], mean_acc_color_mappings[mean_acc_interval])
-        if len(axes) == 2:
+        if len(axes) - 1 == 2:
             if i == 0:
                 ax.set_xlim([x[i], x[i+1]])
             elif i == 1:
                 ax.set_xlim(x[i], x[i]+1)
         else:
             ax.set_xlim([x[i], x[i+1]])
+
+
 
     # set tick positions and labels on y axis for each plot
     def set_ticks_for_axis(dim, ax, ticks):
@@ -154,31 +161,66 @@ def parallel_coords(df):
             norm_range = np.ptp(df[cols[dim]].cat.codes)
         norm_step = norm_range / float(ticks-1)
         ticks = [round(norm_min + norm_step * i, 2) for i in range(ticks)]
-        ax.yaxis.set_ticks(ticks)
+
+        ax.yaxis.set_ticks(ticks=[i for i in range(len(ax.yaxis.get_major_ticks()))])
+        df_tick_labels = ax.get_yticklabels(minor=False)
+        tick_labels = df_tick_labels.copy()
+        if dim == 0:
+            tick_labels[1] = ''
+            tick_labels[2] = ''
+        elif dim == 1:
+            tick_labels[0] = ''
+            tick_labels[3] = ''
         ax.set_yticklabels(tick_labels)
+        # ax.set_you
+        # ax.set_ylim([0, 1], auto=True)
+        # ax.autoscale(enable=True, axis=ax.yaxis)
 
     for dim, ax in enumerate(axes):
-        ax.xaxis.set_major_locator(ticker.FixedLocator([dim]))
-        set_ticks_for_axis(dim, ax, ticks=2)
-        ax.set_xticklabels([cols[dim]])
+        if dim != len(axes) - 1:
+            ax.xaxis.set_major_locator(ticker.FixedLocator([dim]))
+            set_ticks_for_axis(dim, ax, ticks=2)
+            ax.set_xticklabels([cols[dim]])
+
 
     # Move final axis' ticks to right-hand side
-    ax = plt.twinx(axes[-1])
-    dim = len(axes)
-    ax.xaxis.set_major_locator(ticker.FixedLocator([x[-2], x[-1]]))
-    set_ticks_for_axis(dim, ax, ticks=2)
-    ax.set_xticklabels([cols[-2], cols[-1]])
+    # ax = plt.twinx(axes[-2])
+    # dim = len(axes)
+    # ax.xaxis.set_major_locator(ticker.FixedLocator([x[-2], x[-1]]))
+    # set_ticks_for_axis(dim, ax, ticks=2)
+    # ax.set_xticklabels([cols[-2], cols[-1]])
 
     # Remove space between subplots:
     plt.subplots_adjust(wspace=0)
 
+    # Add colorbar:
+    # cax = plt.twinx(axes[-1])
+    # fig.axes[-1].imshow(df['mean_acc'].values, interpolation='nearest', cmap=cm.coolwarm)
+
+    # custom colormap:
+    # cdic
+
+    # cbar = fig.colorbar(fig.axes[-1], ticks=[0, 1, 2, 3], orientation='vertical')
+
+    # add legend:
+    plt.legend(
+        [plt.Line2D((0, 1), (0, 0), color=mean_acc_color_mappings[cat]) for cat in mean_acc_cut.cat.categories],
+        mean_acc_cut.cat.categories, bbox_to_anchor=(1.2, 1), loc=0, borderaxespad=0.0
+    )
+
+    # cbar.ax.set_yticklabels(['< -1', '0', '> 1'])
+
+    plt.title('Accuracy with varying hyperparameters')
+
     plt.show()
 
-if __name__ == '__main__':
-    _path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\hyperparams.pkl'
-    df = pd.read_pickle(_path)
-    parallel_coords(df)
 
+if __name__ == '__main__':
+    # _path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\hyperparams.pkl'
+    __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\tests\\hyperparams.pkl'
+    df = pd.read_pickle(__path)
+    parallel_coords(df)
+    print()
     # scale = 10
     # df['initializer_encoded'] = df.initializer.cat.codes * scale
     # df['optimizer_encoded'] = df.optimizer.cat.codes * scale
