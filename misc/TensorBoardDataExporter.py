@@ -187,6 +187,9 @@ def convert_to_hyperparameter_dataframe(hyper_strings, event_dataframes):
             'mean_loss': mean_loss, 'mean_top_five_acc': mean_top_five_acc
         })
         hyperparams_df = hyperparams_df.append(df_series, ignore_index=True)
+    hyperparams_df['initializer'] = hyperparams_df.initializer.astype(dtype='category')
+    hyperparams_df['optimizer'] = hyperparams_df.optimizer.astype(dtype='category')
+    hyperparams_df['activation'] = hyperparams_df.activation.astype(dtype='category')
     hyperparams_df['train_batch_size'] = hyperparams_df.train_batch_size.astype(int)
     hyperparams_df['fit_time_sec'] = hyperparams_df.fit_time_sec.astype(float)
     hyperparams_df['mean_acc'] = hyperparams_df.mean_acc.astype(float)
