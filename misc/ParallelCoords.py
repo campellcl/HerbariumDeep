@@ -119,21 +119,21 @@ def parallel_coords(df):
     # fig, axes = plt.subplots(1, len(x), sharey='none')  # + 1 for color bar
     fig = plt.figure()
     # First axis is for optimizer:
-    optimizer_axis = plt.subplot(1, len(x), 0)
+    optimizer_axis = plt.subplot(1, len(x), 1)
     fig.add_subplot(optimizer_axis, sharex=None, sharey=None)
     # plt.setp(optimizer_axis.get_xticklabels(), fontsize=6)
 
     # Second axis is for activation:
-    activation_axis = plt.subplot(1, len(x), 1)
+    activation_axis = plt.subplot(1, len(x), 2)
     fig.add_subplot(activation_axis, sharex=None, sharey=None)
 
     # Third axis is for train_batch_size and does sharex:
-    train_batch_axis = plt.subplot(1, len(x), 2)
+    train_batch_axis = plt.subplot(1, len(x), 3)
     fig.add_subplot(train_batch_axis, sharex=activation_axis, sharey=None)
     # fig.add_subplot()
 
     # fourth axis is for colorbar:
-    cax = plt.subplot(1, len(x), 3)
+    cax = plt.subplot(1, len(x), 4)
     fig.add_subplot(cax, sharex=None, sharey=None)
 
     axes = [optimizer_axis, activation_axis, train_batch_axis, cax]
@@ -158,7 +158,8 @@ def parallel_coords(df):
             for idx in df.index:
                 mean_acc_interval = mean_acc_cut.loc[idx]
                 ax.plot(x[0:len(x)-1], df.loc[idx, ['optimizer', 'activation', 'train_batch_size']], mean_acc_color_mappings[mean_acc_interval])
-            ax.set_xlim([x[i], x[i]])
+            # ax.set_xlim([x[i], x[i]])
+            pass
         else:
             for idx in df.index:
                 mean_acc_interval = mean_acc_cut.loc[idx]
@@ -187,7 +188,8 @@ def parallel_coords(df):
 
         ax.yaxis.set_ticks(ticks=[i for i in range(len(ax.yaxis.get_major_ticks()))])
         df_tick_labels = ax.get_yticklabels(minor=False)
-        tick_labels = df_tick_labels.copy()
+        # tick_labels = [tick_label[2].split('_')[-1] for tick_label in df_tick_labels]
+        tick_labels = [tick_label.get_text().split('_')[-1] for tick_label in df_tick_labels]
         if dim == 0:
             relevant_tick_labels = [0, len(tick_labels)-1]
             # tick_labels[1] = ''
@@ -207,14 +209,25 @@ def parallel_coords(df):
         # ax.autoscale(enable=True, axis=ax.yaxis)
 
     for dim, ax in enumerate(axes):
-        if dim != len(axes) - 1:
+        if dim == len(axes) - 1:
+            pass
+        elif dim == len(axes) - 2:
+            # Last subfigure
+            ax.xaxis.set_major_locator(ticker.FixedLocator([dim-1]))
+            pass
+        else:
             ax.xaxis.set_major_locator(ticker.FixedLocator([dim]))
             set_ticks_for_axis(dim, ax, ticks=2)
             ax.set_xticklabels([cols[dim]])
 
 
     # Move final axis' ticks to right-hand side
-    # ax = plt.twinx(axes[-2])
+    ax = plt.twinx(axes[1])
+    dim = 1
+    ax.xaxis.set_major_locator(ticker.FixedLocator([x[0], x[1]]))
+    set_ticks_for_axis(dim=dim, ax=ax, ticks=2)
+
+    # ax.set_xticklabels
     # dim = len(axes)
     # ax.xaxis.set_major_locator(ticker.FixedLocator([x[-2], x[-1]]))
     # set_ticks_for_axis(dim, ax, ticks=2)
