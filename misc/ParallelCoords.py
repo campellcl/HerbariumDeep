@@ -108,15 +108,35 @@ def parallel_coords(df):
     df.train_batch_size = df.train_batch_size.apply(str)
     # df['train_batch_size_encoded'] = df.train_batch_size.cat.codes
     cols = ['optimizer', 'activation', 'train_batch_size', 'mean_acc']
-    x = [i for i in range(len(cols))]
-    optimizer_colors = ['blue', 'black', 'red', 'green']
+    x = [i for i in range(len(cols))]   # Include +1 for colorbar (normally colorbar val 'mean_acc' is excluded)
     mean_acc_colors = ['red', 'orange', 'yellow', 'green', 'blue']
     mean_acc_cut = pd.cut(df.mean_acc, [0.0, 0.25, 0.5, 0.75, 1.0])
     mean_acc_color_mappings = {mean_acc_cut.cat.categories[i]: mean_acc_colors[i] for i, _ in enumerate(mean_acc_cut.cat.categories)}
 
     # color_mapping = {pd.cut(df['mean_acc']}
     # fig, axes = plt.subplots(1, len(x), sharey='none', figsize=(15, 2))
-    fig, axes = plt.subplots(1, len(x), sharey='none')  # + 1 for color bar
+
+    # fig, axes = plt.subplots(1, len(x), sharey='none')  # + 1 for color bar
+    fig = plt.figure()
+    # First axis is for optimizer:
+    optimizer_axis = plt.subplot(1, len(x), 0)
+    fig.add_subplot(optimizer_axis, sharex=None, sharey=None)
+    # plt.setp(optimizer_axis.get_xticklabels(), fontsize=6)
+
+    # Second axis is for activation:
+    activation_axis = plt.subplot(1, len(x), 1)
+    fig.add_subplot(activation_axis, sharex=None, sharey=None)
+
+    # Third axis is for train_batch_size and does sharex:
+    train_batch_axis = plt.subplot(1, len(x), 2)
+    fig.add_subplot(train_batch_axis, sharex=activation_axis, sharey=None)
+    # fig.add_subplot()
+
+    # fourth axis is for colorbar:
+    cax = plt.subplot(1, len(x), 3)
+    fig.add_subplot(cax, sharex=None, sharey=None)
+
+    axes = [optimizer_axis, activation_axis, train_batch_axis, cax]
 
     # min, max, and range for each column:
     min_max_range = {}
