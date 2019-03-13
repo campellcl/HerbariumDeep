@@ -8,27 +8,27 @@ app = dash.Dash(__name__)
 
 _path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\hyperparams.pkl'
 df = pd.read_pickle(_path)
-grid_search_text_list = list(
-    zip(
-        'init: ' + df.initializer.apply(str),
-        'optim: ' + df.optimizer.apply(str),
-        'activ: ' + df.activation.apply(str),
-        'fit time (sec): ' + df.fit_time_sec.apply(str),
-        'mean acc: ' + df.mean_acc.apply(str),
-        'mean loss: ' + df.mean_loss.apply(str),
-        'mean top-k (k=5) acc: ' + df.mean_top_five_acc.apply(str)
-    )
-)
-text = ['<br>'.join(t) for t in grid_search_text_list]
-df['Text'] = text
+
+# grid_search_text_list = list(
+#     zip(
+#         'init: ' + df.initializer.apply(str),
+#         'optim: ' + df.optimizer.apply(str),
+#         'activ: ' + df.activation.apply(str),
+#         'fit time (sec): ' + df.fit_time_sec.apply(str),
+#         'mean acc: ' + df.mean_acc.apply(str),
+#         'mean loss: ' + df.mean_loss.apply(str),
+#         'mean top-k (k=5) acc: ' + df.mean_top_five_acc.apply(str)
+#     )
+# )
+# text = ['<br>'.join(t) for t in grid_search_text_list]
+# df['Text'] = text
 
 app.layout = html.Div(
     children=[html.H1(children='Hello Dash'),
         html.Div(children=[
-            html.Div(children=[
-                dcc.Graph(
+            dcc.Graph(
                 id='my-graph',
-                style={'height': '100%'},
+                style={'height': '900px'},
                 figure={
                     'data': [
                         go.Scatter3d(
@@ -44,7 +44,7 @@ app.layout = html.Div(
                                 colorbar=dict(title='Mean Acc', tickmode='auto', nticks=10),
                                 line=dict(color='rgb(140, 140, 170)')
                             ),
-                            text=df.Text,
+                            # text=df.Text,
                             hoverinfo='text'
                         )
                     ],
@@ -75,9 +75,8 @@ app.layout = html.Div(
                     ]
                 }
             )
-
-            ])
-        ])]
+        ])
+    ], style={'height': '900px'}
 )
     # dcc.Graph(
     #     id='example-graph',
@@ -93,7 +92,7 @@ app.layout = html.Div(
     # )
 
 
-], style={'height': '900px'})
+# ], style={'height': '900px'})
 
 
 
