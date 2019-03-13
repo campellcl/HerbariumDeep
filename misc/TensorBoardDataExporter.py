@@ -25,6 +25,7 @@ author: Spen: https://stackoverflow.com/users/2230045/spen
 import os
 import numpy as np
 import pandas as pd
+from pandas.api.types import CategoricalDtype
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -129,8 +130,15 @@ class TensorBoardDataExporter:
         return events_df
 
     def export_all_summaries_as_csv(self):
-        hyper_strings = []
-        event_dataframes = []
+        # Houses the gs/train and gs/val hyperparameter strings:
+        gs_hyper_strings = {'train': [], 'val': []}
+        # Houses the grid search winner  train/ and val/ hyperparameter strings:
+        winner_hyper_strings = {'train': None, 'val': None}
+        # Houses the gs/train and gs/val event dataframes:
+        gs_event_dataframes = {'train': [], 'val': []}
+        winner_event_dataframes = {'train': None, 'val': None}
+        # hyper_strings = []
+        # event_dataframes = []
         for i, dir in enumerate(self.target_dirs):
             file_list = []
             dir_name = os.path.basename(dir)
@@ -139,9 +147,36 @@ class TensorBoardDataExporter:
             file_list.extend(tf.gfile.Glob(file_glob))
             output_dir = os.path.join(dir, 'events.csv')
             events_df = TensorBoardDataExporter._tf_event_files_to_csv(file_list, output_path=output_dir)
-            hyper_strings.append(dir_name)
-            event_dataframes.append(events_df)
-        return hyper_strings, event_dataframes
+            # hyper_strings.append(dir_name)
+            # event_dataframes.append(events_df)
+            # Recurse two paths backward to get the root of the logging directory:
+            # root_tb_log_dir = os.path.abspath(os.path.join(os.path.join(dir, os.pardir), os.pardir))
+            relative_parent_dir = dir[len(self.root_summaries_dir):]
+            relative_parent_dir_split = relative_parent_dir.split('\\')
+            if relative_parent_dir_split[0] == 'gs':
+                # The root folder under self.log_dir is part fo the grid search:
+                if relative_parent_dir_split[1] == 'train':
+                    # Training grid search run.
+                    gs_hyper_strings['train'].append(dir_name)
+                    gs_event_dataframes['train'].append(events_df)
+                elif relative_parent_dir_split[1] == 'val':
+                    # Validation grid search run.
+                    gs_hyper_strings['val'].append(dir_name)
+                    gs_event_dataframes['val'].append(events_df)
+            elif relative_parent_dir_split[0] == 'train':
+                # Training run of the winning grid search model:
+                winner_hyper_strings['train'] = dir_name
+                winner_event_dataframes['train'] = events_df
+            elif relative_parent_dir_split[0] == 'val':
+                # Validation run of the winning grid search model:
+                winner_hyper_strings['val'] = dir_name
+                winner_event_dataframes['val'] = events_df
+            elif relative_parent_dir_split[0] == 'summaries':
+                # root dir
+                pass
+            else:
+                raise NotImplementedError
+        return gs_hyper_strings, gs_event_dataframes, winner_hyper_strings, winner_event_dataframes
 
     @staticmethod
     def generate_hyperparameter_heatmap(hyperparameter_strings, hyperparameter_event_dataframes):
@@ -166,36 +201,86 @@ class TensorBoardDataExporter:
         hyper_params_df = pd.DataFrame(columns=['mean_acc', 'mean'])
         raise NotImplementedError
 
-def convert_to_hyperparameter_dataframe(hyper_strings, event_dataframes):
-    hyperparams_df = pd.DataFrame(columns=['initializer', 'optimizer', 'activation', 'train_batch_size', 'fit_time_sec', 'mean_acc', 'mean_loss', 'mean_top_five_acc'])
-    for hyper_string, event_dataframe in zip(hyper_strings, event_dataframes):
-        initializer = hyper_string.split(',')[0]
-        optimizer = hyper_string.split(',')[1]
-        activation = hyper_string.split(',')[2]
-        train_batch_size = int((hyper_string.split(',')[3]).split('__')[-1])
-        wall_times = event_dataframe['wall_times'].values
-        relative_wall_times = [0]
-        elapsed_wall_times = [next_wall_time - current_wall_time for current_wall_time, next_wall_time in zip(wall_times, wall_times[1:])]
-        relative_wall_times.extend(elapsed_wall_times)
-        fit_time_sec = np.sum(relative_wall_times)
-        mean_acc = np.mean(event_dataframe['accuracy_1'])
-        mean_loss = np.mean(event_dataframe['loss_1'])
-        mean_top_five_acc = np.mean(event_dataframe['top_five_accuracy'])
-        df_series = pd.Series({
-            'initializer': initializer, 'optimizer': optimizer, 'activation': activation,
-            'train_batch_size': train_batch_size, 'fit_time_sec': fit_time_sec, 'mean_acc': mean_acc,
-            'mean_loss': mean_loss, 'mean_top_five_acc': mean_top_five_acc
-        })
-        hyperparams_df = hyperparams_df.append(df_series, ignore_index=True)
-    hyperparams_df['initializer'] = hyperparams_df.initializer.astype(dtype='category')
-    hyperparams_df['optimizer'] = hyperparams_df.optimizer.astype(dtype='category')
-    hyperparams_df['activation'] = hyperparams_df.activation.astype(dtype='category')
-    hyperparams_df['train_batch_size'] = hyperparams_df.train_batch_size.astype(int)
-    hyperparams_df['fit_time_sec'] = hyperparams_df.fit_time_sec.astype(float)
-    hyperparams_df['mean_acc'] = hyperparams_df.mean_acc.astype(float)
-    hyperparams_df['mean_loss'] = hyperparams_df.mean_loss.astype(float)
-    hyperparams_df['mean_top_five_acc'] = hyperparams_df.mean_top_five_acc.astype(float)
-    return hyperparams_df
+    @staticmethod
+    def _convert_grid_search_events_to_hyperparameter_dataframe(gs_hyper_strings, gs_event_dataframes):
+        gs_hyperparameter_df = pd.DataFrame(columns=[
+            'initializer', 'optimizer', 'activation', 'train_batch_size', 'fit_time_sec', 'best_epoch_idx_by_loss_min',
+            'best_epoch_acc', 'best_epoch_loss', 'best_epoch_top_five_acc'
+        ])
+        # Go through grid search data:
+        gs_best_epoch_loss = 1
+        if isinstance(gs_hyper_strings, str):
+            # Only single entry:
+            gs_hyper_strings = [gs_hyper_strings]
+            gs_event_dataframes = [gs_event_dataframes]
+        for gs_hyper_string, gs_event_dataframe in zip(gs_hyper_strings, gs_event_dataframes):
+            initializer = gs_hyper_string.split(',')[0]
+            optimizer = gs_hyper_string.split(',')[1]
+            activation = gs_hyper_string.split(',')[2]
+            train_batch_size = int((gs_hyper_string.split(',')[3]).split('__')[-1])
+            wall_times = gs_event_dataframe['wall_times'].values
+            relative_wall_times = [0]
+            elapsed_wall_times = [next_wall_time - current_wall_time for current_wall_time, next_wall_time in zip(wall_times, wall_times[1:])]
+            relative_wall_times.extend(elapsed_wall_times)
+            fit_time_sec = np.sum(relative_wall_times)
+
+            '''
+            This is for the GridSearch training hyperparameter model runs:
+                1. Identify the best performing epoch (according to the minimization of loss) for this particular hyperparameter combination.
+                    a) Record the loss associated with this epoch. 
+                    b) Record the accuracy associated with this epoch. 
+                    c) Record the top five accuracy associated with this epoch.
+                2. Check to see if the recorded statistics are the best (according to minimization of loss) across all GridSearch training hyperparameter model runs:
+                    a) If this new hyperparameter's best epoch-loss is the smallest/best seen so far, mark this hyperparameter combination as the best.
+                    b) Update the associated variables that keep track of the GridSearch's training performance across all hyperparameter combinations.  
+            '''
+            # 1. Record the index associated with the best performing epoch (smallest loss) in this particular hyperparameter set:
+            event_dataframe_best_epoch_index = gs_event_dataframe.loss_1.idxmin(axis=0, skipna=True)
+
+            # Maintain a reference to the best performing epoch in this particular hyperparameter set:
+            event_dataframe_best_epoch_by_loss_minimization = gs_event_dataframe.iloc[event_dataframe_best_epoch_index]
+
+            # 1. a) Record the loss associated with the best performing epoch in this particular hyperparameter set:
+            event_dataframe_best_epoch_loss = event_dataframe_best_epoch_by_loss_minimization.loss_1
+
+            # 1. b) Record the accuracy associated with the best performing epoch in this particular hyperparameter set:
+            event_dataframe_best_epoch_acc = event_dataframe_best_epoch_by_loss_minimization.accuracy_1
+
+            # 2. c) Record the top five accuracy associated with the best performing epoch in this particular hyperparameter set:
+            event_dataframe_best_epoch_top_five_acc = event_dataframe_best_epoch_by_loss_minimization.top_five_accuracy
+
+            # 2. Check to see if this hyperparameter set produced the best performing epoch, out of all GridSearch hyperparameter combinations evaluated on the training data:
+            if event_dataframe_best_epoch_loss < gs_best_epoch_loss:
+                gs_best_epoch_index_by_loss_minimization = event_dataframe_best_epoch_index
+                gs_best_epoch_loss = event_dataframe_best_epoch_loss
+                gs_best_epoch_acc = event_dataframe_best_epoch_acc
+                gs_best_epoch_top_five_acc = event_dataframe_best_epoch_top_five_acc
+            df_series = pd.Series({
+                'initializer': initializer, 'optimizer': optimizer, 'activation': activation,
+                'train_batch_size': train_batch_size, 'fit_time_sec': fit_time_sec,
+                'best_epoch_idx_by_loss_min': event_dataframe_best_epoch_index,
+                'best_epoch_acc': event_dataframe_best_epoch_acc, 'best_epoch_loss': event_dataframe_best_epoch_loss,
+                'best_epoch_top_five_acc': event_dataframe_best_epoch_top_five_acc
+            })
+            gs_hyperparameter_df = gs_hyperparameter_df.append(df_series, ignore_index=True)
+        gs_hyperparameter_df['initializer'] = gs_hyperparameter_df.initializer.astype(dtype='category')
+        gs_hyperparameter_df['optimizer'] = gs_hyperparameter_df.optimizer.astype(dtype='category')
+        gs_hyperparameter_df['activation'] = gs_hyperparameter_df.activation.astype(dtype='category')
+        gs_hyperparameter_df['train_batch_size'] = gs_hyperparameter_df.train_batch_size.astype(int)
+        gs_hyperparameter_df['fit_time_sec'] = gs_hyperparameter_df.fit_time_sec.astype(float)
+        gs_hyperparameter_df['best_epoch_idx_by_loss_min'] = gs_hyperparameter_df.best_epoch_idx_by_loss_min.astype(int)
+        gs_hyperparameter_df['best_epoch_acc'] = gs_hyperparameter_df.best_epoch_acc.astype(float)
+        gs_hyperparameter_df['best_epoch_loss'] = gs_hyperparameter_df.best_epoch_loss.astype(float)
+        gs_hyperparameter_df['best_epoch_top_five_acc'] = gs_hyperparameter_df.best_epoch_top_five_acc.astype(float)
+        return gs_hyperparameter_df
+
+    @staticmethod
+    def _convert_to_hyperparameter_dataframes(gs_hyper_strings, gs_event_dataframes, winner_hyper_strings, winner_event_dataframes):
+        gs_train_hyperparams_df = TensorBoardDataExporter._convert_grid_search_events_to_hyperparameter_dataframe(gs_hyper_strings=gs_hyper_strings['train'], gs_event_dataframes=gs_event_dataframes['train'])
+        gs_val_hyperparams_df = TensorBoardDataExporter._convert_grid_search_events_to_hyperparameter_dataframe(gs_hyper_strings=gs_hyper_strings['val'], gs_event_dataframes=gs_event_dataframes['val'])
+        winner_train_hyperparams_df = TensorBoardDataExporter._convert_grid_search_events_to_hyperparameter_dataframe(gs_hyper_strings=winner_hyper_strings['train'], gs_event_dataframes=winner_event_dataframes['train'])
+        winner_val_hyperparams_df = TensorBoardDataExporter._convert_grid_search_events_to_hyperparameter_dataframe(gs_hyper_strings=winner_hyper_strings['val'], gs_event_dataframes=winner_event_dataframes['val'])
+        return gs_train_hyperparams_df, gs_val_hyperparams_df, winner_train_hyperparams_df, winner_val_hyperparams_df
 
 def plot_scatter_plot(hyperparams_df):
     """
@@ -352,8 +437,16 @@ if __name__ == '__main__':
     # path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\val\\"
     __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\'
     tb_exporter = TensorBoardDataExporter(root_summaries_dir=__path)
-    __hyper_strings, __event_dataframes = tb_exporter.export_all_summaries_as_csv()
-    hyperparams_df = convert_to_hyperparameter_dataframe(__hyper_strings, __event_dataframes)
+    __gs_hyper_strings, __gs_event_dataframes, __winner_hyper_strings, __winner_event_dataframes = tb_exporter.export_all_summaries_as_csv()
+    __gs_train_hyperparams_df, __gs_val_hyperparams_df, __winner_train_hyperparams_df, __winner_val_hyperparams_df = \
+        tb_exporter._convert_to_hyperparameter_dataframes(
+            __gs_hyper_strings, __gs_event_dataframes,
+            __winner_hyper_strings, __winner_event_dataframes
+        )
+    ON RESUME: Tie in the rest of this logic with partitioned dataframes into the visuals (new visual for each dataframe)
+    then pickle the output. Decide if I want one dataframe with categorical flags for gs or train or val.
+
+
     hyperparams_df.to_pickle(os.path.join(__path, 'hyperparams.pkl'))
     # plot_scatter_plot(hyperparams_df)
     plot_scatter_plot_with_sliders(hyperparams_df)
