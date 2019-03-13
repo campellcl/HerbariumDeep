@@ -104,8 +104,11 @@ from matplotlib import cm
 
 
 def parallel_coords(df):
-    cols = ['optimizer', 'activation', 'mean_acc']
-    x = [i for i in range(len(cols) - 1)]
+    df['train_batch_size'] = df.train_batch_size.astype('category')
+    df.train_batch_size = df.train_batch_size.apply(str)
+    # df['train_batch_size_encoded'] = df.train_batch_size.cat.codes
+    cols = ['optimizer', 'activation', 'train_batch_size', 'mean_acc']
+    x = [i for i in range(len(cols))]
     optimizer_colors = ['blue', 'black', 'red', 'green']
     mean_acc_colors = ['red', 'orange', 'yellow', 'green', 'blue']
     mean_acc_cut = pd.cut(df.mean_acc, [0.0, 0.25, 0.5, 0.75, 1.0])
@@ -113,12 +116,13 @@ def parallel_coords(df):
 
     # color_mapping = {pd.cut(df['mean_acc']}
     # fig, axes = plt.subplots(1, len(x), sharey='none', figsize=(15, 2))
-    fig, axes = plt.subplots(1, len(x) + 1, sharey='none') # + 1 for color bar
+    fig, axes = plt.subplots(1, len(x), sharey='none')  # + 1 for color bar
 
     # min, max, and range for each column:
     min_max_range = {}
     for col in cols:
-        if col == 'optimizer' or col == 'activation':
+        if col == 'optimizer' or col == 'activation' or col == 'train_batch_size':
+            # Range for categorical's is dependent upon number of unique categories:
             min_max_range[col] = [df[col].cat.codes.min(), df[col].cat.codes.max(), np.ptp(df[col].cat.codes)]
         else:
             min_max_range[col] = [df[col].min(), df[col].max(), np.ptp(df[col])]
@@ -129,18 +133,17 @@ def parallel_coords(df):
     for i, ax in enumerate(axes):
         if i == len(axes) - 1:
             continue
-        for idx in df.index:
-            mean_acc_interval = mean_acc_cut.loc[idx]
-            ax.plot(x, df.loc[idx, ['optimizer', 'activation']], mean_acc_color_mappings[mean_acc_interval])
-        if len(axes) - 1 == 2:
-            if i == 0:
-                ax.set_xlim([x[i], x[i+1]])
-            elif i == 1:
-                ax.set_xlim(x[i], x[i]+1)
+        if i == len(cols) - 2:
+            # Last axis before ignored colorbar
+            for idx in df.index:
+                mean_acc_interval = mean_acc_cut.loc[idx]
+                ax.plot(x[0:len(x)-1], df.loc[idx, ['optimizer', 'activation', 'train_batch_size']], mean_acc_color_mappings[mean_acc_interval])
+            ax.set_xlim([x[i], x[i]])
         else:
+            for idx in df.index:
+                mean_acc_interval = mean_acc_cut.loc[idx]
+                ax.plot(x[0:len(x)-1], df.loc[idx, ['optimizer', 'activation', 'train_batch_size']], mean_acc_color_mappings[mean_acc_interval])
             ax.set_xlim([x[i], x[i+1]])
-
-
 
     # set tick positions and labels on y axis for each plot
     def set_ticks_for_axis(dim, ax, ticks):
@@ -166,11 +169,18 @@ def parallel_coords(df):
         df_tick_labels = ax.get_yticklabels(minor=False)
         tick_labels = df_tick_labels.copy()
         if dim == 0:
-            tick_labels[1] = ''
-            tick_labels[2] = ''
+            relevant_tick_labels = [0, len(tick_labels)-1]
+            # tick_labels[1] = ''
+            # tick_labels[2] = ''
         elif dim == 1:
-            tick_labels[0] = ''
-            tick_labels[3] = ''
+            relevant_tick_labels = [1, len(tick_labels)-2]
+            # tick_labels[0] = ''
+            # tick_labels[3] = ''
+        elif dim == 2:
+            relevant_tick_labels = [2, len(tick_labels)-3]
+        else:
+            relevant_tick_labels = None
+        tick_labels = [tick_labels[i] if i in relevant_tick_labels else '' for i in range(len(tick_labels)) ]
         ax.set_yticklabels(tick_labels)
         # ax.set_you
         # ax.set_ylim([0, 1], auto=True)
@@ -220,7 +230,7 @@ if __name__ == '__main__':
     __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\tests\\hyperparams.pkl'
     df = pd.read_pickle(__path)
     parallel_coords(df)
-    print()
+    print('')
     # scale = 10
     # df['initializer_encoded'] = df.initializer.cat.codes * scale
     # df['optimizer_encoded'] = df.optimizer.cat.codes * scale
