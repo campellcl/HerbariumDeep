@@ -1,4 +1,5 @@
 import pandas as pd
+from pandas.api.types import CategoricalDtype
 import numpy as np
 from sklearn.datasets import load_iris
 # from pandas.plotting import parallel_coordinates
@@ -6,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import cm
 # import inflect
+
 
 
 
@@ -108,15 +110,11 @@ def parallel_coords(df):
     df.train_batch_size = df.train_batch_size.apply(str)
     # df['train_batch_size_encoded'] = df.train_batch_size.cat.codes
     cols = ['optimizer', 'activation', 'train_batch_size', 'mean_acc']
-    x = [i for i in range(len(cols))]   # Include +1 for colorbar (normally colorbar val 'mean_acc' is excluded)
+    x = [i for i in range(len(cols) - 1)]   # -1 for colorbar var. 'mean_acc' which is excluded, len(cols) not len(cols)-1 because shared y-axis.
     mean_acc_colors = ['red', 'orange', 'yellow', 'green', 'blue']
     mean_acc_cut = pd.cut(df.mean_acc, [0.0, 0.25, 0.5, 0.75, 1.0])
     mean_acc_color_mappings = {mean_acc_cut.cat.categories[i]: mean_acc_colors[i] for i, _ in enumerate(mean_acc_cut.cat.categories)}
 
-    # color_mapping = {pd.cut(df['mean_acc']}
-    # fig, axes = plt.subplots(1, len(x), sharey='none', figsize=(15, 2))
-
-    # fig, axes = plt.subplots(1, len(x), sharey='none')  # + 1 for color bar
     fig = plt.figure()
     # First axis is for optimizer:
     optimizer_axis = plt.subplot(1, len(x), 1)
@@ -128,15 +126,16 @@ def parallel_coords(df):
     fig.add_subplot(activation_axis, sharex=None, sharey=None)
 
     # Third axis is for train_batch_size and does sharex:
-    train_batch_axis = plt.subplot(1, len(x), 3)
-    fig.add_subplot(train_batch_axis, sharex=activation_axis, sharey=None)
+    # train_batch_axis = plt.subplot(1, len(x), 3)
+    # fig.add_subplot(train_batch_axis, sharex=activation_axis, sharey=None)
     # fig.add_subplot()
 
-    # fourth axis is for colorbar:
-    cax = plt.subplot(1, len(x), 4)
+    # Third axis is for colorbar:
+    cax = plt.subplot(1, len(x), 3)
     fig.add_subplot(cax, sharex=None, sharey=None)
 
-    axes = [optimizer_axis, activation_axis, train_batch_axis, cax]
+    # axes = [optimizer_axis, activation_axis, train_batch_axis, cax]
+    axes = [optimizer_axis, activation_axis, cax]
 
     # min, max, and range for each column:
     min_max_range = {}
@@ -153,56 +152,47 @@ def parallel_coords(df):
     for i, ax in enumerate(axes):
         if i == len(axes) - 1:
             continue
-        if i == len(cols) - 2:
-            # Last axis before ignored colorbar
-            for idx in df.index:
-                mean_acc_interval = mean_acc_cut.loc[idx]
-                ax.plot(x[0:len(x)-1], df.loc[idx, ['optimizer', 'activation', 'train_batch_size']], mean_acc_color_mappings[mean_acc_interval])
-            # ax.set_xlim([x[i], x[i]])
-            pass
         else:
             for idx in df.index:
                 mean_acc_interval = mean_acc_cut.loc[idx]
-                ax.plot(x[0:len(x)-1], df.loc[idx, ['optimizer', 'activation', 'train_batch_size']], mean_acc_color_mappings[mean_acc_interval])
+                ax.plot(x, df.loc[idx, ['optimizer', 'activation', 'train_batch_size']], mean_acc_color_mappings[mean_acc_interval])
             ax.set_xlim([x[i], x[i+1]])
 
+    # Save the original tick labels for the last axis:
+    df_y_tick_labels = [tick.get_text() for tick in axes[0].get_yticklabels(minor=False)]
+
     # set tick positions and labels on y axis for each plot
-    def set_ticks_for_axis(dim, ax, ticks):
+    def set_ticks_for_axis(dim, ax, categorical, ticks, ytick_labels=None):
         min_val, max_val, val_range = min_max_range[cols[dim]]
         step = val_range / float(ticks-1)
 
-        if dim == 0 or dim == 1:
-            tick_labels = [df[cols[dim]].cat.categories[code] for code in df[cols[dim]].cat.codes.unique()]
-        else:
-            tick_labels = [round(min_val + step * i, 2) for i in range(ticks)]
-        try:
-            norm_min = df[cols[dim]].min()
-        except TypeError:
+        # For final column:
+        if categorical:
             norm_min = df[cols[dim]].cat.codes.min()
-        try:
-            norm_range = np.ptp(df[cols[dim]])
-        except TypeError:
             norm_range = np.ptp(df[cols[dim]].cat.codes)
+        else:
+            norm_min = df[cols[dim]].min()
+            norm_range = np.ptp(df[cols[dim]])
         norm_step = norm_range / float(ticks-1)
-        ticks = [round(norm_min + norm_step * i, 2) for i in range(ticks)]
 
-        ax.yaxis.set_ticks(ticks=[i for i in range(len(ax.yaxis.get_major_ticks()))])
-        df_tick_labels = ax.get_yticklabels(minor=False)
-        # tick_labels = [tick_label[2].split('_')[-1] for tick_label in df_tick_labels]
-        tick_labels = [tick_label.get_text().split('_')[-1] for tick_label in df_tick_labels]
+        if not ytick_labels:
+            df_tick_labels = ax.get_yticklabels(minor=False)
+            tick_labels = [tick_label.get_text().split('_')[-1] for tick_label in df_tick_labels]
+        else:
+            tick_labels = ytick_labels
+        ticks = [round(norm_min + norm_step * i, 2) for i in range(ticks)]
         if dim == 0:
+            # Optimizer
             relevant_tick_labels = [0, len(tick_labels)-1]
-            # tick_labels[1] = ''
-            # tick_labels[2] = ''
         elif dim == 1:
+            # Activation
             relevant_tick_labels = [1, len(tick_labels)-2]
-            # tick_labels[0] = ''
-            # tick_labels[3] = ''
         elif dim == 2:
-            relevant_tick_labels = [2, len(tick_labels)-3]
+            # Train batch size
+            relevant_tick_labels = [2, 3]
         else:
             relevant_tick_labels = None
-        tick_labels = [tick_labels[i] if i in relevant_tick_labels else '' for i in range(len(tick_labels)) ]
+        tick_labels = [tick_labels[i] if i in relevant_tick_labels else '' for i in range(len(tick_labels))]
         ax.set_yticklabels(tick_labels)
         # ax.set_you
         # ax.set_ylim([0, 1], auto=True)
@@ -210,22 +200,20 @@ def parallel_coords(df):
 
     for dim, ax in enumerate(axes):
         if dim == len(axes) - 1:
-            pass
-        elif dim == len(axes) - 2:
-            # Last subfigure
-            ax.xaxis.set_major_locator(ticker.FixedLocator([dim-1]))
-            pass
+            ax.xaxis.set_major_locator(ticker.FixedLocator([0]))
+            set_ticks_for_axis(dim, ax, ytick_labels=df_y_tick_labels, categorical=True, ticks=2)
+            ax.set_xticklabels([cols[dim]])
         else:
             ax.xaxis.set_major_locator(ticker.FixedLocator([dim]))
-            set_ticks_for_axis(dim, ax, ticks=2)
+            set_ticks_for_axis(dim, ax, ytick_labels=None, categorical=True, ticks=2)
             ax.set_xticklabels([cols[dim]])
 
 
     # Move final axis' ticks to right-hand side
-    ax = plt.twinx(axes[1])
-    dim = 1
-    ax.xaxis.set_major_locator(ticker.FixedLocator([x[0], x[1]]))
-    set_ticks_for_axis(dim=dim, ax=ax, ticks=2)
+    # ax = plt.twinx(axes[1])
+    # dim = 1
+    # ax.xaxis.set_major_locator(ticker.FixedLocator([x[0], x[1]]))
+    # set_ticks_for_axis(dim=dim, ax=ax, ticks=2)
 
     # ax.set_xticklabels
     # dim = len(axes)
@@ -235,6 +223,11 @@ def parallel_coords(df):
 
     # Remove space between subplots:
     plt.subplots_adjust(wspace=0)
+
+    # Remove unused parts of x-axis
+    axes[-1].spines['right'].set_visible(False)
+    axes[-1].spines['top'].set_visible(False)
+    axes[-1].spines['bottom'].set_visible(False)
 
     # Add colorbar:
     # cax = plt.twinx(axes[-1])
