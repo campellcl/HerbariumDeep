@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.patches as patches
 
 num_unique_initializers = 3
 num_unique_optimizers = 2
@@ -52,20 +53,28 @@ ax001.set_xticklabels(['', '', 'ELU'])
 ax001.xaxis.tick_top()
 ax001.set_yticks([0, 1, 2], minor=False)
 ax001.set_yticklabels('')
-ax001.patch.set_facecolor('green')
-ax001.patch.set_alpha(0.1)
-
+ax001_figure_position = ax001.get_position()
+color_box = patches.Rectangle((0, 0), 1, 2, facecolor='red')
+ax001.add_patch(color_box)
+# ax001.patch.set_facecolor('green')
+# ax001.patch.set_alpha(0.1)
 
 ax001_bot.set_xlim(ax001.get_xlim())
 # ax001_bot.set_xticks(ax001.get_xticks())
 ax001_bot.set_xticks([0, 1, 2, 3, 4], minor=True)
 ax001_bot.set_xticklabels(['', 'TB=10', '', 'TB=20', ''], minor=True)
 ax001_bot.set_xticklabels('', minor=False)
-# ax001_bot.set_yticklabels('')
+ax001_bot.set_yticklabels('', minor=False)
 ax001_bot.xaxis.tick_bottom()
 
 
-# ax002 = plt.subplot(gs000[0, 1])
+ax002 = plt.subplot(gs000[0, 1])
+ax002_bot = ax002.twiny()
+ax002.set_xticks([0, 1, 2], minor=False)
+ax002.set_xticklabels('', minor=False)
+ax002_bot.set_xticks([0, 1, 2], minor=False)
+ax002_bot.set_xticklabels('', minor=False)
+ax002_bot.set_yticklabels('', minor=False)
 
 # ax003 = plt.subplot(gs000[1, 0])
 # ax003.set_yticks([0, 1, 2], minor=False)
