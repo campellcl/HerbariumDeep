@@ -8,84 +8,65 @@ num_unique_initializers = 3
 num_unique_optimizers = 2
 
 
-def plot_parent_grid(figure, grid_width, grid_length):
+def plot_parent_grid(df, figure, grid_width, grid_length):
     num_children = grid_width * grid_length
     num_grandchildren = 4
-    # gs0 = gridspec.GridSpec(grid_width, grid_length)
-    # for i in range(grid_width):
-    #     for j in range(grid_length):
-    #         axi = plt.subplot(gs0[i, j])
-    # gs0 = figure.add_gridspec(grid_width, grid_length, wspace=0.0, hspace=0.0)
-    # for i in range(grid_width):
-    #     if i == 0:
-    #         optimizer = 'Nesterov'
-    #     else:
-    #         optimizer = 'Adam'
-    #     for j in range(grid_length):
-    #         if j == 0:
-    #             activation = 'He_norm'
-    #         elif j == 1:
-    #             activation = 'He_uniform'
-    #         else:
-    #             activation = 'Norm_trunc'
-    #         gs00 = gs0[]
-
     gs0 = gridspec.GridSpec(grid_width, grid_length)
     for i in range(num_children):
         optimizer_strs = ['NESTEROV', 'ADAM']
         optimizer = optimizer_strs[i // grid_length]
         initializer_strs = ['HE_NORM', 'HE_UNIF', 'NORM_TRUNC', 'HE_NORM', 'HE_UNIF', 'NORM_TRUNC']
         initializer = initializer_strs[i]
+        activation_strs = ['Relu', 'Relu', 'Elu', 'Elu', 'Relu', 'Relu', 'Elu', 'Elu']
         gs00 = gs0[i].subgridspec(2, 4, wspace=0.0, hspace=0.0)
-        grandchildren_indices = [k for k in range(num_grandchildren*2)]
-        chunked = [grandchildren_indices[i:i + 2] for i in range(0, len(grandchildren_indices), 2)]
-        relu_indices = np.array([chunked[i] for i in range(len(chunked)) if i % 2 == 0]).flatten()
-        elu_indices = np.array([chunked[i] for i in range(len(chunked)) if i % 2 != 0]).flatten()
+        # grandchildren_indices = [k for k in range(num_grandchildren*2)]
+        # chunked = [grandchildren_indices[i:i + 2] for i in range(0, len(grandchildren_indices), 2)]
+        # relu_indices = np.array([chunked[i] for i in range(len(chunked)) if i % 2 == 0]).flatten()
+        # elu_indices = np.array([chunked[i] for i in range(len(chunked)) if i % 2 != 0]).flatten()
         for j in range(num_grandchildren*2):
-            if j in relu_indices:
-                activation = 'Relu'
-            elif j in elu_indices:
-                activation = 'Elu'
+            activation = activation_strs[j]
             train_batch_strs = ['TB=10', 'TB=20']
             train_batch = train_batch_strs[j % 2]
             ax = plt.Subplot(figure, gs00[j])
             ax.set_xticks([0, 1, 2])
             ax.set_yticks([0, 1, 2])
+            ax.set_yticklabels('')
 
             if i < num_children // 2:
                 # Nesterov row
                 if j < num_grandchildren:
-                    # Top row universal settings:
+                    # First row of top row.
                     ax.set_xticklabels(['', train_batch, ''])
                     ax.xaxis.tick_top()
-
                     if i == 0:
                         # This is the first child of 6 [0, 1, ..., 5]
                         if j == 0:
                             # This is the first grandchild of 8 [0, 1, ..., 7]
-                            ax.set_yticklabels([optimizer, '', ''])
+                            ax.set_yticklabels([optimizer, activation, ''])
                 else:
                     # Second row of top row:
                     ax.set_xticklabels('')
-                    if j == num_grandchildren:
-                        # This is the fifth child of 8
-                        ax.set_yticklabels('')
+                    if i == 0:
+                        if j == num_grandchildren:
+                            # This is the fifth child of 8
+                            ax.set_yticklabels(['', 'Elu', ''])
             else:
-                # Adam row:
+                # Adam row.
                 if j < num_grandchildren:
-                    # First row of bottom row:
+                    # First row of bottom row.
                     ax.set_xticklabels('')
                     if i == num_children // 2:
                         # First grandchild of 8
                         if j == 0:
-                            ax.set_yticklabels([optimizer, '', ''])
-                    pass
+                            ax.set_yticklabels([optimizer, 'Elu', ''])
                 else:
                     # Second row of bottom row:
                     if j == num_grandchildren:
                         # This is the fifth grandchild of 8
                         ax.set_xticklabels(['', '', activation])
-                        ax.set_yticklabels('')
+                        if i == num_children // 2:
+                            # Bottom left
+                            ax.set_yticklabels(['', activation, ''])
                     elif j == num_grandchildren + 1:
                         ax.set_xticklabels(['', '', initializer])
                         # Create offset transform by 5 points in x direction
@@ -98,41 +79,7 @@ def plot_parent_grid(figure, grid_width, grid_length):
                         ax.set_xticklabels(['', '', activation])
                     else:
                         ax.set_xticklabels('')
-
-                    # if i == 0:
-                    #     # This is the first child of 6 [0, 1, ..., 5]
-                    #
-                    #     if j == 0:
-                    #         # This is the first grandchild of 8 [0, 1, ..., 7]
-                    #         ax.set_yticklabels([optimizer, '', ''])
-                    #         ax.set_xticklabels(['', train_batch, ''])
-                    #         ax.xaxis.tick_top()
-                    #     elif j == 1:
-                    #         # Second grandchild of 8:
-                    #         ax.set_xticklabels(['', train_batch, ''])
-                    #         ax.xaxis.tick_top()
-                    #     elif j == num_grandchildren:
-                    #         ax.set_yticks([0, 1, 2])
-                    #         ax.set_yticklabels('')
-                    #         ax.set_xticklabels('')
-                    # elif i == grid_length:
-                    #     if j == 0:
-                    #         ax.set_yticks([0, 1, 2])
-                    #         ax.set_yticklabels([optimizer, '', ''])
-                    #         ax.set_xticklabels('')
-                    #     elif j == num_grandchildren:
-                    #         ax.set_yticks([0, 1, 2])
-                    #         ax.set_yticklabels('')
-                    #         ax.set_xticks([0, 1, 2])
-                    #         ax.set_xticklabels(['', '', activation])
-                    #     elif j == num_grandchildren + 1:
-                    #         ax.set_xticks([0, 1, 2])
-                    #         ax.set_xticklabels(['', '', ''])
-
             figure.add_subplot(ax)
-    # for i in range(grid_width):
-    #     for j in range(grid_length):
-    #         figure.add_subplot(gs0[i, j])
     return figure
 
 def plot_children_grid(figure, grid_width, grid_length):
