@@ -89,7 +89,8 @@ def main():
     # ax_top.tick_params('x', )
     scalar_mappable = cm.ScalarMappable(cmap=plt.cm.get_cmap('viridis'), norm=plt.Normalize(vmin=0, vmax=1))
     scalar_mappable._A = []
-    plt.colorbar(scalar_mappable, cax=axes[1])
+    cax = axes[1]
+    plt.colorbar(scalar_mappable, cax=cax)
     plt.show()
 
     # TODO: plt.text don't clone axis.
