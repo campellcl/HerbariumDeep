@@ -28,7 +28,8 @@ def main():
     x_tick_labels_bot = []
     x_ticks_bot = np.arange(0, heatmap_dims[1], 1)
     x_tick_labels_top = []
-    x_ticks_top = np.arange(0, heatmap_dims[1], 1)
+    x_ticks_top_major = np.arange(0, heatmap_dims[1], 1)
+    x_ticks_top_minor = np.arange(0, heatmap_dims[1], 0.5)
     y_tick_labels_left_major = []
     y_tick_labels_left_minor = []
 
@@ -69,10 +70,15 @@ def main():
     ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
     # ax_bot.set_yticklabels(y_tick_labels_left_minor, minor=True)
     ax_top = ax_bot.twiny()
-    ax_top = ax_top.set_xticks(ax_bot.get_xticks())
+    print(type(ax_top))
+    # ax_top = fig.axes.append(ax_bot)
+    # ax_top.set_xticks(ax_bot.get_xticks(), minor=False)
+    ax_top.set_xticks(x_ticks_top_minor, minor=True)
+    ax_top.set_xticklabels(x_tick_labels_top, minor=True)
+
     # print('xticks_top: %s' % x_ticks_top)
-    ax_top.set_xticks(x_ticks_top, minor=False)
-    ax_top.set_xticklabels(x_tick_labels_top)
+    # ax_top.set_xticks(x_ticks_top, minor=False)
+    # ax_top.set_xticklabels(x_tick_labels_top)
     # ax_top.tick_params('x', length=6, width=2)
     # ax_top.tick_params('x', )
     scalar_mappable = cm.ScalarMappable(cmap=plt.cm.get_cmap('viridis'), norm=plt.Normalize(vmin=0, vmax=1))
