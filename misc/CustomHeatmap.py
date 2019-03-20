@@ -7,34 +7,62 @@ num_unique_initializers = 3
 num_unique_optimizers = 2
 
 
-def plot_parent_grid(grid_width, grid_length):
-    gs0 = gridspec.GridSpec(grid_width, grid_length)
-    for i in range(grid_width):
-        for j in range(grid_length):
-            axi = plt.subplot(gs0[i, j])
-    return gs0
+def plot_parent_grid(figure, grid_width, grid_length):
+    num_grandchildren = 4
+    # gs0 = gridspec.GridSpec(grid_width, grid_length)
+    # for i in range(grid_width):
+    #     for j in range(grid_length):
+    #         axi = plt.subplot(gs0[i, j])
+    gs0 = figure.add_gridspec(grid_width, grid_length, wspace=0.0, hspace=0.0)
+    for i in range(grid_width * grid_length):
+        gs00 = gs0[i].subgridspec(2, 2, wspace=0.0, hspace=0.0)
+        for j in range(num_grandchildren):
+            ax = plt.Subplot(figure, gs00[j])
+            figure.add_subplot(ax)
+    # for i in range(grid_width):
+    #     for j in range(grid_length):
+    #         figure.add_subplot(gs0[i, j])
+    return figure
 
-def plot_children_grid(grid_width, grid_length, parent_grid):
+def plot_children_grid(figure, grid_width, grid_length):
+    parent_grid = figure._gridspecs[0]
     for i in range(parent_grid._nrows * parent_grid._ncols):
         gs0i = gridspec.GridSpecFromSubplotSpec(grid_width, grid_length, subplot_spec=parent_grid[i])
         for j in range(grid_width):
             for k in range(grid_length):
-                ax00j = plt.subplot(gs0i[j, k])
-    return gs0i
+                # ax00j = plt.subplot(gs0i[j, k])
+                figure.add_subplot(gs0i[j, k])
+    figure.add_gridspec(grid_width, grid_length)
+    return figure
 
-def plot_grandchildren_grid(children_grid_width, children_grid_length, parent_grid_width, parent_grid_length, new_grid_width, new_grid_height, parent_grid):
-    num_grids = (parent_grid_width*parent_grid_length)*(children_grid_width*children_grid_length)
-    for i in range(num_grids):
-        gs00i = gridspec.GridSpecFromSubplotSpec(new_grid_width, new_grid_height, subplot_spec=parent_grid[i])
-        for j in range(new_grid_width):
-            for k in range(new_grid_height):
-                ax000j = plt.subplot(gs00i[j, k])
+# def plot_grandchildren_grid(children_grid_width, children_grid_length, parent_grid_width, parent_grid_length, new_grid_width, new_grid_height, parent_grid):
+#     num_grids = (parent_grid_width*parent_grid_length)*(children_grid_width*children_grid_length)
+#     for i in range(num_grids):
+#         gs00i = gridspec.GridSpecFromSubplotSpec(new_grid_width, new_grid_height, subplot_spec=parent_grid[i])
+#         for j in range(new_grid_width):
+#             for k in range(new_grid_height):
+#                 ax000j = plt.subplot(gs00i[j, k])
+
+def plot_grandchildren_grid(figure, grid_width, grid_length):
+    parent_grid = figure._gridspecs[0]
+    children_grid = figure._gridspecs[1]
+    num_grids = parent_grid._nrows * parent_grid._ncols * children_grid._nrows * children_grid._ncols
+    for i in range(parent_grid._nrows * parent_grid._ncols):
+        for j in range(children_grid._nrows * children_grid._ncols):
+            gs00i = gridspec.GridSpecFromSubplotSpec(grid_width, grid_length, subplot_spec=children_grid[j])
+            for k in range(grid_width):
+                for l in range(grid_length):
+                    figure.add_subplot(gs00i[k, l])
+    figure.add_gridspec(grid_width, grid_length)
+    return figure
 
 def main():
     plt.show()
-    parent_grid = plot_parent_grid(grid_width=2, grid_length=3)
+    fig = plt.figure(figsize=(8, 8), constrained_layout=False)
+    fig = plot_parent_grid(figure=fig, grid_width=2, grid_length=3)
     plt.subplots_adjust(wspace=0, hspace=0)
-    grid = plot_children_grid(grid_width=2, grid_length=2, parent_grid=parent_grid)
+    fig = plot_children_grid(figure=fig, grid_width=2, grid_length=2)
+    fig = plot_grandchildren_grid(figure=fig, grid_width=2, grid_length=2)
     grid = plot_grandchildren_grid(children_grid_width=2, children_grid_length=2, parent_grid_width=2, parent_grid_length=3, new_grid_width=2, new_grid_height=2, parent_grid=grid)
     # grid = plot_children_grid(grid_width=2, grid_length=2, parent_grid=grid)
     plt.show()
