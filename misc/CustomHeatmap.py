@@ -17,10 +17,10 @@ def plot_parent_grid(hyperparams_df, colormap, figure, grid_width, grid_length):
     for i in range(num_children):
         optimizer_strs = ['NESTEROV', 'ADAM']
         optimizer = optimizer_strs[i // grid_length]
-        initializer_strs = ['HE_NORM', 'HE_UNIF', 'NORM_TRUNC', 'HE_NORM', 'HE_UNIF', 'NORM_TRUNC']
+        initializer_strs = ['HE_NORMAL', 'HE_UNIFORM', 'NORMAL_TRUNCATED', 'HE_NORMAL', 'HE_UNIFORM', 'NORMAL_TRUNCATED']
         initializer = initializer_strs[i]
-        activation_strs_x = ['Relu', 'Relu', 'Elu', 'Elu', 'Relu', 'Relu', 'Elu', 'Elu']
-        activation_strs_y = ['Elu', 'Elu', 'Elu', 'Elu', 'Relu', 'Relu', 'Relu', 'Relu']
+        activation_strs_x = ['LEAKY_RELU', 'LEAKY_RELU', 'ELU', 'ELU', 'LEAKY_RELU', 'LEAKY_RELU', 'ELU', 'ELU']
+        activation_strs_y = ['ELU', 'ELU', 'ELU', 'ELU', 'LEAKY_RELU', 'LEAKY_RELU', 'LEAKY_RELU', 'LEAKY_RELU']
         gs00 = gs0[i].subgridspec(2, 4, wspace=0.0, hspace=0.0)
         # grandchildren_indices = [k for k in range(num_grandchildren*2)]
         # chunked = [grandchildren_indices[i:i + 2] for i in range(0, len(grandchildren_indices), 2)]
@@ -29,13 +29,28 @@ def plot_parent_grid(hyperparams_df, colormap, figure, grid_width, grid_length):
         for j in range(num_grandchildren*2):
             activation_x = activation_strs_x[j]
             activation_y = activation_strs_y[j]
+            if activation_x == activation_y:
+                activation = activation_x
+            else:
+                activation = None
             train_batch_strs = ['TB=10', 'TB=20']
             train_batch = train_batch_strs[j % 2]
+            hyperparams_optim_subset = hyperparams_df[hyperparams_df['optimizer'] == 'OPTIM_%s' % optimizer]
+            hyperparams_init_subset = hyperparams_optim_subset[hyperparams_optim_subset['initializer'] == 'INIT_%s' % initializer]
+            if train_batch == 'TB=10':
+                hyperparams_subset = hyperparams_init_subset[hyperparams_init_subset['train_batch_size'] == 10]
+            elif train_batch == 'TB=20':
+                hyperparams_subset = hyperparams_init_subset[hyperparams_init_subset['train_batch_size'] == 20]
+            if activation is not None:
+                hyperparams_subset = hyperparams_subset[hyperparams_subset['activation'] == 'ACTIVATION_%s' % activation]
+                assert hyperparams_subset.shape[0] == 1
             ax = plt.Subplot(figure, gs00[j])
             ax.set_xticks([0, 1, 2])
             ax.set_yticks([0, 1, 2])
             ax.set_yticklabels('')
-
+            if activation is not None:
+                ax.patch.set_facecolor(colormap(hyperparams_subset.iloc[0].best_epoch_loss))
+                print(hyperparams_subset.head())
             if i < num_children // 2:
                 # Nesterov row
                 if j < num_grandchildren:
@@ -47,7 +62,10 @@ def plot_parent_grid(hyperparams_df, colormap, figure, grid_width, grid_length):
                         if j == 0:
                             # This is the first grandchild of 8 [0, 1, ..., 7]
                             ax.set_yticklabels([optimizer, activation_y, ''])
-                            ax.patch.set_facecolor(colormap(0.5))
+                            # ax.patch.set_facecolor(colormap(0.5))
+                            # if activation is not None:
+                            #     ax.patch.set_facecolor(colormap(hyperparams_subset.iloc[0].best_epoch_loss))
+                            #     print(hyperparams_subset.head())
                             # ax.patch.set_facecolor()
                 else:
                     # Second row of top row:
@@ -123,14 +141,27 @@ def plot_grandchildren_grid(figure, grid_width, grid_length):
 
 
 def main():
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests\\hyperparams.pkl'
+    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests\\gs_train_hyperparams.pkl'
     df = pd.read_pickle(__path)
     plt.show()
     fig = plt.figure(figsize=(8, 8), constrained_layout=False)
     cmap = cm.get_cmap('viridis', 12)
     fig = plot_parent_grid(hyperparams_df=df, colormap=cmap, figure=fig, grid_width=2, grid_length=3)
     plt.subplots_adjust(wspace=0, hspace=0)
+    # cax = fig.add_axes(list(np.arange(0, 12, 1)))
 
+    # base = plt.cm.get_cmap('viridis')
+    # color_list = base(np.linspace(0, 1, 10))
+    # cmap_name = base.name + str(10)
+    # cmap = cm.colors.ListedColormap(colors=color_list, name=cmap_name, N=10)
+    # cax = fig.add_axes([0.27, 0.8, 0.5, 0.05])
+    # fig.colorbar(mappable=cmap, cax=cax)
+    # source: https://medium.com/data-science-canvas/way-to-show-colorbar-without-calling-imshow-or-scatter-4a378058316
+    scalar_mappable = cm.ScalarMappable(cmap=plt.cm.get_cmap('viridis'), norm=plt.Normalize(vmin=0, vmax=1))
+    scalar_mappable._A = []
+    plt.colorbar(scalar_mappable)
+
+    # plt.colorbar(mappable=cmap, cax=cax)
     # plt.subplots_adjust(wspace=0, hspace=0)
     # fig = plot_children_grid(figure=fig, grid_width=2, grid_length=2)
     # fig = plot_grandchildren_grid(figure=fig, grid_width=2, grid_length=2)
