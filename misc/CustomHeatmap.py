@@ -1,14 +1,16 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as patches
 import matplotlib.transforms
+from matplotlib import cm
 
 num_unique_initializers = 3
 num_unique_optimizers = 2
 
 
-def plot_parent_grid(figure, grid_width, grid_length):
+def plot_parent_grid(hyperparams_df, colormap, figure, grid_width, grid_length):
     num_children = grid_width * grid_length
     num_grandchildren = 4
     gs0 = gridspec.GridSpec(grid_width, grid_length)
@@ -18,7 +20,7 @@ def plot_parent_grid(figure, grid_width, grid_length):
         initializer_strs = ['HE_NORM', 'HE_UNIF', 'NORM_TRUNC', 'HE_NORM', 'HE_UNIF', 'NORM_TRUNC']
         initializer = initializer_strs[i]
         activation_strs_x = ['Relu', 'Relu', 'Elu', 'Elu', 'Relu', 'Relu', 'Elu', 'Elu']
-        activation_strs_y = ['Relu', 'Relu', 'Relu', 'Relu', 'Elu', 'Elu', 'Elu', 'Elu']
+        activation_strs_y = ['Elu', 'Elu', 'Elu', 'Elu', 'Relu', 'Relu', 'Relu', 'Relu']
         gs00 = gs0[i].subgridspec(2, 4, wspace=0.0, hspace=0.0)
         # grandchildren_indices = [k for k in range(num_grandchildren*2)]
         # chunked = [grandchildren_indices[i:i + 2] for i in range(0, len(grandchildren_indices), 2)]
@@ -45,6 +47,8 @@ def plot_parent_grid(figure, grid_width, grid_length):
                         if j == 0:
                             # This is the first grandchild of 8 [0, 1, ..., 7]
                             ax.set_yticklabels([optimizer, activation_y, ''])
+                            ax.patch.set_facecolor(colormap(0.5))
+                            # ax.patch.set_facecolor()
                 else:
                     # Second row of top row:
                     ax.set_xticklabels('')
@@ -117,10 +121,14 @@ def plot_grandchildren_grid(figure, grid_width, grid_length):
     figure.add_gridspec(grid_width, grid_length)
     return figure
 
+
 def main():
+    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests\\hyperparams.pkl'
+    df = pd.read_pickle(__path)
     plt.show()
     fig = plt.figure(figsize=(8, 8), constrained_layout=False)
-    fig = plot_parent_grid(figure=fig, grid_width=2, grid_length=3)
+    cmap = cm.get_cmap('viridis', 12)
+    fig = plot_parent_grid(hyperparams_df=df, colormap=cmap, figure=fig, grid_width=2, grid_length=3)
     plt.subplots_adjust(wspace=0, hspace=0)
 
     # plt.subplots_adjust(wspace=0, hspace=0)
