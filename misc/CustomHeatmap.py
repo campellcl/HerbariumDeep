@@ -8,7 +8,7 @@ num_unique_initializers = 3
 num_unique_optimizers = 2
 
 
-def plot_parent_grid(df, figure, grid_width, grid_length):
+def plot_parent_grid(figure, grid_width, grid_length):
     num_children = grid_width * grid_length
     num_grandchildren = 4
     gs0 = gridspec.GridSpec(grid_width, grid_length)
@@ -17,14 +17,16 @@ def plot_parent_grid(df, figure, grid_width, grid_length):
         optimizer = optimizer_strs[i // grid_length]
         initializer_strs = ['HE_NORM', 'HE_UNIF', 'NORM_TRUNC', 'HE_NORM', 'HE_UNIF', 'NORM_TRUNC']
         initializer = initializer_strs[i]
-        activation_strs = ['Relu', 'Relu', 'Elu', 'Elu', 'Relu', 'Relu', 'Elu', 'Elu']
+        activation_strs_x = ['Relu', 'Relu', 'Elu', 'Elu', 'Relu', 'Relu', 'Elu', 'Elu']
+        activation_strs_y = ['Relu', 'Relu', 'Relu', 'Relu', 'Elu', 'Elu', 'Elu', 'Elu']
         gs00 = gs0[i].subgridspec(2, 4, wspace=0.0, hspace=0.0)
         # grandchildren_indices = [k for k in range(num_grandchildren*2)]
         # chunked = [grandchildren_indices[i:i + 2] for i in range(0, len(grandchildren_indices), 2)]
         # relu_indices = np.array([chunked[i] for i in range(len(chunked)) if i % 2 == 0]).flatten()
         # elu_indices = np.array([chunked[i] for i in range(len(chunked)) if i % 2 != 0]).flatten()
         for j in range(num_grandchildren*2):
-            activation = activation_strs[j]
+            activation_x = activation_strs_x[j]
+            activation_y = activation_strs_y[j]
             train_batch_strs = ['TB=10', 'TB=20']
             train_batch = train_batch_strs[j % 2]
             ax = plt.Subplot(figure, gs00[j])
@@ -42,14 +44,14 @@ def plot_parent_grid(df, figure, grid_width, grid_length):
                         # This is the first child of 6 [0, 1, ..., 5]
                         if j == 0:
                             # This is the first grandchild of 8 [0, 1, ..., 7]
-                            ax.set_yticklabels([optimizer, activation, ''])
+                            ax.set_yticklabels([optimizer, activation_y, ''])
                 else:
                     # Second row of top row:
                     ax.set_xticklabels('')
                     if i == 0:
                         if j == num_grandchildren:
                             # This is the fifth child of 8
-                            ax.set_yticklabels(['', 'Elu', ''])
+                            ax.set_yticklabels(['', activation_y, ''])
             else:
                 # Adam row.
                 if j < num_grandchildren:
@@ -58,15 +60,15 @@ def plot_parent_grid(df, figure, grid_width, grid_length):
                     if i == num_children // 2:
                         # First grandchild of 8
                         if j == 0:
-                            ax.set_yticklabels([optimizer, 'Elu', ''])
+                            ax.set_yticklabels([optimizer, activation_y, ''])
                 else:
                     # Second row of bottom row:
                     if j == num_grandchildren:
                         # This is the fifth grandchild of 8
-                        ax.set_xticklabels(['', '', activation])
+                        ax.set_xticklabels(['', '', activation_x])
                         if i == num_children // 2:
                             # Bottom left
-                            ax.set_yticklabels(['', activation, ''])
+                            ax.set_yticklabels(['', activation_y, ''])
                     elif j == num_grandchildren + 1:
                         ax.set_xticklabels(['', '', initializer])
                         # Create offset transform by 5 points in x direction
@@ -76,7 +78,7 @@ def plot_parent_grid(df, figure, grid_width, grid_length):
                         for label in ax.xaxis.get_majorticklabels():
                             label.set_transform(label.get_transform() + offset)
                     elif j == num_grandchildren + 2:
-                        ax.set_xticklabels(['', '', activation])
+                        ax.set_xticklabels(['', '', activation_x])
                     else:
                         ax.set_xticklabels('')
             figure.add_subplot(ax)
