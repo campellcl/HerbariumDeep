@@ -57,9 +57,10 @@ def main():
                 x_tick_labels_bot.append(''.join(initializer.split('_')[1:]))
                 x_tick_labels_top.append('TB=%s' % str(train_batch_size))
     # fig = plt.figure(1, figsize=(4, 6))
-    fig = plt.figure(1)
-    ax_bot = plt.gca()
+    fig, axes = plt.subplots(1, 2)
+    ax_bot = axes[0]
     ax_bot.imshow(data)
+    # plt.imshow(data)
     print('xticks_bot: %s' % x_ticks_bot)
     print('xtick_labels_bot: %s' % x_tick_labels_bot)
     print('xtick_labels_top: %s' % x_tick_labels_top)
@@ -69,12 +70,17 @@ def main():
     ax_bot.set_xticklabels(x_tick_labels_bot, minor=False)
     ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
     # ax_bot.set_yticklabels(y_tick_labels_left_minor, minor=True)
+    # ax_top = ax_bot.twiny()
     ax_top = ax_bot.twiny()
-    print(type(ax_top))
+    ax_top.set_xticks(ax_bot.get_xticks(), minor=False)
+    ax_top.set_xticklabels(x_tick_labels_top, minor=False)
+
+    # ax_top.xaxis.tick_top()
+    # print(type(ax_top))
     # ax_top = fig.axes.append(ax_bot)
     # ax_top.set_xticks(ax_bot.get_xticks(), minor=False)
-    ax_top.set_xticks(x_ticks_top_minor, minor=True)
-    ax_top.set_xticklabels(x_tick_labels_top, minor=True)
+    # ax_top.set_xticks(x_ticks_top_minor, minor=True)
+    # ax_top.set_xticklabels(x_tick_labels_top, minor=True)
 
     # print('xticks_top: %s' % x_ticks_top)
     # ax_top.set_xticks(x_ticks_top, minor=False)
@@ -83,7 +89,7 @@ def main():
     # ax_top.tick_params('x', )
     scalar_mappable = cm.ScalarMappable(cmap=plt.cm.get_cmap('viridis'), norm=plt.Normalize(vmin=0, vmax=1))
     scalar_mappable._A = []
-    plt.colorbar(scalar_mappable)
+    plt.colorbar(scalar_mappable, cax=axes[1])
     plt.show()
 
     # TODO: plt.text don't clone axis.
