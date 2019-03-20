@@ -443,12 +443,18 @@ if __name__ == '__main__':
             __gs_hyper_strings, __gs_event_dataframes,
             __winner_hyper_strings, __winner_event_dataframes
         )
-    ON RESUME: Tie in the rest of this logic with partitioned dataframes into the visuals (new visual for each dataframe)
-    then pickle the output. Decide if I want one dataframe with categorical flags for gs or train or val.
+    __export_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests'
+    __gs_train_hyperparams_df.to_pickle(os.path.join(__export_path, 'gs_train_hyperparams.pkl'))
+    __gs_val_hyperparams_df.to_pickle(os.path.join(__export_path, 'gs_val_hyperparams.pkl'))
+    __winner_train_hyperparams_df.to_pickle(os.path.join(__export_path, 'winner_train_hyperparams.pkl'))
+    __winner_val_hyperparams_df.to_pickle(os.path.join(__export_path, 'winner_val_hyperparams.pkl'))
+
+    # ON RESUME: Tie in the rest of this logic with partitioned dataframes into the visuals (new visual for each dataframe)
+    # then pickle the output. Decide if I want one dataframe with categorical flags for gs or train or val.
 
 
-    hyperparams_df.to_pickle(os.path.join(__path, 'hyperparams.pkl'))
+    # hyperparams_df.to_pickle(os.path.join(__path, 'hyperparams.pkl'))
     # plot_scatter_plot(hyperparams_df)
-    plot_scatter_plot_with_sliders(hyperparams_df)
+    # plot_scatter_plot_with_sliders(hyperparams_df)
     # plot_simple_scatter_plot(hyperparams_df)
     # hyperparameter_heatmap = TensorBoardDataExporter.generate_hyperparameter_heatmap(hyperparameter_strings=__hyper_strings, hyperparameter_event_dataframes=__event_dataframes)
