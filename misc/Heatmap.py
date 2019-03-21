@@ -26,16 +26,21 @@ def main():
     heatmap_dims = ((num_activations * num_optimizers), (num_initializers * num_train_batch_sizes))
     data = np.zeros(heatmap_dims)
     print('HeatMap Dimensions: %s\n' %(data.shape,))
+
     x_tick_labels_bot_major = []
     x_tick_labels_bot_minor = []
     x_ticks_bot_major = np.arange(0, heatmap_dims[1], 1)
     x_ticks_bot_minor = np.arange(0, heatmap_dims[1], 0.5)
+
     x_tick_labels_top_major = []
     x_tick_labels_top_minor = []
     x_ticks_top_major = np.arange(0, heatmap_dims[1], 1)
     x_ticks_top_minor = np.arange(0, heatmap_dims[1], 0.5)
+
     y_tick_labels_left_major = []
     y_tick_labels_left_minor = []
+    y_ticks_left_major = np.arange(0, heatmap_dims[0], 1)
+    y_ticks_left_minor = np.arange(0, heatmap_dims[0], 0.5)
 
     for i in range(data.shape[0]):
         optim_index = i // 2
@@ -76,21 +81,35 @@ def main():
         x_tick_labels_top_minor.append('')
         x_tick_labels_top_minor.append(x_tick_label)
     print('x_tick_labels_top_minor: %s' % x_tick_labels_top_minor)
+    print('')
+    print('y_ticks_left_major: %s' % y_ticks_left_major)
+    print('y_ticks_left_minor: %s' % y_ticks_left_minor)
+    print('y_tick_labels_left_major: %s' % y_tick_labels_left_major)
+    print('y_tick_labels_left_minor: %s' % y_tick_labels_left_minor)
+    y_tick_labels_left_combined = []
+    for i, (y_tick_label_major, y_tick_label_minor) in enumerate(zip(y_tick_labels_left_major, y_tick_labels_left_minor)):
+        y_tick_labels_left_combined.append(y_tick_label_major)
+        y_tick_labels_left_combined.append(y_tick_label_minor)
+    print('y_tick_labels_left_combined: %s' % y_tick_labels_left_combined)
 
-    fig = plt.figure(5)
+    fig = plt.figure(1)
     ax_bot = fig.gca()
-    # ax_bot.imshow(data)
-    # plt.show()
+
     ax_bot.set_xticks(x_ticks_bot_major, minor=False)
     ax_bot.set_xticks(x_ticks_bot_minor, minor=True)
     ax_bot.set_xticklabels(x_tick_labels_bot_major, minor=False)
     # ax_bot.set_xticklabels('', major=True)
+
+    ax_bot.set_yticks(y_ticks_left_major, minor=False)
+    ax_bot.set_yticks(y_ticks_left_minor, minor=True)
+    ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
 
     ax_top = ax_bot.twiny()
     ax_top.set_xticks(x_ticks_top_major, minor=False)
     ax_top.set_xticks(x_ticks_top_minor, minor=True)
     ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
     # ax_top.set_xticklabels('', major=True)
+
 
     ax_bot.imshow(data)
     ax_top.imshow(data)
