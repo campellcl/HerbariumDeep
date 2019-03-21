@@ -114,8 +114,10 @@ def main():
         y_tick_labels_left_combined.append(y_tick_label_minor)
     print('y_tick_labels_left_combined: %s' % y_tick_labels_left_combined)
 
-    fig = plt.figure('DEBUG DATASET')
-    ax_bot = fig.gca()
+    # fig = plt.figure('DEBUG DATASET')
+    fig, ax = plt.subplots(1, 1, sharey='col')
+    # ax_bot = fig.gca()
+    ax_bot = ax
 
     ax_bot.set_xticks(x_ticks_bot_major, minor=False)
     ax_bot.set_xticks(x_ticks_bot_minor, minor=True)
@@ -136,6 +138,11 @@ def main():
     ax_top.set_xticks(x_ticks_top_minor, minor=True)
     ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
     # ax_top.set_xticklabels('', major=True)
+
+    # ax_right = ax_top.get_shared_y_axes().join(ax_bot, ax_top)
+    # ax_right.set_yticks(y_ticks_left_major, minor=False)
+
+    # fig.text()
 
     # Modify font sizes of x-axes:
     ax_bot.tick_params(axis='x', labelsize=8)
