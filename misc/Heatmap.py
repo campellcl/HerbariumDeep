@@ -1,18 +1,19 @@
-import numpy as np
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
+
 
 def main():
     __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests\\gs_val_hyperparams.pkl'
     df = pd.read_pickle(__path)
     optimizers = df.optimizer.unique()
     num_optimizers = len(optimizers)
-    print('Optimizers: %s' % optimizers)
+    print('Optimizers: %s' % optimizers.categories)
 
     activations = df.activation.unique()
     num_activations = len(activations)
-    print('Activations: %s' % activations)
+    print('Activations: %s' % activations.categories)
 
     train_batch_sizes = df.train_batch_size.unique()
     num_train_batch_sizes = len(train_batch_sizes)
@@ -20,14 +21,17 @@ def main():
 
     initializers = df.initializer.unique()
     num_initializers = len(initializers)
-    print('Initializers: %s' % initializers)
+    print('Initializers: %s' % initializers.categories)
 
     heatmap_dims = ((num_activations * num_optimizers), (num_initializers * num_train_batch_sizes))
     data = np.zeros(heatmap_dims)
-    print(data.shape)
-    x_tick_labels_bot = []
-    x_ticks_bot = np.arange(0, heatmap_dims[1], 1)
-    x_tick_labels_top = []
+    print('HeatMap Dimensions: %s\n' %(data.shape,))
+    x_tick_labels_bot_major = []
+    x_tick_labels_bot_minor = []
+    x_ticks_bot_major = np.arange(0, heatmap_dims[1], 1)
+    x_ticks_bot_minor = np.arange(0, heatmap_dims[1], 0.5)
+    x_tick_labels_top_major = []
+    x_tick_labels_top_minor = []
     x_ticks_top_major = np.arange(0, heatmap_dims[1], 1)
     x_ticks_top_minor = np.arange(0, heatmap_dims[1], 0.5)
     y_tick_labels_left_major = []
@@ -54,50 +58,49 @@ def main():
             data[i][j] = df_subset.iloc[0].best_epoch_loss
             # x_tick_labels.append(initializer.split('_')[1:])
             if i == 0:
-                x_tick_labels_bot.append(''.join(initializer.split('_')[1:]))
-                x_tick_labels_top.append('TB=%s' % str(train_batch_size))
-    # fig = plt.figure(1, figsize=(4, 6))
-    fig, axes = plt.subplots(1, 2)
-    ax_bot = axes[0]
-    ax_bot.imshow(data)
-    # plt.imshow(data)
-    print('xticks_bot: %s' % x_ticks_bot)
-    print('xtick_labels_bot: %s' % x_tick_labels_bot)
-    print('xtick_labels_top: %s' % x_tick_labels_top)
-    # print('ytick_labels_left_major: %s' % y_tick_labels_left_major)
-    # print('ytick_labels_left_minor: %s' % y_tick_labels_left_minor)
-    ax_bot.set_xticks(x_ticks_bot, minor=False)
-    ax_bot.set_xticklabels(x_tick_labels_bot, minor=False)
-    ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
-    # ax_bot.set_yticklabels(y_tick_labels_left_minor, minor=True)
-    # ax_top = ax_bot.twiny()
+                x_tick_labels_bot_major.append(''.join(initializer.split('_')[1:]))
+                x_tick_labels_top_major.append('TB=%s' % str(train_batch_size))
+
+    print('x_ticks_bot_major: %s' % x_ticks_bot_major)
+    print('x_ticks_bot_minor: %s' % x_ticks_bot_minor)
+    print('x_tick_labels_bot_major: %s' % x_tick_labels_bot_major)
+    for i, x_tick_label in enumerate(x_tick_labels_bot_major):
+        x_tick_labels_bot_minor.append('')
+        x_tick_labels_bot_minor.append(x_tick_label)
+    print('x_tick_labels_bot_minor: %s' % x_tick_labels_bot_minor)
+    print('')
+    print('x_ticks_top_major: %s' % x_ticks_top_major)
+    print('x_ticks_top_minor: %s' % x_ticks_top_minor)
+    print('x_tick_labels_top_major: %s' % x_tick_labels_top_major)
+    for i, x_tick_label in enumerate(x_tick_labels_top_major):
+        x_tick_labels_top_minor.append('')
+        x_tick_labels_top_minor.append(x_tick_label)
+    print('x_tick_labels_top_minor: %s' % x_tick_labels_top_minor)
+
+    fig = plt.figure(5)
+    ax_bot = fig.gca()
+    # ax_bot.imshow(data)
+    # plt.show()
+    ax_bot.set_xticks(x_ticks_bot_major, minor=False)
+    ax_bot.set_xticks(x_ticks_bot_minor, minor=True)
+    ax_bot.set_xticklabels(x_tick_labels_bot_major, minor=False)
+    # ax_bot.set_xticklabels('', major=True)
+
     ax_top = ax_bot.twiny()
-    ax_top.set_xticks(ax_bot.get_xticks(), minor=False)
-    ax_top.set_xticklabels(x_tick_labels_top, minor=False)
+    ax_top.set_xticks(x_ticks_top_major, minor=False)
+    ax_top.set_xticks(x_ticks_top_minor, minor=True)
+    ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
+    # ax_top.set_xticklabels('', major=True)
 
-    # ax_top.xaxis.tick_top()
-    # print(type(ax_top))
-    # ax_top = fig.axes.append(ax_bot)
-    # ax_top.set_xticks(ax_bot.get_xticks(), minor=False)
-    # ax_top.set_xticks(x_ticks_top_minor, minor=True)
-    # ax_top.set_xticklabels(x_tick_labels_top, minor=True)
+    ax_bot.imshow(data)
+    ax_top.imshow(data)
 
-    # print('xticks_top: %s' % x_ticks_top)
-    # ax_top.set_xticks(x_ticks_top, minor=False)
-    # ax_top.set_xticklabels(x_tick_labels_top)
-    # ax_top.tick_params('x', length=6, width=2)
-    # ax_top.tick_params('x', )
-    scalar_mappable = cm.ScalarMappable(cmap=plt.cm.get_cmap('viridis'), norm=plt.Normalize(vmin=0, vmax=1))
+    scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=1))
     scalar_mappable._A = []
-    cax = axes[1]
-    plt.colorbar(scalar_mappable, cax=cax)
+    plt.colorbar(mappable=scalar_mappable)
+
     plt.show()
-
-    # TODO: plt.text don't clone axis.
-    # TODO: plot log loss.
-
 
 
 if __name__ == '__main__':
     main()
-
