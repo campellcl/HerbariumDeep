@@ -114,7 +114,7 @@ def main():
         y_tick_labels_left_combined.append(y_tick_label_minor)
     print('y_tick_labels_left_combined: %s' % y_tick_labels_left_combined)
 
-    fig = plt.figure(1)
+    fig = plt.figure('DEBUG DATASET')
     ax_bot = fig.gca()
 
     ax_bot.set_xticks(x_ticks_bot_major, minor=False)
@@ -125,6 +125,11 @@ def main():
     ax_bot.set_yticks(y_ticks_left_major, minor=False)
     ax_bot.set_yticks(y_ticks_left_minor, minor=True)
     ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
+
+    # ax_right = ax_bot.twinx()
+    # ax_right.set_aspect('equal')
+    # ax_right.set_yticks(y_ticks_left_major, minor=False)
+    # ax_right = plt.Axes(fig=fig, rect=fig.patch)
 
     ax_top = ax_bot.twiny()
     ax_top.set_xticks(x_ticks_top_major, minor=False)
@@ -143,7 +148,7 @@ def main():
     scalar_mappable._A = []
     plt.colorbar(mappable=scalar_mappable)
 
-    plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss')
+    plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
 
     plt.show()
 
