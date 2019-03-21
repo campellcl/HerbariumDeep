@@ -4,6 +4,26 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 
+def convert_initializer_to_axes_label(initializer):
+    if initializer == 'INIT_HE_NORMAL':
+        return 'HE-NORM'
+    elif initializer == 'INIT_HE_UNIFORM':
+        return 'HE-UNIF'
+    elif initializer == 'INIT_NORMAL_TRUNCATED':
+        return 'NORM-TRUNC'
+    else:
+        print('ERROR: Could not identify initializer: %s' % initializer)
+        return None
+
+def convert_optimizer_to_axes_label(optimizer):
+    if optimizer == 'OPTIM_ADAM':
+        return 'ADAM'
+    elif optimizer == 'OPTIM_NESTEROV':
+        return 'NESTEROV'
+    else:
+        print('ERROR: Could not identify optimizer: %s' % optimizer)
+        return None
+
 def main():
     __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests\\gs_val_hyperparams.pkl'
     df = pd.read_pickle(__path)
@@ -47,7 +67,8 @@ def main():
         optimizer = optimizers[optim_index]
         activ_index = i % 2
         activation = activations[activ_index]
-        y_tick_labels_left_major.append(optimizer)
+        optimizer_repr = convert_optimizer_to_axes_label(optimizer)
+        y_tick_labels_left_major.append(optimizer_repr)
         y_tick_labels_left_minor.append(activation)
         for j in range(data.shape[1]):
             tb_index = j % 2
@@ -63,7 +84,8 @@ def main():
             data[i][j] = df_subset.iloc[0].best_epoch_loss
             # x_tick_labels.append(initializer.split('_')[1:])
             if i == 0:
-                x_tick_labels_bot_major.append(''.join(initializer.split('_')[1:]))
+                init_repr = convert_initializer_to_axes_label(initializer=initializer)
+                x_tick_labels_bot_major.append(init_repr)
                 x_tick_labels_top_major.append('TB=%s' % str(train_batch_size))
 
     print('x_ticks_bot_major: %s' % x_ticks_bot_major)
@@ -110,13 +132,18 @@ def main():
     ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
     # ax_top.set_xticklabels('', major=True)
 
+    # Modify font sizes of x-axes:
+    ax_bot.tick_params(axis='x', labelsize=8)
+    ax_top.tick_params(axis='x', labelsize=8)
 
     ax_bot.imshow(data)
     ax_top.imshow(data)
 
-    scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=1))
+    scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
     scalar_mappable._A = []
     plt.colorbar(mappable=scalar_mappable)
+
+    plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss')
 
     plt.show()
 
