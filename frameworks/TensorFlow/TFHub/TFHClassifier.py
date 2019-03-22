@@ -601,7 +601,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             X_batch, y_batch = X[batch_idx], y[batch_idx]
             yield X_batch, y_batch
 
-    def fit(self, X, y, n_epochs=100, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1):
+    def fit(self, X, y, n_epochs=100, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1, early_stop_eval_freq=1):
         """
         fit: Fits the model to the training data. If X_valid and y_valid are provided, validation metrics are reported
             instead of training metrics, and early stopping is employed.
@@ -612,9 +612,18 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         :param y_valid: The validation targets.
         :param eval_freq: How many epochs to train for, before running and displaying the results of an evaluation step.
         :param ckpt_freq: How many epochs to train for, before saving a model checkpoint.
+        :param early_stop_eval_freq: This parameter determines how many 'eval_freq' triggering epochs (evaluations on the
+            entire validation dataset) should occur before checking to see if the criterion function has decreased.
+            Recall that the model is evaluated against the entire X_valid and y_valid datasets every 'eval_freq' epochs
+            (if X_valid and y_valid are provided). The early stopping criterion is also updated every 'eval_freq' epochs.
+            For instance, if the eval_freq is set to 20 epochs, and the early_stop_eval_freq is set to 1; then on the
+            0th epoch, the best encountered criterion function value will be updated by the performance of the model on
+            the validation dataset. The next evaluation will then occur on epoch 20 (as dictated by 'eval_freq'). Since,
+            early_stop_eval_freq was set to 1, if the criterion function produces a worse value than what was previously
+            recorded as the best encountered value, early stopping will be triggered this epoch.
         :return:
         """
-        ''' Generic cleanup, and some lazy instantiation: '''
+        ''' Generic cleanup, and some deferred instantiation: '''
         # Close the session in case it was previously left open for some reason:
         self.close_train_session()
         self.close_eval_session()
@@ -631,7 +640,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         n_outputs = len(self.classes_)
 
         # needed in case of early stopping:
-        max_checks_without_progress = 20
+        max_checks_without_progress = early_stop_eval_freq
         checks_without_progress = 0
         best_loss = np.infty
         best_params = None

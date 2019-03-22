@@ -444,7 +444,9 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
 
     num_epochs = 100
     eval_freq = 10
+    early_stopping_eval_freq = 1
     ckpt_freq = 0
+
 
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels, tb_logdir=log_dir)
@@ -460,7 +462,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y_valid=val_ground_truth_indices,
         n_epochs=num_epochs,
         eval_freq=eval_freq,
-        ckpt_freq=ckpt_freq
+        ckpt_freq=ckpt_freq,
+        early_stop_eval_freq=early_stopping_eval_freq
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
     best_params = grid_search.best_params_
@@ -480,7 +483,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
         y_valid=val_ground_truth_indices,
         n_epochs=num_epochs,
         eval_freq=eval_freq,
-        ckpt_freq=ckpt_freq
+        ckpt_freq=ckpt_freq,
+        early_stop_eval_freq=early_stopping_eval_freq
     )
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
