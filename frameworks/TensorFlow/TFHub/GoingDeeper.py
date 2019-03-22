@@ -39,6 +39,12 @@ def _prepare_tensor_board_directories(tb_summaries_dir, intermediate_output_grap
     return
 
 
+def _prepare_model_export_directories(model_export_dir):
+    if os.path.exists(model_export_dir):
+        tf.gfile.DeleteRecursively(model_export_dir)
+    return
+
+
 def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
     train_image_paths = []
     val_image_paths = []
@@ -397,7 +403,7 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, val_bottlenecks=None, val_ground_truth_indices=None):
+def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
     # params = {
     #     'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
     #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
@@ -436,8 +442,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     #     'train_batch_size': [10, 20]
     # }
 
-    num_epochs = 10
-    eval_freq = 1
+    num_epochs = 100
+    eval_freq = 10
     ckpt_freq = 0
 
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
@@ -479,7 +485,7 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
     print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
-    model_export_dir = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp', 'trained_model')
+
     tf.logging.info(msg='Exporting re-fit model for future inference and evaluation to: %s' % model_export_dir)
     tfh_classifier.export_model(saved_model_dir=model_export_dir, human_readable_class_labels=class_labels)
 
@@ -493,7 +499,9 @@ def main(run_config):
     TensorBoard summaries directory:
     """
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
+    model_export_dir = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp', 'trained_model')
     _prepare_tensor_board_directories(tb_summaries_dir='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model\\')
+    _prepare_model_export_directories(model_export_dir=model_export_dir)
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
     bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir)
@@ -529,7 +537,8 @@ def main(run_config):
         class_labels=class_labels,
         val_bottlenecks=val_bottlenecks,
         val_ground_truth_indices=val_ground_truth_indices,
-        log_dir=tb_log_dir
+        log_dir=tb_log_dir,
+        model_export_dir=model_export_dir
     )
 
     # minibatch_train_bottlenecks, minibatch_train_ground_truth_indices = _get_random_cached_bottlenecks(
