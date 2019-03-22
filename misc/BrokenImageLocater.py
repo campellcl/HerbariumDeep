@@ -116,7 +116,31 @@ if __name__ == '__main__':
         accepted_extensions=['jpg', 'jpeg'],
         batch_size=20
     )
-    broken_image_locator.test_run_generator()
+    image_file_paths = broken_image_locator._get_image_file_paths()
+    num_images = len(image_file_paths)
+
+    def _parse_function(image_path):
+        tf.logging.info('Parsing image')
+        image_string = tf.read_file(image_path)
+        image_decoded = tf.image.decode_jpeg(image_string)
+        # image = tf.image.resize_images(image_decoded, [299, 299])
+        return image_decoded, image_path
+
+    path_ds = tf.data.Dataset.from_tensor_slices(image_file_paths)
+    # image_ds = path_ds.map(_parse_function, num_parallel_calls=tf.contrib.data.AUTOTUNE)
+    # image_path_ds = tf.data.Dataset.zip((image_ds, path_ds))
+    image_ds = path_ds.map(_parse_function, num_parallel_calls=tf.contrib.data.AUTOTUNE)
+    iterator = image_ds.make_one_shot_iterator()
+    image, image_path = iterator.get_next()
+    with tf.Session() as sess:
+        for i in range(num_images):
+            try:
+                # tf.logging.info(msg='Opening image: \'%s\'' % tf.print(image_path))
+                sess.run([image_path])
+            except tf.errors.InvalidArgumentError as err:
+                tf.logging.warning(msg='Could not open image: \'%s\'. Encountered error: %s' % (image_file_paths[i], err))
+                exit(-1)
+    # broken_image_locator.test_run_generator()
 
 # # image_dir = image_path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
 # image_dir = 'D:\\data\\SERNEC\\images\\'
