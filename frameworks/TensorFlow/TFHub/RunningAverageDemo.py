@@ -8,6 +8,7 @@ from sklearn import model_selection
 tfhub_module_url = 'https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1'
 tb_log_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
 
+
 class RunningAverageDemoClassifier:
     def __init__(self, class_labels, train_batch_size=-1, val_batch_size=-1, initializer=tf.initializers.truncated_normal, activation=tf.nn.elu, optimizer=tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08)):
         self.class_labels = class_labels
@@ -160,7 +161,6 @@ class RunningAverageDemoClassifier:
             y_proba_tensor = y_proba
             return None, None, X_tensor, y_tensor, logits, y_proba_tensor
 
-
     @staticmethod
     def _add_evaluation_step(y_proba_tensor, y_tensor):
         """
@@ -189,11 +189,11 @@ class RunningAverageDemoClassifier:
 
         self._graph = tf.Graph()
 
+        # Load TFHub module graph:
         augmented_graph, self._bottleneck_tensor, self._resized_input_tensor = \
             RunningAverageDemoClassifier.create_module_graph(graph=self._graph, module_spec=self._module_spec)
 
         # Add transfer learning re-train Ops to training graph:
-
         with augmented_graph.as_default() as further_augmented_graph:
             with further_augmented_graph.name_scope('train_graph') as scope:
                 (training_op, xentropy, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
@@ -253,12 +253,14 @@ class RunningAverageDemoClassifier:
             # tf.logging.info(msg='trainable_vars[0]: %s' % trainable_vars[0])
             # tf.logging.info(msg='trainable_vars[0] initial weights: %s' % trainable_vars[0].eval(sess))
             # tf.logging.info(msg='trainable_vars: %s' % trainable_vars)
-            for i in range(num_epochs):
-                for X_batch, y_batch in self._shuffle_batch(X, y, batch_size=self.train_batch_size):
+            for epoch in range(num_epochs):
+                for batch_num, (X_batch, y_batch) in enumerate(self._shuffle_batch(X, y, batch_size=self.train_batch_size)):
                     # Run a training step, have to capture results at the mini-batch level:
-                    batch_train_summary, batch_train_preds, _ = sess.run([self._train_graph_merged_summaries, self._preds, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
+                    batch_train_summary, batch_train_preds, batch_loss, batch_acc, _ = sess.run([self._train_graph_merged_summaries, self._preds, self._loss, self._accuracy, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
                     # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
-                    self._train_writer.add_summary(batch_train_summary)
+                    self._train_writer.add_summary(batch_train_summary, batch_num)
+                    self._train_writer.flush()
+                    print("{}\tLoss on X_batch: {:.6f}\tAccuracy: {:.2f}%".format(epoch, batch_loss, batch_acc))
 
 
 def _get_class_labels(bottlenecks):
@@ -275,6 +277,7 @@ def _get_class_labels(bottlenecks):
     # Convert back to list for one-hot encoding using array indices:
     class_labels = list(class_labels)
     return class_labels
+
 
 def _load_bottlenecks(compressed_bottleneck_file_path):
     bottlenecks = None
@@ -295,6 +298,7 @@ def _load_bottlenecks(compressed_bottleneck_file_path):
                              'Have you run BottleneckExecutor.py?' % bottleneck_path)
         exit(-1)
     return bottlenecks
+
 
 def _partition_bottlenecks_dataframe(bottlenecks, train_percent=.80, val_percent=.20, test_percent=.20, random_state=0):
     """
@@ -320,6 +324,7 @@ def _partition_bottlenecks_dataframe(bottlenecks, train_percent=.80, val_percent
     )
     return train_bottlenecks, val_bottlenecks, test_bottlenecks
 
+
 def _get_all_cached_bottlenecks(bottleneck_dataframe, class_labels):
     """
     _get_all_cached_bottlenecks: Returns the bottleneck values from the dataframe and performs one-hot encoding on the
@@ -339,6 +344,7 @@ def _get_all_cached_bottlenecks(bottleneck_dataframe, class_labels):
     bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
                                                 for ground_truth_label in bottleneck_ground_truth_labels])
     return bottleneck_values, bottleneck_ground_truth_indices
+
 
 def main(run_config):
 
@@ -368,7 +374,7 @@ def main(run_config):
     tf.logging.info(msg='Obtained bottleneck values from dataframe. Performed corresponding encoding of class labels')
 
     num_epochs = 100
-    running_avg_classifier = RunningAverageDemoClassifier(class_labels=class_labels)
+    running_avg_classifier = RunningAverageDemoClassifier(class_labels=class_labels, train_batch_size=10)
     running_avg_classifier.fit(X=train_bottlenecks, y=train_ground_truth_indices, num_epochs=num_epochs)
 
 
@@ -396,5 +402,8 @@ if __name__ == '__main__':
             'dataset': 'SERNEC'
         }
     }
+    if tf.gfile.Exists(tb_log_dir):
+        tf.gfile.DeleteRecursively(tb_log_dir)
+    tf.gfile.MakeDirs(tb_log_dir)
     main(run_configs['DEBUG'])
 
