@@ -53,86 +53,161 @@ class RunningAverageDemoClassifier:
         augmented_graph = source_model_graph
         return augmented_graph, bottleneck_tensor, resized_input_tensor
 
+    def _add_final_retrain_ops(self, bottleneck_tensor, is_training, final_tensor_name='y_proba'):
+        """
+        add_final_retrain_ops: Adds a new softmax and fully-connected layer for training and model evaluation. In order to
+            use the TFHub model as a fixed feature extractor, we need to retrain the top fully connected layer of the graph
+            that we previously added in the 'create_module_graph' method. This function adds the right ops to the graph,
+            along with some variables to hold the weights, and then sets up all the gradients for the backward pass.
+
+            The set up for the softmax and fully-connected layers is based on:
+            https://www.tensorflow.org/tutorials/mnist/beginners/index.html
+        :source https://github.com/tensorflow/hub/blob/master/examples/image_retraining/retrain.py
+        :modified_by: Chris Campell
+        :param num_classes: The number of unique class labels in both training and validation sets.
+        :param final_tensor_name: A name string for the final node that produces the fine-tuned results.
+        :param bottleneck_tensor: The output of the main CNN graph (the specified TFHub module).
+        :param is_training: Boolean, specifying whether the newly add layer is for training
+            or eval.
+        :returns : The tensors for the training and cross entropy results, tensors for the
+            bottleneck input and ground truth input, a reference to the optimizer for archival purposes and use in the
+            hyper-string representation of this training run.
+        """
+        batch_size, bottleneck_tensor_size = bottleneck_tensor.get_shape().as_list()
+        assert batch_size is None, 'We want to work with arbitrary batch size when ' \
+                               'constructing fully-connected and softmax layers for fine-tuning.'
+        with tf.variable_scope('retrain_ops'):
+            with tf.name_scope('input'):
+                # Create a placeholder Tensor of same type as bottleneck_tensor to cache output from TFHub module:
+                X = tf.placeholder_with_default(
+                    bottleneck_tensor,
+                    shape=[batch_size, bottleneck_tensor_size],
+                    name='X'
+                )
+                # Another placeholder Tensor to hold the true class labels
+                y = tf.placeholder(
+                    tf.int64,
+                    shape=[batch_size],
+                    name='y'
+                )
+                predictions = tf.placeholder(
+                    tf.int64,
+                    shape=[batch_size],
+                    name='predictions'
+                )
+            with tf.variable_scope('final_retrain_ops'):
+                # The final layer of target domain re-train operations is composed of the following:
+                logits = tf.layers.dense(X, self.num_classes, activation=self.activation, use_bias=True, kernel_initializer=self.initializer, trainable=True, name='logits')
+                # tf.summary.histogram('logits', logits)
+                # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
+                y_proba = tf.nn.softmax(logits=logits, name=final_tensor_name)
+
+        if is_training:
+            # Take care not to overwrite these with the eval graph's call to this method, hence the conditional:
+            self._X, self._y, self._predictions = X, y, predictions
+            self._y_proba = y_proba
+
+            # Training graph, add loss Ops and an optimizer:
+            with tf.variable_scope('final_retrain_ops'):
+                preds = tf.math.argmax(y_proba, axis=1)
+
+                xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
+                tf.summary.histogram('xentropy', xentropy)
+
+                loss = tf.reduce_mean(xentropy, name='loss')
+                tf.summary.scalar('loss', loss)
+
+                training_op = self.optimizer.minimize(loss)
+
+                # TODO: Move this logic to add_eval_step method:
+                # correct = tf.nn.in_top_k(logits, y, 1)
+                correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
+                accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name='accuracy')
+                tf.summary.scalar('accuracy', accuracy)
+
+                top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
+                top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
+                tf.summary.scalar('top_five_accuracy', top_five_acc)
+
+                self._preds, self._loss = preds, loss
+                self._accuracy, self._top_five_acc = accuracy, top_five_acc
+
+            # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+            train_graph_global_init = tf.global_variables_initializer()
+
+            # Merge all TensorBoard summaries into one object:
+            train_graph_merged_summaries = tf.summary.merge_all()
+
+            train_saver = tf.train.Saver()
+
+            self._train_graph_global_init = train_graph_global_init
+            self._training_op = training_op,
+            self._train_graph_merged_summaries, self._train_saver = train_graph_merged_summaries, train_saver
+            return training_op, xentropy, X, y, logits, y_proba
+        else:
+            # Evaluation graph, no need to add loss Ops and an optimizer.
+
+            # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+            eval_graph_global_init = tf.global_variables_initializer()
+
+            # Merge all TensorBoard summaries into one object:
+            # eval_graph_merged_summaries = tf.summary.merge_all()
+
+            self._eval_graph_global_init = eval_graph_global_init
+
+            X_tensor = X
+            y_tensor = y
+            y_proba_tensor = y_proba
+            return None, None, X_tensor, y_tensor, logits, y_proba_tensor
+
+
+    @staticmethod
+    def _add_evaluation_step(y_proba_tensor, y_tensor):
+        """
+        _add_evaluation_step
+        :param y_proba_tensor:
+        :param y_tensor:
+        :return:
+        """
+        # Create a tensor containing the predicted class label for each training sample (the argmax of the probability tensor)
+        predictions = tf.math.argmax(y_proba_tensor, axis=1)
+
+        correct = tf.nn.in_top_k(predictions=y_proba_tensor, targets=y_tensor, k=1)
+        accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name='accuracy')
+
+        top_five_predicted = tf.nn.in_top_k(predictions=y_proba_tensor, targets=y_tensor, k=5)
+        top_five_acc = tf.reduce_mean(tf.cast(top_five_predicted, tf.float32))
+
+        acc_eval_step = accuracy
+        top_five_acc_eval_step = top_five_acc
+
+        return acc_eval_step, top_five_acc_eval_step, predictions
+
     def _build_graph(self):
-        self._graph = tf.Graph()
         self._module_spec = hub.load_module_spec(tfhub_module_url)
         tf.logging.info(msg='Loaded module_spec: %s' % self._module_spec)
+
+        self._graph = tf.Graph()
 
         augmented_graph, self._bottleneck_tensor, self._resized_input_tensor = \
             RunningAverageDemoClassifier.create_module_graph(graph=self._graph, module_spec=self._module_spec)
 
         # Add transfer learning re-train Ops to training graph:
 
-        with augmented_graph.as_default() as train_graph:
-
-            # module_spec_tag_set = self._module_spec.get_tags()[1]
-            # tf.logging.info(msg='TensorFlow-Hub ModuleSpec: self._module_spec\'s tags: %s' % module_spec_tag_set)
-            # module_spec_tag_set_signature_names = self._module_spec.get_signature_names(module_spec_tag_set)
-            # tf.logging.info(msg='TensorFlow-Hub ModuleSpec: self._module_spec\'s signature names for tag set \'%s\': %s' % (module_spec_tag_set, module_spec_tag_set_signature_names))
-            # module_spec_tag_set_sig_def_input_info_dict = self._module_spec.get_input_info_dict(signature=module_spec_tag_set_signature_names[1], tags=module_spec_tag_set)
-            # tf.logging.info(msg='TensorFlow-Hub ModuleSpec: self._module_spec\'s input info dict for signature \'%s\' and tags %s is: %s' % (module_spec_tag_set_signature_names[1], module_spec_tag_set, module_spec_tag_set_sig_def_input_info_dict))
-            height, width = hub.get_expected_image_size(self._module_spec)
-            with train_graph.name_scope('source_model'):
-                resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input_tensor')
-                m = hub.Module(self._module_spec, trainable=True)
-                bottleneck_tensor = m(resized_input_tensor)
-
-            batch_size, bottleneck_tensor_size = bottleneck_tensor.get_shape().as_list()
-            with train_graph.name_scope('retrain_ops'):
-                with train_graph.name_scope('input'):
-                    # Create a placeholder Tensor of same type as bottleneck_tensor to cache output from TFHub module:
-                    X = tf.placeholder_with_default(
-                        bottleneck_tensor,
-                        shape=[batch_size, bottleneck_tensor_size],
-                        name='X'
-                    )
-                    # Another placeholder Tensor to hold the true class labels
-                    y = tf.placeholder(
-                        tf.int64,
-                        shape=[batch_size],
-                        name='y'
-                    )
-                    predictions = tf.placeholder(
-                        tf.int64,
-                        shape=[batch_size],
-                        name='predictions'
-                    )
-                with train_graph.name_scope('final_retrain_ops'):
-                    # The final layer of target domain re-train operations is composed of the following:
-                    logits = tf.layers.dense(X, self.num_classes, activation=self.activation, use_bias=True, kernel_initializer=self.initializer, trainable=True, name='logits')
-                    # tf.summary.histogram('logits', logits)
-                    # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
-                    y_proba = tf.nn.softmax(logits=logits, name='y_proba')
-
-            with train_graph.name_scope('eval_ops'):
-                batch_preds = tf.math.argmax(y_proba, axis=1)
-
-                batch_xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
-                tf.summary.histogram('batch_xentropy', batch_xentropy)
-
-                batch_loss = tf.reduce_mean(batch_xentropy, name='batch_loss')
-                tf.summary.scalar('batch_loss', batch_loss)
-
-                loss_exponential_moving_average = tf.train.ExponentialMovingAverage(decay=0.9)
-                # tf.summary.scalar('loss_exponential_moving_average', loss_exponential_moving_average)
-
-                minimization_op = self.optimizer.minimize(batch_loss)
-
-                with tf.control_dependencies([minimization_op]):
-                    training_op = loss_exponential_moving_average.apply([batch_loss])
-
-            # trainable_vars = tf.trainable_variables()
-            init = tf.global_variables_initializer()
-
-            merged_summaries = tf.summary.merge_all()
-
-        self._batch_preds = batch_preds
-        self._batch_loss = batch_loss
-        self._graph_global_init = init
-        self._X = X
-        self._y = y
-        self._training_op = training_op
-        self._merged_summaries = merged_summaries
+        with augmented_graph.as_default() as further_augmented_graph:
+            with further_augmented_graph.name_scope('train_graph') as scope:
+                (training_op, xentropy, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
+                    bottleneck_tensor=self._bottleneck_tensor,
+                    is_training=True,
+                    final_tensor_name='y_proba'
+                )
+                acc_eval_step, top_five_acc_eval_step, predictions = self._add_evaluation_step(
+                    y_proba_tensor=y_proba_tensor,
+                    y_tensor=y_tensor
+                )
+        augmented_train_graph = further_augmented_graph
+        tf.reset_default_graph()
+        return augmented_train_graph
 
     @staticmethod
     def _shuffle_batch(X, y, batch_size):
@@ -167,11 +242,13 @@ class RunningAverageDemoClassifier:
                 self.val_batch_size = None
 
         if self._graph is None:
-            self._build_graph()
+            self._graph = self._build_graph()
 
-        with tf.Session(graph=self._graph) as sess:
+        self._session = tf.Session(graph=self._graph)
+
+        with self._session.as_default() as sess:
             self._train_writer = tf.summary.FileWriter(tb_log_dir, sess.graph)
-            self._graph_global_init.run()
+            self._train_graph_global_init.run()
             # trainable_vars_with_weights = [trainable_var for trainable_var in trainable_vars if 'weights' in trainable_var.name]
             # tf.logging.info(msg='trainable_vars[0]: %s' % trainable_vars[0])
             # tf.logging.info(msg='trainable_vars[0] initial weights: %s' % trainable_vars[0].eval(sess))
