@@ -256,9 +256,10 @@ class RunningAverageDemoClassifier:
             for i in range(num_epochs):
                 for X_batch, y_batch in self._shuffle_batch(X, y, batch_size=self.train_batch_size):
                     # Run a training step, have to capture results at the mini-batch level:
-                    # batch_train_summary, batch_train_preds = sess.run([self._merged_summaries, self._batch_preds, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
-                    _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
-                    # self._train_writer.add_summary(batch_train_summary)
+                    batch_train_summary, batch_train_preds, _ = sess.run([self._train_graph_merged_summaries, self._preds, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
+                    # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
+                    self._train_writer.add_summary(batch_train_summary)
+
 
 def _get_class_labels(bottlenecks):
     """
