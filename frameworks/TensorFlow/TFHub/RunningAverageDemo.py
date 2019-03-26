@@ -113,37 +113,54 @@ class RunningAverageDemoClassifier:
                 preds = tf.math.argmax(y_proba, axis=1)
 
                 xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
-                tf.summary.histogram('xentropy', xentropy)
+                tf.summary.histogram('batch_xentropy', xentropy)
 
                 loss = tf.reduce_mean(xentropy, name='loss')
-                tf.summary.scalar('loss', loss)
+                tf.summary.scalar('batch_loss', loss)
 
-                training_op = self.optimizer.minimize(loss)
+                minimize_op = self.optimizer.minimize(loss)
+                loss_ema = tf.train.ExponentialMovingAverage(decay=0.9)
+                # tf.summary.scalar('loss_ema', loss_ema)
+                # Add loss_ema manually to the collection of tf.GraphKeys.MOVING_AVERAGE_VARAIBLES
+                tf.add_to_collection('moving_average_variables', loss_ema)
+
+                with tf.control_dependencies([minimize_op]):
+                    training_op = loss_ema.apply([loss])
+
+                # Retrieve EMA values:
+                retrieve_ema_loss_op = tf.group([tf.assign(var, loss_ema.average(var)) for var in self._graph.get_collection(tf.GraphKeys.MOVING_AVERAGE_VARIABLES)])
+                # graph.get_collection(tf.GraphKeys.MOVING_AVERAGE_VARIABLES)
 
                 # TODO: Move this logic to add_eval_step method:
                 # correct = tf.nn.in_top_k(logits, y, 1)
                 correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
                 accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name='accuracy')
-                tf.summary.scalar('accuracy', accuracy)
+                tf.summary.scalar('batch_accuracy', accuracy)
 
                 top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
                 top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
-                tf.summary.scalar('top_five_accuracy', top_five_acc)
+                tf.summary.scalar('batch_top_five_accuracy', top_five_acc)
 
                 self._preds, self._loss = preds, loss
                 self._accuracy, self._top_five_acc = accuracy, top_five_acc
+                self._retrieve_ema_loss_op = retrieve_ema_loss_op
 
             # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
             train_graph_global_init = tf.global_variables_initializer()
 
             # Merge all TensorBoard summaries into one object:
-            train_graph_merged_summaries = tf.summary.merge_all()
+            # train_graph_batch_merged_summaries = tf.summary.merge_all()
+            train_graph_batch_merged_summaries = tf.summary.merge(['batch_xentropy', 'batch_loss', 'batch_accuracy', 'batch_top_five_accuracy'])
+
+            # train_graph_epoch_merged_summaries = tf.summary.merge(['loss_ema'])
 
             train_saver = tf.train.Saver()
 
             self._train_graph_global_init = train_graph_global_init
-            self._training_op = training_op,
-            self._train_graph_merged_summaries, self._train_saver = train_graph_merged_summaries, train_saver
+            self._training_op = training_op
+            self._loss_ema = loss_ema
+            self._train_graph_batch_merged_summaries, self._train_saver = train_graph_batch_merged_summaries, train_saver
+            # self._train_graph_epoch_merged_summaries = train_graph_epoch_merged_summaries
             return training_op, xentropy, X, y, logits, y_proba
         else:
             # Evaluation graph, no need to add loss Ops and an optimizer.
@@ -256,12 +273,17 @@ class RunningAverageDemoClassifier:
             for epoch in range(num_epochs):
                 for batch_num, (X_batch, y_batch) in enumerate(self._shuffle_batch(X, y, batch_size=self.train_batch_size)):
                     # Run a training step, have to capture results at the mini-batch level:
-                    batch_train_summary, batch_train_preds, batch_loss, batch_acc, _ = sess.run([self._train_graph_merged_summaries, self._preds, self._loss, self._accuracy, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
+                    batch_train_summary, batch_train_preds, batch_loss, batch_acc, _ = sess.run([self._train_graph_batch_merged_summaries, self._preds, self._loss, self._accuracy, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
                     # _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
-                    self._train_writer.add_summary(batch_train_summary, batch_num)
-                    self._train_writer.flush()
+                    self._train_writer.add_summary(batch_train_summary, epoch)
+                    # self._train_writer.flush()
                     print("{}\tLoss on X_batch: {:.6f}\tAccuracy: {:.2f}%".format(epoch, batch_loss, batch_acc))
+                # sess.graph.get_operation_by_name('train_graph/final_retrain_ops/loss')
+                # sess.graph.get_tensor_by_name('train_graph/final_retrain_ops/loss:0')
+                loss_ema = sess.run(self._retrieve_ema_loss_op)
+                print("{}\tLoss on X_train: {:.6f}%".format(epoch, loss_ema))
 
+                # self._train_writer.add_summary(epoch_merged_summary)
 
 def _get_class_labels(bottlenecks):
     """
