@@ -190,9 +190,9 @@ def main(run_config):
     _module_spec = hub.load_module_spec(tfhub_module_url)
     tf.logging.info(msg='Loaded module_spec: %s' % _module_spec)
 
-    batch_losses = np.array([])
+    batch_losses = []
 
-    loss_ema = tf.train.ExponentialMovingAverage(decay=0.9)
+
 
     # Add to collection;
     # tf.add_to_collection(name=tf.GraphKeys.MOVING_AVERAGE_VARIABLES, value=loss_ema)
@@ -202,7 +202,6 @@ def main(run_config):
     _session = tf.Session(graph=_graph)
 
     with _graph.as_default() as source_model_graph:
-
         height, width = hub.get_expected_image_size(_module_spec)
         resized_input_tensor = tf.placeholder(tf.float32, [None, height, width, 3], name='resized_input')
         m = hub.Module(_module_spec, name='inception_v3_hub')
@@ -234,30 +233,37 @@ def main(run_config):
         y_proba = tf.nn.softmax(logits=logits, name='y_proba')
         xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
         loss = tf.reduce_mean(xentropy, name='loss')
-        minimize_op = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08).minimize(loss)
+        loss_ema = tf.train.ExponentialMovingAverage(decay=0.9)
+        minimization_op = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08).minimize(loss)
 
         # with tf.control_dependencies([minimize_op]):
         #     train_op = batch_losses.append(loss)
 
-        with tf.control_dependencies([minimize_op]):
-            # batch_losses.append(loss)
+        with tf.control_dependencies([minimization_op]):
+            batch_losses.append(loss)
             maintain_loss_ema_op = loss_ema.apply(batch_losses)
             training_op = tf.group(maintain_loss_ema_op)
             # maintain_loss_ema_op = loss_ema.apply(batch_losses)
 
-        moving_average = loss_ema.average(batch_losses)
+        moving_average = tf.Variable(dtype=tf.float32, initial_value=0.0)
+        get_moving_average_op = tf.group([tf.assign(moving_average, loss_ema.average(loss_tensor)) for loss_tensor in batch_losses])
+        # moving_mean_loss_tensor, moving_mean_loss_update_op = tf.metrics.mean()
+        # moving_average = loss_ema.average(batch_losses)
         # retrieve_loss_ema_op = tf.group(
         #     [tf.assign(var, loss_ema.average(var)) for var in loss_vars]
         # )
         # retrieve_loss_moving_average_op = tf.reduce_mean(batch_losses)
 
+        graph_global_init = tf.global_variables_initializer()
+
     session = tf.Session(graph=_graph)
     with session.as_default() as sess:
+        graph_global_init.run()
         for epoch in range(num_epochs):
             for batch_num, (X_batch, y_batch) in enumerate(_shuffle_batch(train_bottlenecks, train_ground_truth_indices, batch_size=train_batch_size)):
                 _ = sess.run([training_op], feed_dict={X: train_bottlenecks, y: train_ground_truth_indices, batch_index: batch_num})
-            loss_ema = sess.run([moving_average])
-            print('\t%d\tloss_ema: %.2f' % (epoch, loss_ema))
+            moving_average_value = sess.run(get_moving_average_op)
+            print('\t%d\tloss_ema: %.2f' % (epoch, moving_average_value))
 
 
 if __name__ == '__main__':
