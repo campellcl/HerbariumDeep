@@ -246,7 +246,7 @@ def main(run_config):
             # maintain_loss_ema_op = loss_ema.apply(batch_losses)
 
         moving_average = tf.Variable(dtype=tf.float32, initial_value=0.0)
-        get_moving_average_op = tf.group([tf.assign(moving_average, loss_ema.average(loss_tensor)) for loss_tensor in batch_losses])
+        get_moving_average_op = tf.group([tf.assign(moving_average, loss_ema.average(shadow_loss_tensor)) for shadow_loss_tensor in batch_losses])
         # moving_mean_loss_tensor, moving_mean_loss_update_op = tf.metrics.mean()
         # moving_average = loss_ema.average(batch_losses)
         # retrieve_loss_ema_op = tf.group(
@@ -261,9 +261,9 @@ def main(run_config):
         graph_global_init.run()
         for epoch in range(num_epochs):
             for batch_num, (X_batch, y_batch) in enumerate(_shuffle_batch(train_bottlenecks, train_ground_truth_indices, batch_size=train_batch_size)):
-                _ = sess.run([training_op], feed_dict={X: train_bottlenecks, y: train_ground_truth_indices, batch_index: batch_num})
+                _ = sess.run([training_op], feed_dict={X: X_batch, y: y_batch, batch_index: batch_num})
             moving_average_value = sess.run(get_moving_average_op)
-            print('\t%d\tloss_ema: %.2f' % (epoch, moving_average_value))
+            print('\t%d\tloss_ema: %.2f' % (epoch, sess.run(moving_average)))
 
 
 if __name__ == '__main__':
