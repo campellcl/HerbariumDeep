@@ -239,8 +239,20 @@ def main(run_config):
         # with tf.control_dependencies([minimize_op]):
         #     train_op = batch_losses.append(loss)
 
+        # Insert a control dependency on the minimization Op, ensure losses are recorded for every mini-batch:
         with tf.control_dependencies([minimization_op]):
+            # Maintain a list of Tensors, one for each mini-batch loss calculation:
             batch_losses.append(loss)
+            '''
+            The following function call was the source of ~6+ hours of headache, pay close attention to this comment. 
+            The tf.train.ExponentialMovingAverage().apply(var_list) creates 'shadow variables' for every Tensor in the 
+             batch_losses list. Since batch_losses is a list of Tensor objects (representing the loss of each mini-batch),
+             the shadow variables are initialized to 0 and zero de-biased (see: 
+             https://github.com/tensorflow/tensorflow/blob/6612da89516247503f03ef76e974b51a434fb52e/tensorflow/python/training/moving_averages.py#L45).
+             The apply method itself is designed to be called multiple times, 
+              
+            '''
+            # As the batch_losses list grows in size, this tells the ExponentialMovingAverage to create shadow variables for every Tensor in the batch_losses list:
             maintain_loss_ema_op = loss_ema.apply(batch_losses)
             training_op = tf.group(maintain_loss_ema_op)
             # maintain_loss_ema_op = loss_ema.apply(batch_losses)
