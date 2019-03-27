@@ -190,7 +190,7 @@ def main(run_config):
     _module_spec = hub.load_module_spec(tfhub_module_url)
     tf.logging.info(msg='Loaded module_spec: %s' % _module_spec)
 
-    # batch_losses = []
+    batch_losses = np.array([])
 
     loss_ema = tf.train.ExponentialMovingAverage(decay=0.9)
 
@@ -208,7 +208,9 @@ def main(run_config):
         m = hub.Module(_module_spec, name='inception_v3_hub')
         bottleneck_tensor = m(resized_input_tensor)
         batch_size, bottleneck_tensor_size = bottleneck_tensor.get_shape().as_list()
-        batch_losses = tf.TensorArray(dtype=tf.float32, size=train_batch_size)
+
+        # batch_losses = tf.Variable(tf.int64)
+
         batch_index = tf.placeholder(
             tf.int32,
             shape=[]
@@ -238,7 +240,7 @@ def main(run_config):
         #     train_op = batch_losses.append(loss)
 
         with tf.control_dependencies([minimize_op]):
-            batch_losses.write(batch_index, value=loss)
+            # batch_losses.append(loss)
             maintain_loss_ema_op = loss_ema.apply(batch_losses)
             training_op = tf.group(maintain_loss_ema_op)
             # maintain_loss_ema_op = loss_ema.apply(batch_losses)
@@ -252,9 +254,9 @@ def main(run_config):
     session = tf.Session(graph=_graph)
     with session.as_default() as sess:
         for epoch in range(num_epochs):
-            for batch_num, (X_batch, y_batch) in enumerate(_shuffle_batch(X, y, batch_size=train_batch_size)):
+            for batch_num, (X_batch, y_batch) in enumerate(_shuffle_batch(train_bottlenecks, train_ground_truth_indices, batch_size=train_batch_size)):
                 _ = sess.run([training_op], feed_dict={X: train_bottlenecks, y: train_ground_truth_indices, batch_index: batch_num})
-            loss_ema = sess.run(moving_average)
+            loss_ema = sess.run([moving_average])
             print('\t%d\tloss_ema: %.2f' % (epoch, loss_ema))
 
 
