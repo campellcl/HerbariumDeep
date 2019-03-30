@@ -345,21 +345,21 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     preds = tf.math.argmax(y_proba, axis=1)
 
                     batch_xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
-                    # tf.summary.histogram('batch_xentropy', batch_xentropy)
+                    xentropy_summary = tf.summary.histogram('xentropy', batch_xentropy)
 
                     batch_loss = tf.reduce_mean(batch_xentropy, name='batch_loss')
-                    # tf.summary.scalar('batch_loss', batch_loss)
+                    loss_summary = tf.summary.scalar('loss', batch_loss)
                     # self._epoch_train_losses.append(batch_loss)
                     minimization_op = self.optimizer.minimize(batch_loss)
 
                     # TODO: Move this logic to add_eval_step method?:
                     batch_correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
                     batch_accuracy = tf.reduce_mean(tf.cast(batch_correct, tf.float32), name='batch_accuracy')
-                    # tf.summary.scalar('batch_accuracy', batch_accuracy)
+                    acc_summary = tf.summary.scalar('accuracy', batch_accuracy)
 
                     top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
                     batch_top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
-                    # tf.summary.scalar('top_five_accuracy', top_five_acc)
+                    top_five_acc_summary = tf.summary.scalar('top_five_accuracy', batch_top_five_acc)
 
                     # Maintain sums for moving averages:
                     batch_loss_sum = tf.Variable(0.0, dtype=tf.float32, name='batch_loss_sum')
@@ -368,11 +368,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
                     # Moving average calculation ops:
                     batch_loss_moving_average = batch_loss_sum / tf.cast(batch_index, tf.float32)
-                    tf.summary.scalar('average_batch_loss', batch_loss_moving_average)
+                    average_batch_loss_summary = tf.summary.scalar('average_batch_loss', batch_loss_moving_average)
                     batch_acc_moving_average = batch_accuracy_sum / tf.cast(batch_index, tf.float32)
-                    tf.summary.scalar('average_batch_acc', batch_acc_moving_average)
+                    average_batch_acc_summary = tf.summary.scalar('average_batch_acc', batch_acc_moving_average)
                     batch_top5_acc_moving_average = batch_top5_acc_sum / tf.cast(batch_index, tf.float32)
-                    tf.summary.scalar('average_batch_top_five_acc', batch_top5_acc_moving_average)
+                    average_batch_top_five_acc_summary = tf.summary.scalar('average_batch_top_five_acc', batch_top5_acc_moving_average)
 
                     # Maintain clear operations for resetting running batch averages at every new epoch:
                     clear_batch_loss_moving_average_op = tf.assign(batch_loss_sum, 0.0)
@@ -423,7 +423,18 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             train_graph_global_init = tf.global_variables_initializer()
 
             # Merge all TensorBoard summaries into one object:
-            train_graph_merged_summaries = tf.summary.merge_all()
+            if self.dataset == 'SERNEC':
+                # If SERNEC dataset, need different summaries for training and validation datasets:
+                # train_graph_training_merged_summaries = tf.summary.merge(['average_batch_loss', 'average_batch_acc', 'average_batch_top_five_acc'])
+                train_graph_training_merged_summaries = tf.summary.merge([average_batch_loss_summary, average_batch_acc_summary, average_batch_top_five_acc_summary])
+                # train_graph_val_merged_summaries = tf.summary.merge(['xentropy', 'loss', 'accuracy', 'top_five_accuracy'])
+                train_graph_val_merged_summaries = tf.summary.merge([xentropy_summary, loss_summary, acc_summary, top_five_acc_summary])
+                self._train_graph_training_merged_summaries = train_graph_training_merged_summaries
+                self._train_graph_val_merged_summaries = train_graph_val_merged_summaries
+            else:
+                # One training graph will suffice if both training and validation datasets fit into GPU memory:
+                train_graph_merged_summaries = tf.summary.merge_all()
+                self._train_graph_merged_summaries = train_graph_merged_summaries
 
             # Create a saver for checkpoint file creation and restore:
             # ON RESUME: Run to debug here, then explore tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES) need some way
@@ -435,7 +446,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
             self._train_graph_global_init = train_graph_global_init
             self._training_op = training_op,
-            self._train_graph_merged_summaries, self._train_saver = train_graph_merged_summaries, train_saver
+            self._train_saver = train_saver
             if self.dataset == 'SERNEC':
                 return training_op, batch_xentropy, X, y, logits, y_proba
             else:
@@ -765,7 +776,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     if self.dataset == 'SERNEC':
                         # Dataset too large to calculate training summaries on entire dataset, maintain them here.
                         # Recall that self._training_op is defined differently for SERNEC to maintain moving average updates across batches:
-                        train_summary, _ = sess.run([self._train_graph_merged_summaries, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch, self._batch_index: batch_num})
+                        train_summary, _ = sess.run([self._train_graph_training_merged_summaries, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch, self._batch_index: batch_num})
                     else:
                         # Dataset is small enough to calculate training summaries on entire dataset, so run a train op; but don't capture and retain training summaries on the batch level:
                         _ = sess.run([self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
@@ -782,11 +793,18 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         self._train_writer.add_summary(train_summary, epoch)
 
                     if X_valid is not None and y_valid is not None:
-                        # Run eval metrics on the entire validation dataset:
-                        val_summary, loss_val, acc_val, top5_acc, val_preds = sess.run(
-                            [self._train_graph_merged_summaries, self._loss, self._accuracy, self._top_five_acc, self._preds],
-                            feed_dict={self._X: X_valid, self._y: y_valid, self._batch_index: len(X_valid)}
-                        )
+                        if self.dataset == 'SERNEC':
+                            # different summary writer:
+                            val_summary, loss_val, acc_val, top5_acc, val_preds = sess.run(
+                                [self._train_graph_val_merged_summaries, self._loss, self._accuracy, self._top_five_acc, self._preds],
+                                feed_dict={self._X: X_valid, self._y: y_valid}
+                            )
+                        else:
+                            # Run eval metrics on the entire validation dataset:
+                            val_summary, loss_val, acc_val, top5_acc, val_preds = sess.run(
+                                [self._train_graph_merged_summaries, self._loss, self._accuracy, self._top_five_acc, self._preds],
+                                feed_dict={self._X: X_valid, self._y: y_valid, self._batch_index: len(X_valid)}
+                            )
 
                         if is_last_step:
                             # last step, no early stopping, export stats:
