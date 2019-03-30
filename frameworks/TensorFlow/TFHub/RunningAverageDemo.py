@@ -233,44 +233,24 @@ def main(run_config):
         y_proba = tf.nn.softmax(logits=logits, name='y_proba')
         xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
         loss = tf.reduce_mean(xentropy, name='loss')
-        loss_ma = tf.metrics.mean()
         minimization_op = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08).minimize(loss)
-
-        # with tf.control_dependencies([minimize_op]):
-        #     train_op = batch_losses.append(loss)
-
-        # Insert a control dependency on the minimization Op, ensure losses are recorded for every mini-batch:
-        with tf.control_dependencies([minimization_op]):
-            # Maintain a list of Tensors, one for each mini-batch loss calculation:
-            batch_losses.append(loss)
-            '''
-            The following function call was the source of ~6+ hours of headache, pay close attention to this comment. 
-            The tf.train.ExponentialMovingAverage().apply(var_list) creates 'shadow variables' for every Tensor in the 
-             batch_losses list. Since batch_losses is a list of Tensor objects (representing the loss of each mini-batch),
-             the shadow variables are initialized to 0 and zero de-biased (see: 
-             https://github.com/tensorflow/tensorflow/blob/6612da89516247503f03ef76e974b51a434fb52e/tensorflow/python/training/moving_averages.py#L45).
-            The apply method itself is designed to be called multiple times, continuously expanding the list of 
-             maintained shadow variables used in the average computation 
-             (see: https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage#apply).
-            '''
-            # As the batch_losses list grows in size, this tells the ExponentialMovingAverage to create shadow
-            #   variables for every Tensor in the batch_losses list:
-            maintain_loss_ema_op = loss_ema.apply(batch_losses)
-            # This re-naming ensures that any runs of the canonical 'training_op' force a running average update:
-            training_op = tf.group(maintain_loss_ema_op)
-
-        moving_average = tf.Variable(dtype=tf.float32, initial_value=0.0)
-        '''
-        This gets messy... basically this actually computes the moving average from the shadow variables and stores it 
-         in the 'moving_average' Variable. 
-        '''
-        get_moving_average_op = tf.group([tf.assign(moving_average, loss_ema.average(shadow_loss_tensor)) for shadow_loss_tensor in batch_losses])
-        # moving_mean_loss_tensor, moving_mean_loss_update_op = tf.metrics.mean()
-        # moving_average = loss_ema.average(batch_losses)
-        # retrieve_loss_ema_op = tf.group(
-        #     [tf.assign(var, loss_ema.average(var)) for var in loss_vars]
+        # batch_loss = tf.placeholder(
+        #     tf.int64,
+        #     shape=(),
+        #     name='batch_loss'
         # )
-        # retrieve_loss_moving_average_op = tf.reduce_mean(batch_losses)
+        batch_loss_sum = tf.Variable(0.0, dtype=tf.float32, name='batch_loss_sum_var')
+        batch_loss_moving_average_var = batch_loss_sum / tf.cast(batch_index, tf.float32)
+        clear_batch_loss_moving_average_op = tf.assign(batch_loss_sum, 0.0)
+        with tf.control_dependencies([minimization_op]):
+            increment_batch_loss_op = batch_loss_sum.assign_add(loss)
+            training_op = tf.group(increment_batch_loss_op)
+
+        # batch_loss_moving_average, batch_loss_moving_average_update_op = tf.metrics.mean(
+        #     batch_loss_moving_average_var,
+        #     metrics_collections=[tf.GraphKeys.METRIC_VARIABLES, tf.GraphKeys.MOVING_AVERAGE_VARIABLES],
+        #     updates_collections=[tf.GraphKeys.UPDATE_OPS]
+        # )
 
         graph_global_init = tf.global_variables_initializer()
 
@@ -278,13 +258,17 @@ def main(run_config):
     with session.as_default() as sess:
         graph_global_init.run()
         for epoch in range(num_epochs):
+            # sess.run(batch_loss_moving_average_update_op.initializer)
             for batch_num, (X_batch, y_batch) in enumerate(_shuffle_batch(train_bottlenecks, train_ground_truth_indices, batch_size=train_batch_size)):
                 # Now any invocation of training_op will force an update of the moving exponential average:
                 _ = sess.run([training_op], feed_dict={X: X_batch, y: y_batch, batch_index: batch_num})
             # To actually compute the average of the acquired shadow variables, we run this op:
-            moving_average_value = sess.run(get_moving_average_op)
+            batch_loss_avg = sess.run(batch_loss_moving_average_var, feed_dict={batch_index: batch_num})
+            print('\t%d\tbatch_loss_moving_average: %.2f' % (epoch, batch_loss_avg))
+            sess.run(clear_batch_loss_moving_average_op)
+            # moving_average_value = sess.run(get_moving_average_op)
             # To actually get a value (as opposed to a Tensor) we need to run the Variable that stores the result within session context:
-            print('\t%d\tloss_ema: %.2f' % (epoch, sess.run(moving_average)))
+            # print('\t%d\tloss_ema: %.2f' % (epoch, sess.run(moving_average)))
 
 
 if __name__ == '__main__':
