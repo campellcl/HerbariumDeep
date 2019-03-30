@@ -175,7 +175,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             with further_augmented_train_graph.name_scope('train_graph') as scope:
                 (training_op, xentropy, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
                     bottleneck_tensor=self._train_graph_bottleneck_tensor,
-                    is_training=True,
+                    is_training_graph=True,
                     final_tensor_name='y_proba'
                 )
                 acc_eval_step, top_five_acc_eval_step, predictions = self._add_evaluation_step(
@@ -205,7 +205,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 # Add the transfer learning re-train layers:
                 (_, _, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
                     bottleneck_tensor=self._eval_graph_bottleneck_tensor,
-                    is_training=False,
+                    is_training_graph=False,
                     final_tensor_name='y_proba'
                 )
 
@@ -275,7 +275,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         augmented_graph = source_model_graph
         return augmented_graph, bottleneck_tensor, resized_input_tensor
 
-    def _add_final_retrain_ops(self, bottleneck_tensor, is_training, final_tensor_name='y_proba'):
+    def _add_final_retrain_ops(self, bottleneck_tensor, is_training_graph, final_tensor_name='y_proba'):
         """
         add_final_retrain_ops: Adds a new softmax and fully-connected layer for training and model evaluation. In order to
             use the TFHub model as a fixed feature extractor, we need to retrain the top fully connected layer of the graph
@@ -289,8 +289,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         :param num_classes: The number of unique class labels in both training and validation sets.
         :param final_tensor_name: A name string for the final node that produces the fine-tuned results.
         :param bottleneck_tensor: The output of the main CNN graph (the specified TFHub module).
-        :param is_training: Boolean, specifying whether the newly add layer is for training
-            or eval.
+        :param is_training_graph: Boolean, specifying whether the newly add layer is for the training graph, or
+            eval/inference graph.
         :returns : The tensors for the training and cross entropy results, tensors for the
             bottleneck input and ground truth input, a reference to the optimizer for archival purposes and use in the
             hyper-string representation of this training run.
@@ -330,7 +330,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 # This is the tensor that will hold the predictions of the fine-tuned (re-trained) model:
                 y_proba = tf.nn.softmax(logits=logits, name=final_tensor_name)
 
-        if is_training:
+        if is_training_graph:
             # Take care not to overwrite these with the eval graph's call to this method, hence the conditional:
             self._X, self._y, self._predictions = X, y, predictions
             self._y_proba = y_proba
@@ -785,7 +785,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         # Run eval metrics on the entire validation dataset:
                         val_summary, loss_val, acc_val, top5_acc, val_preds = sess.run(
                             [self._train_graph_merged_summaries, self._loss, self._accuracy, self._top_five_acc, self._preds],
-                            feed_dict={self._X: X_valid, self._y: y_valid}
+                            feed_dict={self._X: X_valid, self._y: y_valid, self._batch_index: len(X_valid)}
                         )
 
                         if is_last_step:
@@ -850,10 +850,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             # ON RESUME: self._epoch_train_losses has only one tensor in it. The append appears to be failing.
                             # Need to debug this. Continue on adapting code to use minibatches for training due to SERNEC dataset size.
                             epoch_average_batch_loss = sess.run([self._batch_loss_moving_average], feed_dict={self._batch_index: batch_num})
-                            print('type(epoch_average_batch_loss): %s' % type(epoch_average_batch_loss))
-                            print('len(epoch_average_batch_loss): %s' % len(epoch_average_batch_loss))
-                            # print('epoch_average_batch_loss.shape: %s' % epoch_average_batch_loss.shape)
-                            print("%d\tAverage xentropy loss across all training batches this epoch: %.4f" % (epoch, epoch_average_batch_loss[0]))
+                            # print('type(epoch_average_batch_loss): %s' % type(epoch_average_batch_loss))
+                            # print('len(epoch_average_batch_loss): %s' % len(epoch_average_batch_loss))
+                            # print("%d\tAverage xentropy loss across all training batches this epoch: %.4f" % (epoch, epoch_average_batch_loss[0]))
                             print("{}\tAverage xentropy loss across all training mini-batches this epoch: {:.4f}%".format(epoch, epoch_average_batch_loss[0]))
 
                 # Check to see if a checkpoint should be recorded this epoch:
