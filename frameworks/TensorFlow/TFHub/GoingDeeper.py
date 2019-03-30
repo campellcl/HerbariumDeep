@@ -231,7 +231,7 @@ def _get_class_labels(bottlenecks):
     return class_labels
 
 
-def _run_setup(bottleneck_path, tb_summaries_dir):
+def _run_setup(dataset, bottleneck_path, tb_summaries_dir):
     """
     _run_setup: Performs initial setup operations by:
         1) Setting verbosity of TensorFlow logging output
@@ -255,10 +255,19 @@ def _run_setup(bottleneck_path, tb_summaries_dir):
     class_labels = _get_class_labels(bottlenecks)
 
     # Partition the bottlenecks dataframe:
-    train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
-        bottlenecks=bottlenecks,
-        random_state=0
-    )
+    if dataset == 'SERNEC':
+        train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
+            bottlenecks=bottlenecks,
+            random_state=0,
+            train_percent=.90,
+            val_percent=.10,
+            test_percent=.10
+        )
+    else:
+        train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
+            bottlenecks=bottlenecks,
+            random_state=0
+        )
     bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
     tf.logging.info(
         'Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), and testing (N=%d) datasets.'
@@ -403,7 +412,7 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
+def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
     # params = {
     #     'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
     #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
@@ -421,35 +430,52 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     #     'optimizer': list(optimizers.values())
     # }
 
-    # params = {
-    #     'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
-    #     'activation': [activations['LeakyReLU'], activations['ELU']],
-    #     'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
-    #     'train_batch_size': [20, 60, 100]
-    # }
+    if dataset == 'SERNEC':
+        params = {
+            'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
+            'activation': [activations['LeakyReLU'], activations['ELU']],
+            'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
+            'train_batch_size': [20, 60, 1000]
+        }
+        num_epochs = 10000  # 10,000
+        eval_freq = 100
+        early_stopping_eval_freq = 1
+        ckpt_freq = 0
+        tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
+    elif dataset == 'BOON' or dataset == 'GoingDeeper':
+        params = {
+            'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
+            'activation': [activations['LeakyReLU'], activations['ELU']],
+            'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
+            'train_batch_size': [20, 60, 100]
+        }
+        num_epochs = 1000
+        eval_freq = 10
+        early_stopping_eval_freq = 20
+        ckpt_freq = 0
+        tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
+    elif dataset == 'debug':
+        params = {
+            'initializer': [initializers['he_normal']],
+            'activation': [activations['LeakyReLU']],
+            'optimizer': [optimizers['Nesterov']],
+            'train_batch_size': [10, 20]
+        }
+        num_epochs = 100
+        eval_freq = 10
+        early_stopping_eval_freq = 20
+        ckpt_freq = 0
+        tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
+    else:
+        tf.logging.error(msg='FATAL ERROR: Could not recognize the provided dataset: \'%s\', exiting.' % dataset)
+        params = None
+        num_epochs = None
+        eval_freq = None
+        ckpt_freq = None
+        early_stopping_eval_freq = None
+        exit(-1)
 
-    params = {
-        'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
-        'activation': [activations['LeakyReLU'], activations['ELU']],
-        'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
-        'train_batch_size': [10, 20]
-    }
-
-    # params = {
-    #     'initializer': [initializers['he_normal']],
-    #     'activation': [activations['LeakyReLU']],
-    #     'optimizer': [optimizers['Nesterov']],
-    #     'train_batch_size': [10, 20]
-    # }
-
-    num_epochs = 100
-    eval_freq = 10
-    early_stopping_eval_freq = 1
-    ckpt_freq = 0
-
-
-    tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
-    tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels, tb_logdir=log_dir)
+    tfh_classifier = TFHClassifier(dataset=dataset, random_state=42, class_labels=class_labels, tb_logdir=log_dir)
     tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
     cv = [(slice(None), slice(None))]
@@ -458,8 +484,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     grid_search.fit(
         X=train_bottlenecks,
         y=train_ground_truth_indices,
-        X_valid=val_bottlenecks,
-        y_valid=val_ground_truth_indices,
+        # X_valid=val_bottlenecks,
+        # y_valid=val_ground_truth_indices,
         n_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
@@ -479,8 +505,8 @@ def _run_grid_search(train_bottlenecks, train_ground_truth_indices, initializers
     tfh_classifier.fit(
         X=train_bottlenecks,
         y=train_ground_truth_indices,
-        X_valid=val_bottlenecks,
-        y_valid=val_ground_truth_indices,
+        # X_valid=val_bottlenecks,
+        # y_valid=val_ground_truth_indices,
         n_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
@@ -508,7 +534,7 @@ def main(run_config):
     _prepare_model_export_directories(model_export_dir=model_export_dir)
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
-    bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir)
+    bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir, dataset=run_config['dataset'])
     tf.logging.info('Detected %d unique class labels in the bottlenecks dataframe' % len(class_labels))
 
     train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
@@ -533,6 +559,7 @@ def main(run_config):
     )
     tb_log_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
     _run_grid_search(
+        dataset=run_config['dataset'],
         train_bottlenecks=train_bottlenecks,
         train_ground_truth_indices=train_ground_truth_indices,
         initializers=initializer_options,
@@ -566,19 +593,26 @@ if __name__ == '__main__':
     run_configs = {
         'debug': {
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
-            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl'
+            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
+            'dataset': 'DEBUG'
         },
         'BOON': {
             'image_dir': 'D:\\data\\BOON\\images',
-            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl'
+            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+            'dataset': 'BOON'
         },
         'GoingDeeper': {
             'image_dir': 'D:\\data\\GoingDeeperData\\images',
-            'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+            'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+            'dataset': 'GoingDeeper'
         },
-        'SERNEC': {}
+        'SERNEC': {
+            'image_dir': 'D:\\data\\SERNEC\\images',
+            'bottleneck_path': 'D:\\data\\SERNEC\\bottlenecks.pkl',
+            'dataset': 'SERNEC'
+        }
     }
-    main(run_configs['debug'])
+    main(run_configs['SERNEC'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
