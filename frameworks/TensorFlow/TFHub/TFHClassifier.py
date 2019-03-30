@@ -312,6 +312,11 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     shape=[batch_size],
                     name='y'
                 )
+                # Scalar placeholder for batch index relevant in epoch accuracy computations across batches:
+                batch_index = tf.placeholder(
+                    tf.int32,
+                    shape=[]
+                )
                 predictions = tf.placeholder(
                     tf.int64,
                     shape=[batch_size],
@@ -339,27 +344,33 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     preds = tf.math.argmax(y_proba, axis=1)
 
                     batch_xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
-                    tf.summary.histogram('batch_xentropy', batch_xentropy)
+                    # tf.summary.histogram('batch_xentropy', batch_xentropy)
 
                     batch_loss = tf.reduce_mean(batch_xentropy, name='batch_loss')
-                    tf.summary.scalar('batch_loss', batch_loss)
-                    self._epoch_train_losses.append(batch_loss)
+                    # tf.summary.scalar('batch_loss', batch_loss)
+                    # self._epoch_train_losses.append(batch_loss)
+                    minimization_op = self.optimizer.minimize(batch_loss)
 
-                    training_op = self.optimizer.minimize(batch_loss)
+                    batch_loss_sum = tf.Variable(0.0, dtype=tf.float32, name='batch_loss_sum')
+                    batch_loss_moving_average = batch_loss_sum / tf.cast(batch_index, tf.float32)
+                    clear_batch_loss_moving_average_op = tf.assign(batch_loss_sum, 0.0)
+                    with tf.control_dependencies([minimization_op]):
+                        increment_batch_loss_op = batch_loss_sum.assign_add(batch_loss)
+                        training_op = tf.group(increment_batch_loss_op)
 
-                    train_loss_moving_average = tf.math.divide(tf.math.add_n(self._epoch_train_losses), len(self._epoch_train_losses))
-                    tf.summary.scalar('loss_moving_average', train_loss_moving_average)
+                    tf.summary.scalar('average_batch_loss', batch_loss_moving_average)
 
                     # TODO: Move this logic to add_eval_step method:
                     batch_correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
                     batch_accuracy = tf.reduce_mean(tf.cast(batch_correct, tf.float32), name='batch_accuracy')
-                    tf.summary.scalar('batch_accuracy', batch_accuracy)
+                    # tf.summary.scalar('batch_accuracy', batch_accuracy)
 
                     top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
                     top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
-                    tf.summary.scalar('top_five_accuracy', top_five_acc)
+                    # tf.summary.scalar('top_five_accuracy', top_five_acc)
 
-                    self._train_loss_moving_average = train_loss_moving_average
+                    self._batch_loss_moving_average, self._clear_batch_loss_moving_average_op = batch_loss_moving_average, clear_batch_loss_moving_average_op
+                    self._batch_index = batch_index
                     self._preds = preds
             else:
                 # Training graph, add loss Ops and an optimizer:
@@ -729,14 +740,17 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 is_last_step = (epoch + 1 == n_epochs)
                 self._epoch_train_losses = []
                 # batch partitioning:
-                for X_batch, y_batch in self._shuffle_batch(X, y, batch_size=self.train_batch_size):
+                for batch_num, (X_batch, y_batch) in enumerate(self._shuffle_batch(X, y, batch_size=self.train_batch_size)):
                     if self.dataset == 'SERNEC':
-                        # Run a training step, dataset is too large; have to capture results at the mini-batch level
-                        batch_train_summary, train_preds = sess.run([self._train_graph_merged_summaries, self._preds], feed_dict={self._X: X_batch, self._y: y_batch})
+                        # Dataset too large to calculate training summaries on entire dataset, maintain them here.
+                        # Recall that self._training_op is defined differently for SERNEC to maintain moving average updates across batches:
+                        train_summary, _ = sess.run([self._train_graph_merged_summaries, self._training_op], feed_dict={self._X: X_batch, self._y: y_batch, self._batch_index: batch_num})
                     else:
-                        # Run a training step, but don't capture the results at the mini-batch level:
-                         _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
-
+                        # Dataset is small enough to calculate training summaries on entire dataset, so run a train op; but don't capture and retain training summaries on the batch level:
+                        _ = sess.run([self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
+                if self.dataset == 'SERNEC':
+                    # Reset the running averages across batches here:
+                    sess.run(self._clear_batch_loss_moving_average_op)
                 # Check to see if eval metrics should be computed this epoch:
                 if (epoch % eval_freq == 0) or is_last_step:
                     if self.dataset != 'SERNEC':
@@ -744,7 +758,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         train_summary, train_preds = sess.run([self._train_graph_merged_summaries, self._preds], feed_dict={self._X: X, self._y: y})
                         self._train_writer.add_summary(train_summary, epoch)
                     else:
-                        self._train_writer.add_summary(batch_train_summary)
+                        # Dataset is too large for eval metrics to be computed here. Instead, running averages have been
+                        #   maintained by a forced control dependency on the training_op.
+                        self._train_writer.add_summary(train_summary, epoch)
 
                     if X_valid is not None and y_valid is not None:
                         # Run eval metrics on the entire validation dataset:
@@ -811,10 +827,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                                 epoch, loss_train, acc_train * 100))
                         else:
                             # Report running average of eval metrics on training dataset
-                            print()
+                            # print()
                             # ON RESUME: self._epoch_train_losses has only one tensor in it. The append appears to be failing.
                             # Need to debug this. Continue on adapting code to use minibatches for training due to SERNEC dataset size.
-                            print("{}\tSum of loss across all mini-batches this epoch: {:.6f}".format(epoch, np.sum(self._epoch_train_losses)))
+                            print("{}\tAverage xentropy loss across all training mini-batches this epoch: {:.6f}".format(epoch, np.sum(self._batch_loss_moving_average)))
 
                 # Check to see if a checkpoint should be recorded this epoch:
                 if is_last_step:

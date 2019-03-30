@@ -438,7 +438,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'train_batch_size': [20, 60, 1000]
         }
         num_epochs = 10000  # 10,000
-        eval_freq = 100
+        eval_freq = 1
         early_stopping_eval_freq = 1
         ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
