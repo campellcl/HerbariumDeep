@@ -390,7 +390,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     self._batch_loss_moving_average, self._batch_acc_moving_average, self._batch_top5_acc_moving_average = batch_loss_moving_average, batch_acc_moving_average, batch_top5_acc_moving_average
                     self._clear_batch_running_averages_op = clear_batch_running_averages_op
                     self._batch_index = batch_index
-                    self._preds = preds
+                    # When forward propagating the entire validation dataset (which fits in GPU memory), treat these ops as synonomous:
+                    self._preds, self._loss = preds, batch_loss
+                    self._accuracy, self._top_five_acc = batch_accuracy, batch_top_five_acc
             else:
                 # Training graph, add loss Ops and an optimizer:
                 with tf.variable_scope('final_retrain_ops'):

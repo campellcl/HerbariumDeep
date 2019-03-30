@@ -484,8 +484,8 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     grid_search.fit(
         X=train_bottlenecks,
         y=train_ground_truth_indices,
-        # X_valid=val_bottlenecks,
-        # y_valid=val_ground_truth_indices,
+        X_valid=val_bottlenecks,
+        y_valid=val_ground_truth_indices,
         n_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
@@ -505,8 +505,8 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     tfh_classifier.fit(
         X=train_bottlenecks,
         y=train_ground_truth_indices,
-        # X_valid=val_bottlenecks,
-        # y_valid=val_ground_truth_indices,
+        X_valid=val_bottlenecks,
+        y_valid=val_ground_truth_indices,
         n_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
