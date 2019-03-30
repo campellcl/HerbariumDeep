@@ -315,7 +315,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 # Scalar placeholder for batch index relevant in epoch accuracy computations across batches:
                 batch_index = tf.placeholder(
                     tf.int32,
-                    shape=[]
+                    shape=[],
+                    name='batch_index'
                 )
                 predictions = tf.placeholder(
                     tf.int64,
@@ -351,25 +352,43 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     # self._epoch_train_losses.append(batch_loss)
                     minimization_op = self.optimizer.minimize(batch_loss)
 
-                    batch_loss_sum = tf.Variable(0.0, dtype=tf.float32, name='batch_loss_sum')
-                    batch_loss_moving_average = batch_loss_sum / tf.cast(batch_index, tf.float32)
-                    clear_batch_loss_moving_average_op = tf.assign(batch_loss_sum, 0.0)
-                    with tf.control_dependencies([minimization_op]):
-                        increment_batch_loss_op = batch_loss_sum.assign_add(batch_loss)
-                        training_op = tf.group(increment_batch_loss_op)
-
-                    tf.summary.scalar('average_batch_loss', batch_loss_moving_average)
-
-                    # TODO: Move this logic to add_eval_step method:
+                    # TODO: Move this logic to add_eval_step method?:
                     batch_correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
                     batch_accuracy = tf.reduce_mean(tf.cast(batch_correct, tf.float32), name='batch_accuracy')
                     # tf.summary.scalar('batch_accuracy', batch_accuracy)
 
                     top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
-                    top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
+                    batch_top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
                     # tf.summary.scalar('top_five_accuracy', top_five_acc)
 
-                    self._batch_loss_moving_average, self._clear_batch_loss_moving_average_op = batch_loss_moving_average, clear_batch_loss_moving_average_op
+                    # Maintain sums for moving averages:
+                    batch_loss_sum = tf.Variable(0.0, dtype=tf.float32, name='batch_loss_sum')
+                    batch_accuracy_sum = tf.Variable(0.0, dtype=tf.float32, name='batch_acc_sum')
+                    batch_top5_acc_sum = tf.Variable(0.0, dtype=tf.float32, name='batch_top5_acc_sum')
+
+                    # Moving average calculation ops:
+                    batch_loss_moving_average = batch_loss_sum / tf.cast(batch_index, tf.float32)
+                    tf.summary.scalar('average_batch_loss', batch_loss_moving_average)
+                    batch_acc_moving_average = batch_accuracy_sum / tf.cast(batch_index, tf.float32)
+                    tf.summary.scalar('average_batch_acc', batch_acc_moving_average)
+                    batch_top5_acc_moving_average = batch_top5_acc_sum / tf.cast(batch_index, tf.float32)
+                    tf.summary.scalar('average_batch_top_five_acc', batch_top5_acc_moving_average)
+
+                    # Maintain clear operations for resetting running batch averages at every new epoch:
+                    clear_batch_loss_moving_average_op = tf.assign(batch_loss_sum, 0.0)
+                    clear_batch_acc_moving_average_op = tf.assign(batch_accuracy_sum, 0.0)
+                    clear_batch_top5_acc_average_op = tf.assign(batch_top5_acc_sum, 0.0)
+                    clear_batch_running_averages_op = tf.group(clear_batch_loss_moving_average_op, clear_batch_acc_moving_average_op, clear_batch_top5_acc_average_op)
+
+                    # Enforce running average updates on training op execution:
+                    with tf.control_dependencies([minimization_op]):
+                        increment_batch_loss_op = batch_loss_sum.assign_add(batch_loss)
+                        increment_batch_acc_op = batch_accuracy_sum.assign_add(batch_accuracy)
+                        increment_batch_top5_acc_op = batch_top5_acc_sum.assign_add(batch_top_five_acc)
+                        training_op = tf.group(increment_batch_loss_op, increment_batch_acc_op, increment_batch_top5_acc_op)
+
+                    self._batch_loss_moving_average, self._batch_acc_moving_average, self._batch_top5_acc_moving_average = batch_loss_moving_average, batch_acc_moving_average, batch_top5_acc_moving_average
+                    self._clear_batch_running_averages_op = clear_batch_running_averages_op
                     self._batch_index = batch_index
                     self._preds = preds
             else:
@@ -748,9 +767,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     else:
                         # Dataset is small enough to calculate training summaries on entire dataset, so run a train op; but don't capture and retain training summaries on the batch level:
                         _ = sess.run([self._training_op], feed_dict={self._X: X_batch, self._y: y_batch})
-                if self.dataset == 'SERNEC':
-                    # Reset the running averages across batches here:
-                    sess.run(self._clear_batch_loss_moving_average_op)
+
                 # Check to see if eval metrics should be computed this epoch:
                 if (epoch % eval_freq == 0) or is_last_step:
                     if self.dataset != 'SERNEC':
@@ -830,7 +847,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             # print()
                             # ON RESUME: self._epoch_train_losses has only one tensor in it. The append appears to be failing.
                             # Need to debug this. Continue on adapting code to use minibatches for training due to SERNEC dataset size.
-                            print("{}\tAverage xentropy loss across all training mini-batches this epoch: {:.6f}".format(epoch, np.sum(self._batch_loss_moving_average)))
+                            epoch_average_batch_loss = sess.run([self._batch_loss_moving_average], feed_dict={self._batch_index: batch_num})
+                            print('type(epoch_average_batch_loss): %s' % type(epoch_average_batch_loss))
+                            print('len(epoch_average_batch_loss): %s' % len(epoch_average_batch_loss))
+                            # print('epoch_average_batch_loss.shape: %s' % epoch_average_batch_loss.shape)
+                            print("%d\tAverage xentropy loss across all training batches this epoch: %.4f" % (epoch, epoch_average_batch_loss[0]))
+                            print("{}\tAverage xentropy loss across all training mini-batches this epoch: {:.4f}%".format(epoch, epoch_average_batch_loss[0]))
 
                 # Check to see if a checkpoint should be recorded this epoch:
                 if is_last_step:
@@ -847,7 +869,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     else:
                         # Don't save checkpoint
                         pass
-
+                # If this is the SERNEC dataset, we have running average counters to reset:
+                if self.dataset == 'SERNEC':
+                    # Reset the running averages across batches:
+                    sess.run(self._clear_batch_running_averages_op)
             # If we used early stopping then rollback to the best model found
             if best_params:
                 # print('Restoring model to best parameter set: %s' % best_params)
