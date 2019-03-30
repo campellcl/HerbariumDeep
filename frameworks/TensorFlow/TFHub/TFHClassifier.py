@@ -14,12 +14,13 @@ he_init = tf.variance_scaling_initializer()
 
 
 class TFHClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, class_labels, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
+    def __init__(self, dataset, class_labels, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
                  activation=tf.nn.elu, initializer=he_init,
                  batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp\\summaries\\',
                  ckpt_dir='tmp\\', saved_model_dir='tmp/trained_model/', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
+        :param dataset: The dataset type: {BOON, GoingDeeper, SERNEC, debug}
         :param optimizer: The type of optimizer to use during training (tf.train.AdamOptimizer by default).
         :param train_batch_size:
         :param val_batch_size:
@@ -37,6 +38,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             clean, before being repopulated with results pertaining exactly to the final refit operation.
         """
         """Initialize the DNNClassifier by simply storing all the hyperparameters."""
+        self.dataset = dataset
         # TFHub module spec instance:
         self._module_spec = None
         self.class_labels = class_labels
@@ -50,6 +52,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.dropout_rate = dropout_rate
         self.random_state = random_state
         self.classes_ = None
+        self._epoch_train_losses = []
 
         # TensorFlow Low-Level API: tf.Graph(), tf.Session(), and training graph initializers:
         self._train_graph = None
@@ -59,7 +62,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._eval_graph = None
         self._eval_graph_global_init = None
         self._eval_session = None
-
 
         # Create a FileWriter object to export tensorboard information:
         self._train_writer = None
@@ -165,7 +167,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._train_graph = tf.Graph()
 
         # Create the TensorFlow-Hub Module Graphs:
-        augmented_train_graph, self._train_graph_bottleneck_tensor, self._train_graph_resized_input_tensor = TFHClassifier.create_module_graph(graph=self._train_graph, module_spec=self._module_spec)
+        augmented_train_graph, self._train_graph_bottleneck_tensor, self._train_graph_resized_input_tensor = \
+            TFHClassifier.create_module_graph(graph=self._train_graph, module_spec=self._module_spec)
 
         # Add transfer learning re-train Ops to training graph:
         with augmented_train_graph.as_default() as further_augmented_train_graph:
@@ -191,7 +194,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self._eval_graph = tf.Graph()
 
         # Create the TensorFlow-Hub Module Graph:
-        augmented_eval_graph, self._eval_graph_bottleneck_tensor, self._eval_graph_resized_input_tensor = TFHClassifier.create_module_graph(graph=self._eval_graph, module_spec=self._module_spec)
+        augmented_eval_graph, self._eval_graph_bottleneck_tensor, self._eval_graph_resized_input_tensor = \
+            TFHClassifier.create_module_graph(graph=self._eval_graph, module_spec=self._module_spec)
 
         self._eval_session = tf.Session(graph=augmented_eval_graph)
 
@@ -325,26 +329,63 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             self._X, self._y, self._predictions = X, y, predictions
             self._y_proba = y_proba
 
-            # Training graph, add loss Ops and an optimizer:
-            with tf.variable_scope('final_retrain_ops'):
-                preds = tf.math.argmax(y_proba, axis=1)
+            if self.dataset == 'SERNEC':
+                # epoch_train_losses = tf.placeholder(
+                #     tf.int64,
+                #     shape=[],
+                #     name='epoch_train_losses'
+                # )
+                with tf.variable_scope('final_retrain_ops'):
+                    preds = tf.math.argmax(y_proba, axis=1)
 
-                xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
-                tf.summary.histogram('xentropy', xentropy)
+                    batch_xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
+                    tf.summary.histogram('batch_xentropy', batch_xentropy)
 
-                loss = tf.reduce_mean(xentropy, name='loss')
-                tf.summary.scalar('loss', loss)
+                    batch_loss = tf.reduce_mean(batch_xentropy, name='batch_loss')
+                    tf.summary.scalar('batch_loss', batch_loss)
+                    self._epoch_train_losses.append(batch_loss)
 
-                training_op = self.optimizer.minimize(loss)
+                    training_op = self.optimizer.minimize(batch_loss)
 
-                # correct = tf.nn.in_top_k(logits, y, 1)
-                correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
-                accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name='accuracy')
-                tf.summary.scalar('accuracy', accuracy)
+                    train_loss_moving_average = tf.math.divide(tf.math.add_n(self._epoch_train_losses), len(self._epoch_train_losses))
+                    tf.summary.scalar('loss_moving_average', train_loss_moving_average)
 
-                top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
-                top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
-                tf.summary.scalar('top_five_accuracy', top_five_acc)
+                    # TODO: Move this logic to add_eval_step method:
+                    batch_correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
+                    batch_accuracy = tf.reduce_mean(tf.cast(batch_correct, tf.float32), name='batch_accuracy')
+                    tf.summary.scalar('batch_accuracy', batch_accuracy)
+
+                    top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
+                    top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
+                    tf.summary.scalar('top_five_accuracy', top_five_acc)
+
+                    self._train_loss_moving_average = train_loss_moving_average
+                    self._preds = preds
+            else:
+                # Training graph, add loss Ops and an optimizer:
+                with tf.variable_scope('final_retrain_ops'):
+                    preds = tf.math.argmax(y_proba, axis=1)
+
+                    xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits)
+                    tf.summary.histogram('xentropy', xentropy)
+
+                    loss = tf.reduce_mean(xentropy, name='loss')
+                    tf.summary.scalar('loss', loss)
+
+                    training_op = self.optimizer.minimize(loss)
+
+                    # TODO: Move this logic to add_eval_step method:
+                    # correct = tf.nn.in_top_k(logits, y, 1)
+                    correct = tf.nn.in_top_k(predictions=y_proba, targets=y, k=1)
+                    accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name='accuracy')
+                    tf.summary.scalar('accuracy', accuracy)
+
+                    top_five_predictions = tf.nn.in_top_k(predictions=y_proba, targets=y, k=5)
+                    top_five_acc = tf.reduce_mean(tf.cast(top_five_predictions, tf.float32))
+                    tf.summary.scalar('top_five_accuracy', top_five_acc)
+
+                    self._preds, self._loss = preds, loss
+                    self._accuracy, self._top_five_acc = accuracy, top_five_acc
 
             # init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
             train_graph_global_init = tf.global_variables_initializer()
@@ -361,11 +402,12 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             train_saver = tf.train.Saver()
 
             self._train_graph_global_init = train_graph_global_init
-            self._preds, self._loss = preds, loss
-            self._training_op, self._accuracy, self._top_five_acc = training_op, accuracy, top_five_acc
+            self._training_op = training_op,
             self._train_graph_merged_summaries, self._train_saver = train_graph_merged_summaries, train_saver
-
-            return training_op, xentropy, X, y, logits, y_proba
+            if self.dataset == 'SERNEC':
+                return training_op, batch_xentropy, X, y, logits, y_proba
+            else:
+                return training_op, xentropy, X, y, logits, y_proba
         else:
             # Evaluation graph, no need to add loss Ops and an optimizer.
 
@@ -632,7 +674,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         if self.train_batch_size == -1:
             self.train_batch_size = len(X)
         if self.val_batch_size == -1:
-            self.val_batch_size = len(X_valid)
+            if X_valid is not None:
+                self.val_batch_size = len(X_valid)
+            else:
+                self.val_batch_size = None
 
         # infer n_inputs and n_outputs from the training set:
         n_inputs = X.shape[1]
@@ -682,16 +727,24 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
             for epoch in range(n_epochs):
                 is_last_step = (epoch + 1 == n_epochs)
+                self._epoch_train_losses = []
                 # batch partitioning:
                 for X_batch, y_batch in self._shuffle_batch(X, y, batch_size=self.train_batch_size):
-                    # Run a training step, but don't capture the results at the mini-batch level:
-                     _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
+                    if self.dataset == 'SERNEC':
+                        # Run a training step, dataset is too large; have to capture results at the mini-batch level
+                        batch_train_summary, train_preds = sess.run([self._train_graph_merged_summaries, self._preds], feed_dict={self._X: X_batch, self._y: y_batch})
+                    else:
+                        # Run a training step, but don't capture the results at the mini-batch level:
+                         _ = sess.run(self._training_op, feed_dict={self._X: X_batch, self._y: y_batch})
 
                 # Check to see if eval metrics should be computed this epoch:
                 if (epoch % eval_freq == 0) or is_last_step:
-                    # Compute evaluation metrics on the entire training dataset:
-                    train_summary, train_preds = sess.run([self._train_graph_merged_summaries, self._preds], feed_dict={self._X: X, self._y: y})
-                    self._train_writer.add_summary(train_summary, epoch)
+                    if self.dataset != 'SERNEC':
+                        # Compute evaluation metrics on the entire training dataset:
+                        train_summary, train_preds = sess.run([self._train_graph_merged_summaries, self._preds], feed_dict={self._X: X, self._y: y})
+                        self._train_writer.add_summary(train_summary, epoch)
+                    else:
+                        self._train_writer.add_summary(batch_train_summary)
 
                     if X_valid is not None and y_valid is not None:
                         # Run eval metrics on the entire validation dataset:
@@ -747,14 +800,21 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             val_cm.save_csv(os.path.join(tb_log_dir_val, 'confusion_matrix'))
                             break
                     else:
-                        # Run eval metrics on the entire training dataset (as no validation set is available):
-                        loss_train, acc_train = sess.run([self._loss, self._accuracy],
-                                                             feed_dict={self._X: X,
-                                                                        self._y: y})
-                        # print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
-                        #     epoch, loss_train, acc_train * 100))
-                        print("{}\tLoss on all of X_train: {:.6f}\tAccuracy: {:.2f}%".format(
-                            epoch, loss_train, acc_train * 100))
+                        if self.dataset != 'SERNEC':
+                            # Run eval metrics on the entire training dataset (as no validation set is available):
+                            loss_train, acc_train = sess.run([self._loss, self._accuracy],
+                                                                 feed_dict={self._X: X,
+                                                                            self._y: y})
+                            # print("{}\tLast training batch loss: {:.6f}\tAccuracy: {:.2f}%".format(
+                            #     epoch, loss_train, acc_train * 100))
+                            print("{}\tLoss on all of X_train: {:.6f}\tAccuracy: {:.2f}%".format(
+                                epoch, loss_train, acc_train * 100))
+                        else:
+                            # Report running average of eval metrics on training dataset
+                            print()
+                            # ON RESUME: self._epoch_train_losses has only one tensor in it. The append appears to be failing.
+                            # Need to debug this. Continue on adapting code to use minibatches for training due to SERNEC dataset size.
+                            print("{}\tSum of loss across all mini-batches this epoch: {:.6f}".format(epoch, np.sum(self._epoch_train_losses)))
 
                 # Check to see if a checkpoint should be recorded this epoch:
                 if is_last_step:
@@ -863,7 +923,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 #     y_test = y_test.astype(np.int32)
 #     X_valid, X_train = X_train[:5000], X_train[5000:]
 #     y_valid, y_train = y_train[:5000], y_train[5000:]
-#     X_train1 = X_train[y_train < 5]
+#     X_train1 = X_train[y_train < 5]28
 #     y_train1 = y_train[y_train < 5]
 #     X_valid1 = X_valid[y_valid < 5]
 #     y_valid1 = y_valid[y_valid < 5]
