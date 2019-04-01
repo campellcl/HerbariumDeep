@@ -107,7 +107,8 @@ class BrokenImageLocator:
 
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
-    image_root_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
+    # image_root_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
+    image_root_dir = 'D:\\data\\SERNEC\\images\\'
     blacklisted_image_file_export_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\misc'
     # image_root_dir = 'D:\\data\\SERNEC\\images\\'
     broken_image_locator = BrokenImageLocator(
@@ -140,6 +141,7 @@ if __name__ == '__main__':
             except tf.errors.InvalidArgumentError as err:
                 tf.logging.warning(msg='Could not open image: \'%s\'. Encountered error: %s' % (image_file_paths[i], err))
                 exit(-1)
+    On Resume: blacklist the caught errors.
     # broken_image_locator.test_run_generator()
 
 # # image_dir = image_path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\data\\SERNEC\\images'
