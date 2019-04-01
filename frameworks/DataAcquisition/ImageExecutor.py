@@ -378,6 +378,7 @@ class ImageExecutor:
         # self.df_images = self._get_raw_image_lists_df()
         tf.logging.info(msg='Populating raw image lists prior to cleaning...')
         self.image_lists = self._get_raw_image_lists()
+        # TODO: check all the acquired images to see if they are actually decode-able in tensorflow.
         tf.logging.info(msg='Done, obtained raw image lists. Now cleaning class label: \'scientificName\' in the obtained raw data...')
         self.image_lists = self._clean_scientific_name()
         tf.logging.info(msg='Done, cleaned class label: \'scientificName\'. Now removing class labels with less than %d images...' % self.min_num_images_per_class)
@@ -396,7 +397,7 @@ class ImageExecutor:
 
 
 def main(root_dir, logging_dir):
-    img_executor = ImageExecutor(img_root_dir=root_dir, logging_dir=logging_dir,accepted_extensions=['jpg', 'jpeg'], min_num_images_per_class=20)
+    img_executor = ImageExecutor(img_root_dir=root_dir, logging_dir=logging_dir, accepted_extensions=['jpg', 'jpeg'], min_num_images_per_class=20)
     image_lists = img_executor.get_image_lists()
 
 
