@@ -5,17 +5,11 @@ A urllib and Scrapy Selector based web scraper.
 
 import os
 import argparse
-from collections import OrderedDict
-from scrapy import Selector
-from scrapy.http import HtmlResponse
 import urllib3
 import certifi
 import requests
 import xml.etree.ElementTree as ET
-import lxml
 import pandas as pd
-import numpy as np
-import json
 import zipfile, io
 import shutil
 '''
