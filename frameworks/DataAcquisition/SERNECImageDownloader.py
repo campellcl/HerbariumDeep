@@ -124,7 +124,7 @@ def main():
     # len(df_meta[df_meta['scientificName'].str.contains('\?')])
     init_num_samples = df_meta.shape[0]
     df_meta = df_meta[~df_meta['scientificName'].str.contains('\?')]
-    df_meta = _remove_classes_with_less_than_x_samples(df_meta, x=100)
+    df_meta = _remove_classes_with_less_than_x_samples(df_meta, x=20)
     df_meta = _remove_samples_with_invalid_directory_names_and_create_valid_directories(df_meta)
     print('Finished first pass of data cleaning stage. Removed %d/%d samples. There are %d samples remaining.' % ((init_num_samples - df_meta.shape[0]), init_num_samples, df_meta.shape[0]))
 
