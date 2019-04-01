@@ -230,9 +230,9 @@ class BottleneckExecutor:
                 bottlenecks = pd.read_pickle(bottleneck_path)
                 tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
                                     % os.path.basename(bottleneck_path))
-            except Exception as err:
-                tf.logging.error(msg=err)
-                bottlenecks = None
+            except EOFError as err:
+                tf.logging.error(msg='Failed to read the bottleneck file, it may have become corrupted. Recommend manual '
+                                     'restoration from D:/backups; and re-executing script.')
                 exit(-1)
         else:
             tf.logging.error(msg='Bottleneck file not located at the provided path: \'%s\'. '
@@ -315,7 +315,7 @@ class BottleneckExecutor:
                             df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
-                if i % 10 == 0:
+                if i % 100 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
             self.df_bottlenecks = df_bottlenecks
@@ -396,16 +396,17 @@ class BottleneckExecutor:
 
 
 if __name__ == '__main__':
-    # Debug Configurations:
-    bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl'
-    image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
+    # Disable double logging output:
 
+    # Debug Configurations:
+    # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl'
+    # image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
 
     # BOON Configuration:
-    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    # image_path = 'D:\\data\\BOON\\images\\'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    image_path = 'D:\\data\\BOON\\images\\'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
     # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
