@@ -509,7 +509,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 (_, _, X_tensor, y_tensor, logits_tensor, y_proba_tensor) = self._add_final_retrain_ops(
                     final_tensor_name='y_proba',
                     bottleneck_tensor=self._eval_graph_bottleneck_tensor,
-                    is_training=False
+                    is_training_graph=False
                 )
 
                 # Restore the trained values form the training graph to the eval graph:
@@ -803,7 +803,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             # Run eval metrics on the entire validation dataset:
                             val_summary, loss_val, acc_val, top5_acc, val_preds = sess.run(
                                 [self._train_graph_merged_summaries, self._loss, self._accuracy, self._top_five_acc, self._preds],
-                                feed_dict={self._X: X_valid, self._y: y_valid, self._batch_index: len(X_valid)}
+                                feed_dict={self._X: X_valid, self._y: y_valid}
                             )
 
                         if is_last_step:
@@ -837,20 +837,21 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                             epoch, loss_val, best_loss, acc_val * 100, top5_acc * 100))
                         if checks_without_progress > max_checks_without_progress:
                             print("Early stopping!")
-                            train_cm = pycm.ConfusionMatrix(actual_vector=y, predict_vector=train_preds)
-                            val_cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=val_preds)
-                            one_hot_class_label_as_chars = val_cm.classes
-                            mapping = {int(one_hot_label_char): clss_name for one_hot_label_char, clss_name in zip(one_hot_class_label_as_chars, self.class_labels)}
-                            # print(mapping)
-                            # cm.relabel(mapping=mapping)
-                            with open(os.path.join(tb_log_dir_train, 'mappings.json'), 'w') as fp:
-                                json.dump(mapping, fp, indent=0)
-                            with open(os.path.join(tb_log_dir_val, 'mappings.json'), 'w') as fp:
-                                json.dump(mapping, fp, indent=0)
-                            train_cm.save_html(os.path.join(tb_log_dir_train, 'confusion_matrix'))
-                            train_cm.save_csv(os.path.join(tb_log_dir_train, 'confusion_matrix'))
-                            val_cm.save_html(os.path.join(tb_log_dir_val, 'confusion_matrix'))
-                            val_cm.save_csv(os.path.join(tb_log_dir_val, 'confusion_matrix'))
+                            if self.dataset != 'SERNEC':
+                                train_cm = pycm.ConfusionMatrix(actual_vector=y, predict_vector=train_preds)
+                                val_cm = pycm.ConfusionMatrix(actual_vector=y_valid, predict_vector=val_preds)
+                                one_hot_class_label_as_chars = val_cm.classes
+                                mapping = {int(one_hot_label_char): clss_name for one_hot_label_char, clss_name in zip(one_hot_class_label_as_chars, self.class_labels)}
+                                # print(mapping)
+                                # cm.relabel(mapping=mapping)
+                                with open(os.path.join(tb_log_dir_train, 'mappings.json'), 'w') as fp:
+                                    json.dump(mapping, fp, indent=0)
+                                with open(os.path.join(tb_log_dir_val, 'mappings.json'), 'w') as fp:
+                                    json.dump(mapping, fp, indent=0)
+                                train_cm.save_html(os.path.join(tb_log_dir_train, 'confusion_matrix'))
+                                train_cm.save_csv(os.path.join(tb_log_dir_train, 'confusion_matrix'))
+                                val_cm.save_html(os.path.join(tb_log_dir_val, 'confusion_matrix'))
+                                val_cm.save_csv(os.path.join(tb_log_dir_val, 'confusion_matrix'))
                             break
                     else:
                         if self.dataset != 'SERNEC':
@@ -894,7 +895,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                     sess.run(self._clear_batch_running_averages_op)
             # If we used early stopping then rollback to the best model found
             if best_params:
-                # print('Restoring model to best parameter set: %s' % best_params)
+                # print('Restoring model to parameter set of best performing epoch: %s' % best_params)
                 self._restore_model_params(best_params)
 
             # Export the trained model for use with serving:
@@ -903,12 +904,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             return self
 
     def predict_proba(self, X):
+        # tf.logging.info(msg='predict_proba called with X.shape: %s' % (X.shape,))
+        # ON RESUME: PREDICT PROBA AND PREDICT STILL ATTEMPTING TO ALLOCATE TENSOR OF SIZE X, ensure this is never X_Train with sernec (as too large OOM)
+        # ALSO, why predict called with X_train not X_val?
         if not self._train_session:
             raise NotFittedError("This %s instance is not fitted yet" % self.__class__.__name__)
         with self._train_session.as_default() as sess:
             return self._y_proba.eval(feed_dict={self._X: X})
 
     def predict(self, X):
+        # tf.logging.info(msg='predict called with X.shape: %s' % (X.shape,))
         class_indices = np.argmax(self.predict_proba(X), axis=1)
         return np.array([[self.classes_[class_index]]
                          for class_index in class_indices], np.int32)
