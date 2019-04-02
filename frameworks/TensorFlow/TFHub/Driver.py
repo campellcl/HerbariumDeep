@@ -102,7 +102,7 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, class_labels, initializers, activations,
+def _run_grid_search_from_drive(dataset, train_image_paths, train_ground_truth_labels, class_labels, initializers, activations,
                                 optimizers, tb_log_dir, val_image_paths=None, val_ground_truth_labels=None):
     """
     _run_grid_search_from_drive: Performs an exhaustive hyperparameter Grid Search via SKLearn directly from images on
@@ -128,13 +128,30 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
         'is_fixed_feature_extractor': [True],
         'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
         'activation': [activations['LeakyReLU'], activations['ELU']],
-        'optimizer': [optimizers['Adam'], optimizers['Nesterov']],
-        'train_batch_size': [16, 20, 60]
+        'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
+        # 'train_batch_size': [16, 20, 60]
     }
-    num_epochs = 1000
-    eval_freq = 10
-    ckpt_freq = 0
-    keras_classifier = InceptionV3Estimator(class_labels=class_labels, num_classes=len(class_labels), random_state=42, tb_log_dir=tb_log_dir)
+    if dataset == 'DEBUG':
+        params['train_batch_size'] = [10, 20]
+        num_epochs = 100
+        eval_freq = 10
+        early_stopping_eval_freq = 1
+        ckpt_freq = 0
+    elif dataset == 'BOON':
+        params['train_batch_size'] = [20, 60, 100]
+        num_epochs = 10000  # 10,000
+        eval_freq = 10
+        early_stopping_eval_freq = 1
+        ckpt_freq = 0
+    elif dataset == 'GoingDeeper':
+        raise NotImplementedError
+    elif dataset == 'SERNEC':
+        raise NotImplementedError
+    else:
+        tf.logging.error(msg='Could not identify dataset: \'%s\'' % dataset)
+        exit(-1)
+    tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
+    keras_classifier = InceptionV3Estimator(dataset=dataset, class_labels=class_labels, num_classes=len(class_labels), random_state=42, tb_log_dir=tb_log_dir, train_from_bottlenecks=False)
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
     tf.logging.info(msg='Running GridSearch...')
@@ -144,6 +161,7 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
         num_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
+        early_stopping_eval_freq=early_stopping_eval_freq,
         fed_bottlenecks=False,
         X_val=val_image_paths,
         y_val=val_ground_truth_labels
@@ -163,6 +181,7 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
         num_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
+        early_stopping_eval_freq=early_stopping_eval_freq,
         fed_bottlenecks=False,
         X_val=val_image_paths,
         y_val=val_ground_truth_labels
@@ -171,8 +190,9 @@ def _run_grid_search_from_drive(train_image_paths, train_ground_truth_labels, cl
     y_pred = keras_classifier.predict(X=val_image_paths)
     # print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
 
-def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations,
-                                 optimizers, val_bottlenecks=None, val_ground_truth_indices=None):
+
+def _run_grid_search_from_memory(dataset, train_bottlenecks, train_ground_truth_indices, class_labels, initializers, activations,
+                                 optimizers, tb_log_dir, val_bottlenecks=None, val_ground_truth_indices=None):
     """
     _run_grid_search_from_memory: Utilizes a feed-dict based approach to input bottleneck tensors which have already
         undergone forward propagation in the source network directly from memory. This method is included to support
@@ -192,26 +212,56 @@ def _run_grid_search_from_memory(train_bottlenecks, train_ground_truth_indices, 
     """
     params = {
         'is_fixed_feature_extractor': [True],
-        'optimizer': [optimizers['Adam']],
-        'train_batch_size': [20, 40]
+        'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
+        'activation': [activations['LeakyReLU'], activations['ELU']],
+        'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
+        # 'train_batch_size': [20, 60, 100]
     }
+    if dataset == 'DEBUG':
+        params['train_batch_size'] = [10, 20]
+        num_epochs = 100
+        eval_freq = 10
+        early_stopping_eval_freq = 1
+        ckpt_freq = 0
+    elif dataset == 'BOON':
+        params['train_batch_size'] = [20, 60, 100]
+        num_epochs = 10000  # 10,000
+        eval_freq = 10
+        early_stopping_eval_freq = 1
+        ckpt_freq = 0
+    elif dataset == 'GoingDeeper':
+        raise NotImplementedError
+    elif dataset == 'SERNEC':
+        raise NotImplementedError
+    else:
+        tf.logging.error(msg='Could not identify dataset: \'%s\'' % dataset)
+        exit(-1)
+    tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
 
-    # params = {
-    #     'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
-    #     'activation': [activations['LeakyReLU'], activations['ELU']],
-    #     'optimizer': [optimizers['Adam'], optimizers['Nesterov']],
-    #     'train_batch_size': [20, 60, 100]
-    # }
-    num_epochs = 100
-    eval_freq = 10
-    ckpt_freq = 0
-    # tfh_classifier = TFHClassifier(random_state=42, class_labels=class_labels)
-    keras_classifier = InceptionV3Estimator(num_classes=len(class_labels), random_state=42)
+    keras_classifier = InceptionV3Estimator(dataset=dataset, class_labels=class_labels, num_classes=len(class_labels), train_from_bottlenecks=True, random_state=42, tb_log_dir=tb_log_dir)
     cv = [(slice(None), slice(None))]
     grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
     tf.logging.info(msg='Running GridSearch...')
-    grid_search.fit(X=train_bottlenecks, y=train_ground_truth_indices, is_bottlenecks=True)
+    grid_search.fit(
+        X=train_bottlenecks,
+        y=train_ground_truth_indices,
+        num_epochs=num_epochs,
+        eval_freq=eval_freq,
+        ckpt_freq=ckpt_freq,
+        early_stopping_eval_freq=early_stopping_eval_freq,
+        fed_bottlenecks=True,
+        X_val=val_bottlenecks,
+        y_val=val_ground_truth_indices
+    )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
+    # best_params = grid_search.best_params_
+    # # If this is a refit operation, notify TensorBoard to log to a different directory to avoid conflicting summaries:
+    # best_params['is_refit'] = True
+    # current_params = keras_classifier.get_params()
+    # current_params.update(best_params)
+    # keras_classifier.set_params(**current_params)
+    # tf.logging.info(msg='Model hyperparameters have been set to the highest scoring settings reported by GridSearch. Now fitting a classifier with these hyperparameters: %s' % (current_params))
+    # # Re-fit the model using the best parameter combination from the GridSearch:
 
 
 def _get_all_cached_bottlenecks(bottleneck_dataframe, class_labels):
@@ -291,26 +341,31 @@ def main(run_config):
     val_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
                                                     for ground_truth_label in val_bottleneck_ground_truth_labels])
 
-    _run_grid_search_from_drive(
-        train_image_paths=train_bottlenecks['path'].values,
-        train_ground_truth_labels=train_bottleneck_ground_truth_indices,
-        val_image_paths=val_bottlenecks['path'].values,
-        val_ground_truth_labels=val_bottleneck_ground_truth_indices,
+    # _run_grid_search_from_drive(
+    #     dataset=run_config['dataset'],
+    #     train_image_paths=train_bottlenecks['path'].values,
+    #     train_ground_truth_labels=train_bottleneck_ground_truth_indices,
+    #     val_image_paths=val_bottlenecks['path'].values,
+    #     val_ground_truth_labels=val_bottleneck_ground_truth_indices,
+    #     initializers=initializer_options,
+    #     optimizers=optimizer_options,
+    #     activations=activation_options,
+    #     class_labels=class_labels,
+    #     tb_log_dir=tb_log_dir
+    # )
+
+    _run_grid_search_from_memory(
+        dataset=run_config['dataset'],
+        train_bottlenecks=train_bottleneck_values,
+        train_ground_truth_indices=train_bottleneck_ground_truth_indices,
+        val_bottlenecks=val_bottleneck_values,
+        val_ground_truth_indices=val_bottleneck_ground_truth_indices,
         initializers=initializer_options,
-        optimizers=optimizer_options,
         activations=activation_options,
+        optimizers=optimizer_options,
         class_labels=class_labels,
         tb_log_dir=tb_log_dir
     )
-
-    # _run_grid_search_from_memory(
-    #     train_bottlenecks=train_bottleneck_values,
-    #     train_ground_truth_indices=train_bottleneck_ground_truth_indices,
-    #     initializers=initializer_options,
-    #     activations=activation_options,
-    #     optimizers=optimizer_options,
-    #     class_labels=class_labels
-    # )
 
     # train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
     #     bottleneck_dataframe=bottlenecks['train'],
@@ -363,16 +418,19 @@ if __name__ == '__main__':
     tf.logging.info(msg='tf.Keras Version: %s' % tf.keras.__version__)
     run_configs = {
         'DEBUG': {
+            'dataset': 'DEBUG',
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
             'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
         },
         'BOON': {
+            'dataset': 'BOON',
             'image_dir': 'D:\\data\\BOON\\images',
             'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
         },
         'GoingDeeper': {
+            'dataset': 'GoingDeeper',
             'image_dir': 'D:\\data\\GoingDeeperData\\images',
             'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
@@ -380,4 +438,4 @@ if __name__ == '__main__':
         'SERNEC': {}
     }
 
-    main(run_configs['BOON'])
+    main(run_configs['DEBUG'])
