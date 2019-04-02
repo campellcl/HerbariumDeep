@@ -73,15 +73,15 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
             # add a global spatial average pooling layer:
             x = base_model.output
+            # spatial = tf.keras.backend.squeeze(x, axis=0)
             bottlenecks = GlobalAveragePooling2D()(x)
             # let's add a fully-connected layer output shape 1024
-            logits = Dense(1024, activation='relu')(bottlenecks)
+            logits = Dense(self.num_classes, activation=self.activation)(bottlenecks)
             # and a fully connected logistic layer for self.num_classes
             y_proba = Dense(self.num_classes, activation='softmax')(logits)
 
             # this is the model we will train
             self._keras_model = Model(inputs=base_model.input, outputs=y_proba)
-
 
             self._keras_resized_input_handle_ = self._keras_model.input
             self._y_proba = self._keras_model.output
@@ -231,7 +231,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
     #     #     yield self._session.run(next_batch)
     #     return ds
 
-    def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0, X_val=None, y_val=None):
+    def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0, early_stopping_eval_freq=1, X_val=None, y_val=None):
         """
         fit:
         :param X_train: What if this was a list of images? then could perform dataset conversions here...
@@ -317,8 +317,6 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                     #     ]
                     # )
 
-
-
                     self._keras_model.fit(
                         train_ds.make_one_shot_iterator(),
                         validation_data=val_ds.make_one_shot_iterator(),
@@ -327,7 +325,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         validation_steps=val_steps_per_epoch,
                         callbacks=[
                             FileWritersTensorBoardCallback(log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(), write_graph=False, is_refit=self.is_refit, write_freq=self.eval_freq),
-                            tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=20, verbose=0, mode='min', baseline=None, restore_best_weights=False)
+                            tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=early_stopping_eval_freq, verbose=0, mode='min', baseline=None, restore_best_weights=False)
                         ]
                     )
 
