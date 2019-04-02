@@ -92,6 +92,21 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         raise NotImplementedError
 
 
+class CustomGridSearch:
+    best_loss = None
+
+    def __init__(self, keras_classifier, params, refit=False):
+        self.keras_classifier = keras_classifier
+        self.params = params
+        self.refit = refit
+
+    def fit(self, X_train, y_train, X_valid, y_valid, num_epochs, eval_freq, ckpt_freq, early_stopping_eval_freq, fed_bottlenecks):
+        for param, param_settings in self.params.items():
+            self.keras_classifier.fit(X_train, y_train, X_valid, y_valid, num_epochs, eval_freq, ckpt_freq, early_stopping_eval_freq, fed_bottlenecks)
+            validation_set_score = self.keras_classifier.predict(X_valid)
+        raise NotImplementedError
+
+
 class Driver:
     X_train = np.array([[1, 2], [3, 4], [5, 6], [7, 8], [3, 4], [5, 6]])
     y_train = np.array([1, 2, 1, 2, 1, 2])
@@ -107,20 +122,22 @@ class Driver:
     keras_classifier = InceptionV3Estimator()
     num_train_samples = X_train.shape[0]
     num_test_samples = X_test.shape[0]
-    custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_test_samples, n_splits=1)
-    grid_search = GridSearchCV(keras_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, n_jobs=1)
-    tf.logging.info(msg='Running GridSearch...')
-    grid_search.fit(
-        X=X_train,
-        y=y_train,
-        num_epochs=num_epochs,
-        eval_freq=eval_freq,
-        ckpt_freq=ckpt_freq,
-        early_stopping_eval_freq=early_stopping_eval_freq,
-        fed_bottlenecks=True,
-        X_valid=X_test,
-        y_valid=y_test
-    )
+    # custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_test_samples, n_splits=1)
+    # grid_search = GridSearchCV(keras_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, n_jobs=1)
+    # tf.logging.info(msg='Running GridSearch...')
+    # grid_search.fit(
+    #     X=X_train,
+    #     y=y_train,
+    #     num_epochs=num_epochs,
+    #     eval_freq=eval_freq,
+    #     ckpt_freq=ckpt_freq,
+    #     early_stopping_eval_freq=early_stopping_eval_freq,
+    #     fed_bottlenecks=True,
+    #     X_valid=X_test,
+    #     y_valid=y_test
+    # )
+    grid_search = CustomGridSearch(keras_classifier, params, refit=False)
+    grid_search.fit(X_train=X_train, y_train=y_train, X_valid=X_test, y_valid=y_test, num_epochs=num_epochs, eval_freq=eval_freq, ckpt_freq=ckpt_freq, early_stopping_eval_freq=early_stopping_eval_freq, fed_bottlenecks=True)
 
 if __name__ == '__main__':
     pass
