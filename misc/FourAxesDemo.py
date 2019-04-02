@@ -103,17 +103,19 @@ def main():
     print(type(ax_bot))
     print(dir(ax_bot))
 
+    # ax_bot.imshow(data)
+
     ax_bot.set_adjustable('box')
     # ax_bot.set_adjustable('box-forced')
-    ax_bot.set_aspect('equal')
+    # ax_bot.set_aspect('equal')
 
     ax_bot.set_xticks(x_ticks_bot_major, minor=False)
     ax_bot.set_xticks(x_ticks_bot_minor, minor=True)
     ax_bot.set_yticks(y_ticks_left_major, minor=False)
-    ax_bot.set_yticks(y_ticks_left_minor, minor=True)
+    # ax_bot.set_yticks(y_ticks_left_minor, minor=True)
 
     ax_bot.set_xticklabels(x_tick_labels_bot_major, minor=False)
-    ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
+    # ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
 
     print('x_ticks_bot_major: %s' % x_ticks_bot_major)
     print('x_ticks_bot_minor: %s' % x_ticks_bot_minor)
@@ -129,7 +131,7 @@ def main():
     # ax_top.set_aspect('equal')
     ax_top.set_xticks(x_ticks_top_major, minor=False)
     ax_top.set_xticks(x_ticks_top_minor, minor=True)
-    ax_top.set_yticks(y_ticks_right_major, minor=False)
+    # ax_top.set_yticks(y_ticks_right_major, minor=False)
 
     ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
 
@@ -140,26 +142,52 @@ def main():
     # plt.setp(ax_bot, aspect=1.0, adjustable='box-forced')
     # This one:
     # plt.setp(ax_bot, adjustable='datalim')
-
+    # ax_bot.set_adjustable('box')
     ax_right = ax_top.twinx()
     ax_right.set_yticks(y_ticks_right_major, minor=False)
     ax_right.set_yticks(y_ticks_right_minor, minor=True)
 
-    ax_right.set_yticklabels(y_tick_labels_left_minor, minor=False)
     # ax_right.set_yticklabels(y_tick_labels_right_minor, minor=False)
 
     print('y_ticks_left_major: %s' % y_ticks_left_major)
     print('y_ticks_left_minor: %s' % y_ticks_left_minor)
+    # print('ax_bot.yscale: %s' % ax_bot.get_yscale())
     print('y_tick_labels_left_major: %s' % y_tick_labels_left_major)
-    # for i, y_tick_label in enumerate(y_tick_labels_left_minor):
-    #     y_tick_labels_right_minor
+    y_tick_labels_right_major = y_tick_labels_left_minor.copy()
+    # for i, y_tick_label in enumerate(y_tick_labels_right_major):
+    #     y_tick_labels_right_minor.append('')
     print('y_tick_labels_left_minor: %s' % y_tick_labels_left_minor)
     # plt.setp(ax_bot, aspect='equal', datalim='')
+    print('')
+
+    print('y_ticks_right_major: %s' % y_ticks_right_major)
+    print('y_ticks_right_minor: %s' % y_ticks_right_minor)
+    print('y_tick_labels_right_major: %s' % y_tick_labels_right_major)
+    print('y_tick_labels_right_minor: %s' % y_tick_labels_right_minor)
+
+    # y_tick_labels_right_minor = ['' for label in y_tick_labels_right_major]
+    # ax_right.set_yticklabels(y_tick_labels_right_major, minor=False)
+    # ax_right.set_yticklabels(y_tick_labels_right_minor, minor=True)
 
     # ax_bot = ax_bot.twinx()
     # ax_right = ax_bot.twinx()
+    # ax_bot.set_autoscale_on(enable=True, tight=True)
+    # plt.setp(ax_bot, autoscale_on=True, tight=True)
+    # ax_bot.set_adjustable('datalim')
+    # ax_right.set_adjustable('datalim')
+    # ax_bot.set_adjustable('datalim')
+    # ax_top.set_adjustable('datalim')
+
+    # ax_bot.set_adjustable('box')
+    ax_bot.set_aspect('equal', share=False)
+    # ax_top.set_adjustable()
+    ax_top.set_aspect('equal', share=False)
 
     ax_bot.imshow(data)
+    # ax_bot.autoscale(enable=False)
+    # ax_right.autoscale(enable=False)
+    # ax_right.set_ylim(ax_bot.get_ylim())
+
     # ax_top.imshow(data)
 
     plt.show()
