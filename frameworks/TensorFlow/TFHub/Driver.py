@@ -3,9 +3,25 @@ import os
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import ShuffleSplit
 from frameworks.TensorFlow.Keras.Estimators.InceptionV3Estimator import InceptionV3Estimator
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
+
+
+class CrossValidationSplitter(ShuffleSplit):
+
+    def __init__(self, n_splits, test_size=None, train_size=None, random_state=None):
+        self.n_splits = n_splits
+        self.test_size = test_size
+        self.train_size = train_size
+        self.random_state = random_state
+
+    def get_n_splits(self, X, y, groups=None):
+        return self.n_splits
+
+    def split(self, X, y=None, groups=None):
+        yield([i for i in range(self.train_size)], [j for j in range(self.train_size, self.train_size + self.test_size)])
 
 
 def preprocess_image(image, height=299, width=299, num_channels=3):
@@ -221,13 +237,13 @@ def _run_grid_search_from_memory(dataset, train_bottlenecks, train_ground_truth_
         params['train_batch_size'] = [10, 20]
         num_epochs = 100
         eval_freq = 10
-        early_stopping_eval_freq = 1
+        early_stopping_eval_freq = 5
         ckpt_freq = 0
     elif dataset == 'BOON':
         params['train_batch_size'] = [20, 60, 100]
         num_epochs = 10000  # 10,000
         eval_freq = 10
-        early_stopping_eval_freq = 1
+        early_stopping_eval_freq = 5
         ckpt_freq = 0
     elif dataset == 'GoingDeeper':
         raise NotImplementedError
@@ -239,12 +255,19 @@ def _run_grid_search_from_memory(dataset, train_bottlenecks, train_ground_truth_
     tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
 
     keras_classifier = InceptionV3Estimator(dataset=dataset, class_labels=class_labels, num_classes=len(class_labels), train_from_bottlenecks=True, random_state=42, tb_log_dir=tb_log_dir)
-    cv = [(slice(None), slice(None))]
-    grid_search = GridSearchCV(keras_classifier, params, cv=cv, verbose=2, refit=False, n_jobs=1)
+    num_train_samples = train_bottlenecks.shape[0]
+    num_val_samples = val_bottlenecks.shape[0]
+    print('num_train_samples: %d' % num_train_samples)
+    print('num_val_samples: %d' % num_val_samples)
+    custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_val_samples, n_splits=1)
+    # cv = [(slice(None), slice(None))]
+    grid_search = GridSearchCV(keras_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, n_jobs=1, return_train_score=False)
     tf.logging.info(msg='Running GridSearch...')
+    X = np.concatenate((train_bottlenecks, val_bottlenecks))
+    y = np.concatenate((train_ground_truth_indices, val_ground_truth_indices))
     grid_search.fit(
-        X=train_bottlenecks,
-        y=train_ground_truth_indices,
+        X=X,
+        y=y,
         num_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
@@ -438,4 +461,4 @@ if __name__ == '__main__':
         'SERNEC': {}
     }
 
-    main(run_configs['DEBUG'])
+    main(run_configs['BOON'])
