@@ -45,6 +45,9 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         self._val_writer = None
         self.is_refit = is_refit
 
+        # if self._keras_model is None:
+        #     self._build_model_and_graph_def()
+
     @staticmethod
     def _preprocess_image(image, height=299, width=299, num_channels=3):
         image = tf.image.decode_jpeg(image, channels=num_channels)
@@ -80,6 +83,15 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             yield X_batch, y_batch
 
     def _build_model_and_graph_def(self):
+        session = tf.keras.backend.get_session()
+        ON RESUME: The memory leak is happening where the TODO statement is below. Confirmed with debugger and printing growing length of
+        traininable variables in the session graph. To fix this, I will need to pull the tensor handles for this instance of the gridsearch
+        object directly from the backend session computational graph, as the backend session appears to persist across instances of this class.
+        Note that attempting to clear the backend session would require multiple graph re-instantiations. Grid search is driving however, so no
+        control over this unless I want to attempt a subclass.
+        if session is not None:
+            return
+        # K.clear_session()
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
             np.random.seed(self.random_state)
@@ -88,6 +100,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             # input_tensor = tf.placeholder(dtype=tf.float32, shape=(None, 299, 299, 3), name='resized_input_tensor')
             # base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))(input_tensor)
             # self._session = tf.Session()
+
+            # TODO: Huge jump in memory at initialization here contributing to memory leak.
             base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
 
             # first: train only the top layers (which were randomly initialized)
@@ -119,8 +133,9 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 self._keras_resized_input_handle_ = self._keras_model
                 self._y_proba = self._keras_model.output
 
-            self._session = tf.keras.backend.get_session()
-            tf.logging.info(msg='self._session set to: %s' % self._session)
+            if self._session is None:
+                self._session = tf.keras.backend.get_session()
+                tf.logging.info(msg='self._session set to: %s' % self._session)
             # self._graph = self._session.graph
         else:
             raise NotImplementedError
@@ -385,7 +400,6 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                         )
                     ]
                 )
-
             else:
                 # No validation data, just train on the training data:
                 tf.logging.error(msg='Not implemented yet.')
@@ -513,10 +527,14 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         return self
 
     def predict(self, X):
+        print('predict called with X: %s' % (X.shape,))
         if not self._is_trained:
             class_indices = np.argmax(self.predict_proba(X, batch_size=self.train_batch_size), axis=1)
         else:
             class_indices = np.argmax(self.predict_proba(X, batch_size=self.val_batch_size), axis=1)
+
+        # Prevent memory leaks by clearing session (see: https://stackoverflow.com/questions/50331201/memory-leak-keras-tensorflow1-8-0/50331508)
+        # K.clear_session()
         return np.array(class_indices, np.int32)
         # tf.logging.error(msg='Not implemented yet.')
         # raise NotImplementedError
@@ -551,11 +569,11 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             # raise NotImplementedError
         else:
             num_bottlenecks = len(X)
-            bottleneck_ds = tf.data.Dataset.from_tensor_slices(X)
-            ds = bottleneck_ds.shuffle(buffer_size=num_bottlenecks)
-            ds.batch(batch_size=batch_size)
-            ds = ds.repeat()
-            ds = ds.prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
+            # bottleneck_ds = tf.data.Dataset.from_tensor_slices(X)
+            # ds = bottleneck_ds.shuffle(buffer_size=num_bottlenecks)
+            # ds.batch(batch_size=batch_size)
+            # ds = ds.repeat()
+            # ds = ds.prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
             steps_per_epoch = math.ceil(num_bottlenecks/batch_size)
             y_proba = self._keras_model.predict(X, batch_size=batch_size, verbose=0, steps=steps_per_epoch)
             return y_proba
