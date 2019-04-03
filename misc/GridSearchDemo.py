@@ -27,16 +27,17 @@ class CrossValidationSplitter(sklearn.model_selection.ShuffleSplit):
         :param groups:
         :return:
         """
-        is_train_data = None
-        if len(X) != self.train_size:
-            assert len(X)  == self.test_size
-            is_train_data = False
-        else:
-            is_train_data = True
-        if is_train_data:
-            yield([i for i in range(self.train_size)], [j for j in range(self.train_size)])
-        else:
-            yield([i for i in range(self.test_size)], [j for j in range(self.test_size)])
+        yield([i for i in range(self.train_size)], [j for j in range(self.train_size, self.train_size + self.test_size)])
+        # is_train_data = None
+        # if len(X) != self.train_size:
+        #     assert len(X)  == self.test_size
+        #     is_train_data = False
+        # else:
+        #     is_train_data = True
+        # if is_train_data:
+        #     yield([i for i in range(self.train_size)], [j for j in range(self.test_size)])
+        # else:
+        #     yield([i for i in range(self.train_size)], [j for j in range(self.test_size)])
         # for i, j in zip(range(self.train_size), range(self.train_size - 1, (self.train_size + self.test_size))):
         #     yield (i, j)
         # yield ([i for i in range(self.train_size)], [j for j in range(self.train_size - 1, (self.train_size + self.test_size))])
@@ -122,22 +123,24 @@ class Driver:
     keras_classifier = InceptionV3Estimator()
     num_train_samples = X_train.shape[0]
     num_test_samples = X_test.shape[0]
-    # custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_test_samples, n_splits=1)
-    # grid_search = GridSearchCV(keras_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, n_jobs=1)
-    # tf.logging.info(msg='Running GridSearch...')
-    # grid_search.fit(
-    #     X=X_train,
-    #     y=y_train,
-    #     num_epochs=num_epochs,
-    #     eval_freq=eval_freq,
-    #     ckpt_freq=ckpt_freq,
-    #     early_stopping_eval_freq=early_stopping_eval_freq,
-    #     fed_bottlenecks=True,
-    #     X_valid=X_test,
-    #     y_valid=y_test
-    # )
-    grid_search = CustomGridSearch(keras_classifier, params, refit=False)
-    grid_search.fit(X_train=X_train, y_train=y_train, X_valid=X_test, y_valid=y_test, num_epochs=num_epochs, eval_freq=eval_freq, ckpt_freq=ckpt_freq, early_stopping_eval_freq=early_stopping_eval_freq, fed_bottlenecks=True)
+    custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_test_samples, n_splits=1)
+    grid_search = GridSearchCV(keras_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, n_jobs=1, return_train_score=False)
+    tf.logging.info(msg='Running GridSearch...')
+    X = np.concatenate((X_train, X_test))
+    y = np.concatenate((y_train, y_test))
+    grid_search.fit(
+        X=X,
+        y=y,
+        num_epochs=num_epochs,
+        eval_freq=eval_freq,
+        ckpt_freq=ckpt_freq,
+        early_stopping_eval_freq=early_stopping_eval_freq,
+        fed_bottlenecks=True,
+        X_valid=X_test,
+        y_valid=y_test
+    )
+    # grid_search = CustomGridSearch(keras_classifier, params, refit=False)
+    # grid_search.fit(X_train=X_train, y_train=y_train, X_valid=X_test, y_valid=y_test, num_epochs=num_epochs, eval_freq=eval_freq, ckpt_freq=ckpt_freq, early_stopping_eval_freq=early_stopping_eval_freq, fed_bottlenecks=True)
 
 if __name__ == '__main__':
     pass
