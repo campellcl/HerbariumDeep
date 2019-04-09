@@ -83,14 +83,44 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             yield X_batch, y_batch
 
     def _build_model_and_graph_def(self):
-        session = tf.keras.backend.get_session()
-        ON RESUME: The memory leak is happening where the TODO statement is below. Confirmed with debugger and printing growing length of
-        traininable variables in the session graph. To fix this, I will need to pull the tensor handles for this instance of the gridsearch
-        object directly from the backend session computational graph, as the backend session appears to persist across instances of this class.
-        Note that attempting to clear the backend session would require multiple graph re-instantiations. Grid search is driving however, so no
-        control over this unless I want to attempt a subclass.
+        if self._session is None:
+            session = tf.keras.backend.get_session()
+            tf.logging.info(msg='current backend session: %s' % session)
+        # ON RESUME: The memory leak is happening where the TODO statement is below. Confirmed with debugger and printing growing length of
+        # traininable variables in the session graph. To fix this, I will need to pull the tensor handles for this instance of the gridsearch
+        # object directly from the backend session computational graph, as the backend session appears to persist across instances of this class.
+        # Note that attempting to clear the backend session would require multiple graph re-instantiations. Grid search is driving however, so no
+        # control over this unless I want to attempt a subclass.
+
+        # This is a sanity check, the backend session is never None:
         if session is not None:
+            # Note: backed session exists with no graph on init, so we need to actually check the graph for collections:
+            if not session.graph.collections:
+                # Ok the graph has no collections, go ahead and initialize:
+                should_initialize_base_model_graph = True
+            else:
+                # The graph has collections, it was previously initialized and retained in the persistent backend sess.
+                should_initialize_base_model_graph = False
+        if not should_initialize_base_model_graph:
+            ''' Get the tensor handles from the already initialized graph and return: '''
+            # nodes = [node.name for node in session.graph.as_graph_def().node]
+            # input_nodes = [node.name for node in session.graph.as_graph_def().node if 'input' in node.name]
+            base_model_input = session.graph.get_tensor_by_name('input_1:0')
+            # x = session.graph.get_tensor_by_name('mixed10/concat:0')
+            bottlenecks = session.graph.get_tensor_by_name('bottleneck:0')
+            # Now that we avoided re-initializing the base_model; initialize what actually changed this run:
+            logits = Dense(self.num_classes, activation=self.activation)(bottlenecks)
+            y_proba = Dense(self.num_classes, activation='softmax')(logits)
+            # if self.activation.__name__ == 'leaky_relu':
+            #     logits = session.graph.get_tensor_by_name('dense/LeakyRelu:0')
+            # else:
+            #     raise NotImplementedError
+            # y_proba = session.graph.get_tensor_by_name('y_proba/Softmax:0')
+            self._keras_model = Model(inputs=base_model_input, outputs=y_proba)
+            self._keras_resized_input_handle_ = base_model_input
+            self._y_proba = y_proba
             return
+
         # K.clear_session()
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
@@ -101,8 +131,11 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
             # base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))(input_tensor)
             # self._session = tf.Session()
 
-            # TODO: Huge jump in memory at initialization here contributing to memory leak.
+            # TODO: Huge jump in memory at initialization here, contributing to memory leak.
             base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
+            # print('base_model input names: %s' % base_model.input)
+            # print('base_model output names: %s' % base_model.output_names)
+            # base_model.name = 'base_model'
 
             # first: train only the top layers (which were randomly initialized)
             # i.e. freeze all convolutional InceptionV3 layers
@@ -124,19 +157,14 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 self._keras_resized_input_handle_ = self._keras_model.input
                 self._y_proba = self._keras_model.output
             else:
-                bottlenecks = Input(shape=(base_model.output_shape[-1],))
+                bottlenecks = Input(shape=(base_model.output_shape[-1],), name='bottleneck')
                 # bottlenecks = Dense(self.num_classes, input_shape=(base_model.output_shape[-1],))
-                logits = Dense(self.num_classes, activation=self.activation)(bottlenecks)
-                y_proba = Dense(self.num_classes, activation='softmax')(logits)
+                logits = Dense(self.num_classes, activation=self.activation, name='logits')(bottlenecks)
+                y_proba = Dense(self.num_classes, activation='softmax', name='y_proba')(logits)
                 # This is the model that is actually trained, if bottlenecks are being fed from memory:
                 self._keras_model = Model(inputs=bottlenecks, outputs=y_proba)
                 self._keras_resized_input_handle_ = self._keras_model
                 self._y_proba = self._keras_model.output
-
-            if self._session is None:
-                self._session = tf.keras.backend.get_session()
-                tf.logging.info(msg='self._session set to: %s' % self._session)
-            # self._graph = self._session.graph
         else:
             raise NotImplementedError
 
