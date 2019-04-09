@@ -102,24 +102,21 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 # The graph has collections, it was previously initialized and retained in the persistent backend sess.
                 should_initialize_base_model_graph = False
         if not should_initialize_base_model_graph:
+            # Have to initialize base model graph due to Graph disconnected errors preventing tensor handle retrieval.
+            tf.keras.backend.clear_session()
             ''' Get the tensor handles from the already initialized graph and return: '''
             # nodes = [node.name for node in session.graph.as_graph_def().node]
             # input_nodes = [node.name for node in session.graph.as_graph_def().node if 'input' in node.name]
-            base_model_input = session.graph.get_tensor_by_name('input_1:0')
+            # base_model_input = session.graph.get_tensor_by_name('input_1:0')
             # x = session.graph.get_tensor_by_name('mixed10/concat:0')
-            bottlenecks = session.graph.get_tensor_by_name('bottleneck:0')
+            # bottlenecks = session.graph.get_tensor_by_name('bottleneck:0')
             # Now that we avoided re-initializing the base_model; initialize what actually changed this run:
-            logits = Dense(self.num_classes, activation=self.activation)(bottlenecks)
-            y_proba = Dense(self.num_classes, activation='softmax')(logits)
-            # if self.activation.__name__ == 'leaky_relu':
-            #     logits = session.graph.get_tensor_by_name('dense/LeakyRelu:0')
-            # else:
-            #     raise NotImplementedError
-            # y_proba = session.graph.get_tensor_by_name('y_proba/Softmax:0')
-            self._keras_model = Model(inputs=base_model_input, outputs=y_proba)
-            self._keras_resized_input_handle_ = base_model_input
-            self._y_proba = y_proba
-            return
+            # logits = Dense(self.num_classes, activation=self.activation)(bottlenecks)
+            # y_proba = Dense(self.num_classes, activation='softmax')(logits)
+            # self._keras_model = Model(inputs=base_model_input, outputs=y_proba)
+            # self._keras_resized_input_handle_ = base_model_input
+            # self._y_proba = y_proba
+            # return
 
         # K.clear_session()
         if self.random_state is not None:
@@ -166,6 +163,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 self._keras_resized_input_handle_ = self._keras_model
                 self._y_proba = self._keras_model.output
         else:
+            # Not a fixed feature extractor, this logic hasn't been implemented yet for fine-tuning.
             raise NotImplementedError
 
     def call(self, inputs, training=None, mask=None):
