@@ -9,7 +9,8 @@ from tensorflow.keras.layers import Input, Dense, GlobalAveragePooling2D
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 import math
 from tensorflow.keras.utils import to_categorical
-
+import sys
+import os
 
 class MemoryLeakTestClassifier(BaseEstimator, ClassifierMixin, tf.keras.Model):
 
@@ -53,7 +54,7 @@ class MemoryLeakTestClassifier(BaseEstimator, ClassifierMixin, tf.keras.Model):
         # 2. Shuffle entire dataset:
         ds = ds.shuffle(buffer_size=num_images)
         # 3. Apply the shuffle operation immediately:
-        # ds = ds.repeat()
+        ds = ds.repeat()
         # 4. Partition into batches:
         if is_training:
             ds = ds.batch(batch_size=self.train_batch_size)
@@ -116,6 +117,36 @@ class MemoryLeakTestClassifier(BaseEstimator, ClassifierMixin, tf.keras.Model):
                     # )
                 ]
             )
+            mem_dump_path = 'C:\\Users\\ccamp\\Desktop'
+            num_items = 20
+
+            local_var_output = []
+            print('Local Variable memory usage:')
+            for name, size in sorted(((name, sys.getsizeof(value)) for name,value in locals().items()), key= lambda x: -x[1])[:num_items]:
+                output = "{:>30}: {:>8}".format(name, sizeof_fmt(size))
+                print(output)
+                local_var_output.append(output + '\n')
+            local_var_output.append('=='*20 + '\n')
+            if not os.path.exists(os.path.join(mem_dump_path, 'local_vars.txt')):
+                with open(os.path.join(mem_dump_path, 'local_vars.txt'), 'w+') as fp:
+                    fp.writelines(local_var_output)
+            else:
+                with open(os.path.join(mem_dump_path, 'local_vars.txt'), 'a') as fp:
+                    fp.writelines(local_var_output)
+
+            global_var_output = []
+            print('Global Variable memory usage:')
+            for name, size in sorted(((name, sys.getsizeof(value)) for name, value in globals().items()), key= lambda x: -x[1])[:num_items]:
+                output = "{:>30}: {:>8}".format(name, sizeof_fmt(size))
+                print(output)
+                global_var_output.append(output + '\n')
+            global_var_output.append('=='*20 + '\n')
+            if not os.path.exists(os.path.join(mem_dump_path, 'local_vars.txt')):
+                with open(os.path.join(mem_dump_path, 'global_vars.txt'), 'w+') as fp:
+                    fp.writelines(global_var_output)
+            else:
+                with open(os.path.join(mem_dump_path, 'global_vars.txt'), 'a') as fp:
+                    fp.writelines(global_var_output)
 
         self._is_trained = True
         return self
@@ -232,6 +263,15 @@ def main(run_config):
         y_val=val_bottleneck_ground_truth_indices
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
+
+
+def sizeof_fmt(num, suffix='B'):
+    ''' By Fred Cirera, after https://stackoverflow.com/a/1094933/1870254 '''
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 if __name__ == '__main__':
