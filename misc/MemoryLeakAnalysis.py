@@ -96,23 +96,26 @@ class MemoryLeakTestClassifier(BaseEstimator, ClassifierMixin, tf.keras.Model):
         if has_validation_data:
             val_ds = self._tf_data_generator_from_memory(image_bottlenecks=X_val, image_encoded_labels=y_val, is_training=False)
 
-            self._keras_model.fit(
-                train_ds.make_one_shot_iterator(),
-                validation_data=val_ds.make_one_shot_iterator(),
-                epochs=num_epochs,
-                steps_per_epoch=train_steps_per_epoch,
-                validation_steps=val_steps_per_epoch,
-                callbacks=[
-                    # FileWritersTensorBoardCallback(
-                    #     log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(),
-                    #     write_graph=False, is_refit=self.is_refit, write_freq=self.eval_freq
-                    # ),
-                    tf.keras.callbacks.EarlyStopping(
-                        monitor='val_loss', min_delta=0, patience=early_stopping_eval_freq, verbose=0,
-                        mode='min', baseline=None, restore_best_weights=False
-                    )
-                ]
-            )
+            train_ds.make_one_shot_iterator()
+            val_ds.make_one_shot_iterator()
+
+            # self._keras_model.fit(
+            #     train_ds.make_one_shot_iterator(),
+            #     validation_data=val_ds.make_one_shot_iterator(),
+            #     epochs=num_epochs,
+            #     steps_per_epoch=train_steps_per_epoch,
+            #     validation_steps=val_steps_per_epoch,
+            #     callbacks=[
+            #         # FileWritersTensorBoardCallback(
+            #         #     log_dir=self.tb_log_dir, hyperparameter_string_repr=self.__repr__(),
+            #         #     write_graph=False, is_refit=self.is_refit, write_freq=self.eval_freq
+            #         # ),
+            #         tf.keras.callbacks.EarlyStopping(
+            #             monitor='val_loss', min_delta=0, patience=early_stopping_eval_freq, verbose=0,
+            #             mode='min', baseline=None, restore_best_weights=False
+            #         )
+            #     ]
+            # )
 
         self._is_trained = True
         return self
