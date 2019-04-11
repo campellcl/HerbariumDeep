@@ -41,6 +41,8 @@ class MemoryLeakTestClassifier(BaseEstimator, ClassifierMixin, tf.keras.Model):
             logits = Dense(self.num_classes, activation=self.activation)(bottlenecks)
             y_proba = Dense(self.num_classes, activation='softmax')(logits)
             self._keras_model = Model(inputs=bottlenecks, outputs=y_proba)
+            tf.get_default_graph().finalize()
+            # tf.keras.backend.get_session().graph.finalize()
 
     def _tf_data_generator_from_memory(self, image_bottlenecks, image_encoded_labels, is_training):
         # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/):
