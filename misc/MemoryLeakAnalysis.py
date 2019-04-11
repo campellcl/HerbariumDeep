@@ -66,6 +66,11 @@ class MemoryLeakTestClassifier(BaseEstimator, ClassifierMixin, tf.keras.Model):
         return ds
 
     def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0, early_stopping_eval_freq=1, X_val=None, y_val=None):
+        if X_val is not None and y_val is not None:
+            has_validation_data = True
+        else:
+            has_validation_data = False
+
         self._build_model_and_graph_def()
         # X_train is an array of bottlenecks, y_train is the associated one-hot encoded labels.
         num_train_bottlenecks = len(X_train)
@@ -86,7 +91,10 @@ class MemoryLeakTestClassifier(BaseEstimator, ClassifierMixin, tf.keras.Model):
         )
         tf.logging.info(msg='Compiled Keras model.')
 
-        # train_ds = self._tf_data_generator_from_memory(image_bottlenecks=X_train, image_encoded_labels=y_train, is_training=True)
+        train_ds = self._tf_data_generator_from_memory(image_bottlenecks=X_train, image_encoded_labels=y_train, is_training=True)
+
+        if has_validation_data:
+            val_ds = self._tf_data_generator_from_memory(image_bottlenecks=X_val, image_encoded_labels=y_val, is_training=False)
 
         self._is_trained = True
         return self
@@ -199,7 +207,7 @@ def main(run_config):
         ckpt_freq=ckpt_freq,
         early_stopping_eval_freq=early_stopping_eval_freq,
         fed_bottlenecks=True,
-        X_val=val_bottlenecks,
+        X_val=val_bottleneck_values,
         y_val=val_bottleneck_ground_truth_indices
     )
     tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
