@@ -11,6 +11,7 @@ def main(run_config):
 
     train_from_bottlenecks = True
     activations = ['elu', 'relu', 'tanh']
+    optimizers = [tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08), tf.train.MomentumOptimizer(learning_rate=0.001, momentum=0.9, use_nesterov=True)]
 
     bottleneck_executor = BottleneckExecutor(
         image_dir=run_config['image_dir'],
@@ -41,7 +42,10 @@ def main(run_config):
     for i in range(num_params):
         tf.logging.warning('Cleared Keras\' back-end session.')
         tf.keras.backend.clear_session()
+
         current_activation = activations[i % len(activations)]
+        current_optimizer = optimizers[i % len(optimizers)]
+
         base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
 
         for layer in base_model.layers:
@@ -60,6 +64,13 @@ def main(run_config):
             y_proba = Dense(num_classes, activation='softmax', name='y_proba')(logits)
             # This is the model that is actually trained, if bottlenecks are being fed from memory:
             _keras_model = Model(inputs=bottlenecks, outputs=y_proba)
+
+        _keras_model.compile(
+            optimizer=current_optimizer,
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
+        )
+        tf.logging.info(msg='Compiled Keras model.')
 
 
 if __name__ == '__main__':
