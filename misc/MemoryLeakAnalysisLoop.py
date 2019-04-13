@@ -6,6 +6,7 @@ from tensorflow.keras.utils import to_categorical
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 import numpy as np
 import math
+import gc
 
 def _tf_data_generator_from_memory(num_classes, train_batch_size, val_batch_size, image_bottlenecks, image_encoded_labels, is_training):
     # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/):
@@ -70,8 +71,11 @@ def main(run_config):
     X_valid, y_valid = val_bottleneck_values, val_bottleneck_ground_truth_indices
 
     for i in range(num_params):
-        tf.logging.warning('Cleared Keras\' back-end session.')
         tf.keras.backend.clear_session()
+        tf.logging.warning('Cleared Keras\' back-end session.')
+
+        gc.collect()
+        tf.logging.warning('Ran garbage collector.')
 
         current_activation = activations[i % len(activations)]
         current_optimizer = optimizers[i % len(optimizers)]
