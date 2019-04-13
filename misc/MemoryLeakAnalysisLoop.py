@@ -2,9 +2,34 @@ import tensorflow as tf
 from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, GlobalAveragePooling2D
+from tensorflow.keras.utils import to_categorical
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 import numpy as np
 
+
+def _tf_data_generator_from_memory(num_classes, train_batch_size, val_batch_size, image_bottlenecks, image_encoded_labels, is_training):
+    # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/):
+    bottleneck_ds = tf.data.Dataset.from_tensor_slices(image_bottlenecks)
+    categorical_labels = to_categorical(image_encoded_labels, num_classes=num_classes)
+    label_ds = tf.data.Dataset.from_tensor_slices(tf.cast(categorical_labels, tf.int64))
+    bottleneck_label_ds = tf.data.Dataset.zip((bottleneck_ds, label_ds))
+    num_images = len(image_bottlenecks)
+    # 1. Cache dataset:
+    ds = bottleneck_label_ds.cache()
+    # 2. Shuffle entire dataset:
+    ds = ds.shuffle(buffer_size=num_images)
+    # 3. Apply the shuffle operation immediately:
+    ds = ds.repeat()
+    # 4. Partition into batches:
+    if is_training:
+        ds = ds.batch(batch_size=train_batch_size)
+    else:
+        ds = ds.batch(batch_size=val_batch_size)
+    # 5. Apply the batch operation immediately:
+    ds = ds.repeat()
+    # 6. Allocate prefetch buffer:
+    ds = ds.prefetch(tf.contrib.data.AUTOTUNE)
+    return ds
 
 def main(run_config):
     num_params = 100
@@ -12,6 +37,7 @@ def main(run_config):
     train_from_bottlenecks = True
     activations = ['elu', 'relu', 'tanh']
     optimizers = [tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-08), tf.train.MomentumOptimizer(learning_rate=0.001, momentum=0.9, use_nesterov=True)]
+    train_batch_sizes = [20, 60, 100]
 
     bottleneck_executor = BottleneckExecutor(
         image_dir=run_config['image_dir'],
@@ -39,12 +65,16 @@ def main(run_config):
     num_val_samples = len(val_bottleneck_values)
     num_classes = len(np.unique(train_bottleneck_ground_truth_labels))
 
+    X_train, y_train = train_bottleneck_values, train_bottleneck_ground_truth_indices
+    X_valid, y_valid = val_bottleneck_values, val_bottleneck_ground_truth_indices
+
     for i in range(num_params):
         tf.logging.warning('Cleared Keras\' back-end session.')
         tf.keras.backend.clear_session()
 
         current_activation = activations[i % len(activations)]
         current_optimizer = optimizers[i % len(optimizers)]
+        current_train_batch_size = train_batch_sizes[i % len(train_batch_sizes)]
 
         base_model = InceptionV3(include_top=False, weights='imagenet', input_shape=(299, 299, 3))
 
@@ -71,6 +101,8 @@ def main(run_config):
             metrics=['accuracy']
         )
         tf.logging.info(msg='Compiled Keras model.')
+        train_ds = _tf_data_generator_from_memory(image_bottlenecks=X_train, image_encoded_labels=y_train, is_training=True, num_classes=num_classes, train_batch_size=current_train_batch_size, val_batch_size=num_val_samples)
+        val_ds = _tf_data_generator_from_memory(image_bottlenecks=X_valid, image_encoded_labels=y_valid, is_training=False, num_classes=num_classes, train_batch_size=current_train_batch_size, val_batch_size=num_val_samples)
 
 
 if __name__ == '__main__':
