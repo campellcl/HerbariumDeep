@@ -5,7 +5,7 @@ from tensorflow.keras.layers import Input, Dense, GlobalAveragePooling2D
 from tensorflow.keras.utils import to_categorical
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 import numpy as np
-
+import math
 
 def _tf_data_generator_from_memory(num_classes, train_batch_size, val_batch_size, image_bottlenecks, image_encoded_labels, is_training):
     # Convert to categorical format for keras (see bottom of page: https://keras.io/losses/):
@@ -33,6 +33,7 @@ def _tf_data_generator_from_memory(num_classes, train_batch_size, val_batch_size
 
 def main(run_config):
     num_params = 100
+    num_epochs = 100
 
     train_from_bottlenecks = True
     activations = ['elu', 'relu', 'tanh']
@@ -103,6 +104,18 @@ def main(run_config):
         tf.logging.info(msg='Compiled Keras model.')
         train_ds = _tf_data_generator_from_memory(image_bottlenecks=X_train, image_encoded_labels=y_train, is_training=True, num_classes=num_classes, train_batch_size=current_train_batch_size, val_batch_size=num_val_samples)
         val_ds = _tf_data_generator_from_memory(image_bottlenecks=X_valid, image_encoded_labels=y_valid, is_training=False, num_classes=num_classes, train_batch_size=current_train_batch_size, val_batch_size=num_val_samples)
+
+        train_steps_per_epoch = math.ceil(num_train_samples/current_train_batch_size)
+        val_steps_per_epoch = math.ceil(num_val_samples/num_val_samples)
+
+        _keras_model.fit(
+            train_ds.make_one_shot_iterator(),
+            validation_data=val_ds.make_one_shot_iterator(),
+            epochs=num_epochs,
+            steps_per_epoch=train_steps_per_epoch,
+            validation_steps=val_steps_per_epoch,
+            callbacks=[]
+        )
 
 
 if __name__ == '__main__':
