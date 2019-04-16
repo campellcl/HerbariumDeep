@@ -475,7 +475,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         }
         num_epochs = 100
         eval_freq = 10
-        early_stopping_eval_freq = 20
+        early_stopping_eval_freq = 5
         ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     else:
@@ -603,7 +603,7 @@ def main(run_config):
 
 if __name__ == '__main__':
     run_configs = {
-        'debug': {
+        'DEBUG': {
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
             'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
             'dataset': 'DEBUG'
@@ -624,7 +624,7 @@ if __name__ == '__main__':
             'dataset': 'SERNEC'
         }
     }
-    main(run_configs['GoingDeeper'])
+    main(run_configs['DEBUG'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:

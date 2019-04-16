@@ -9,6 +9,7 @@ from keras import backend as K
 import tensorflow as tf
 import numpy as np
 import math
+# from memory_profiler import profile
 
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 from frameworks.TensorFlow.Keras.Callbacks.CustomCallbacks import FileWritersTensorBoardCallback
@@ -104,6 +105,8 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
         if not should_initialize_base_model_graph:
             # Have to initialize base model graph due to Graph disconnected errors preventing tensor handle retrieval.
             tf.keras.backend.clear_session()
+            session = tf.keras.backend.get_session()
+            tf.logging.warning(msg='Cleared Keras\' backend session to attempt to free memory.')
             ''' Get the tensor handles from the already initialized graph and return: '''
             # nodes = [node.name for node in session.graph.as_graph_def().node]
             # input_nodes = [node.name for node in session.graph.as_graph_def().node if 'input' in node.name]
@@ -149,7 +152,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 # and a fully connected logistic layer for self.num_classes
                 y_proba = Dense(self.num_classes, activation='softmax')(logits)
 
-                # This is the model that is actually trained, if raw images are being fed from drive:
+                # This is the model that is actually trained, if raw images are being fed from drfive:
                 self._keras_model = Model(inputs=base_model.input, outputs=y_proba)
                 self._keras_resized_input_handle_ = self._keras_model.input
                 self._y_proba = self._keras_model.output
@@ -443,6 +446,7 @@ class InceptionV3Estimator(BaseEstimator, ClassifierMixin, tf.keras.Model):
                 #     ]
                 # )
 
+    # @profile
     def fit(self, X_train, y_train, fed_bottlenecks=False, num_epochs=1000, eval_freq=1, ckpt_freq=0, early_stopping_eval_freq=1, X_val=None, y_val=None):
         """
         fit:

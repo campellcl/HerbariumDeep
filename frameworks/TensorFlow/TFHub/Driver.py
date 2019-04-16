@@ -438,7 +438,7 @@ def main(run_config):
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     tf.logging.info(msg='TensorFlow Version: %s' % tf.VERSION)
-    tf.logging.info(msg='tf.Keras Version: %s' % tf.keras.__version__)
+    tf.logging.info(msg='tf.keras Version: %s' % tf.keras.__version__)
     run_configs = {
         'DEBUG': {
             'dataset': 'DEBUG',
