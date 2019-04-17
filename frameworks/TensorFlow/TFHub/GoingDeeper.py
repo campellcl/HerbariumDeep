@@ -45,6 +45,13 @@ def _prepare_model_export_directories(model_export_dir):
     return
 
 
+def _clear_temp_folder(temp_logdir):
+    if os.path.exists(temp_logdir):
+        tf.gfile.DeleteRecursively(temp_logdir)
+    os.mkdir(temp_logdir)
+    return
+
+
 def _is_bottleneck_for_every_sample(image_lists, bottlenecks):
     train_image_paths = []
     val_image_paths = []
@@ -413,23 +420,13 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
 
 
 def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
-    # params = {
-    #     'initializer': [random_normal_dist, uniform_normal_dist, truncated_normal, he_normal, he_uniform],
-    #     'optimizer_class': [gradient_descent, adam, momentum_low, momentum_high]
-    # }
-    # params = {
-    #     'initializer': [he_normal],
-    #     'activation': [elu],
-    #     'optimizer': [nesterov_high],
-    #     'learning_rate': [learning_rate]
-    # }
 
-    # params = {
-    #     'initializer': list(initializers.values()),
-    #     'activation': list(activations.values()),
-    #     'optimizer': list(optimizers.values())
-    # }
-
+    """
+    Note on Train Batch Sizes:
+        16 Comes from the paper: Going Deeper in the Automated Identification of Herbarium Specimens
+        20 and 60 come from the paper: Plant Identification Using Deep Neural Networks with Hyperparameter Optimization via Transfer Learning
+        
+    """
     if dataset == 'SERNEC':
         params = {
             'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
@@ -442,7 +439,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         early_stopping_eval_freq = 1
         ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
-    elif dataset == 'BOON':
+    elif dataset == 'GoingDeeper':
         params = {
             'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
             'activation': [activations['LeakyReLU'], activations['ELU']],
@@ -454,7 +451,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         early_stopping_eval_freq = 5
         ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
-    elif dataset == 'GoingDeeper':
+    elif dataset == 'BOON':
         params = {
             'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
             'activation': [activations['LeakyReLU'], activations['ELU']],
@@ -503,12 +500,18 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         ckpt_freq=ckpt_freq,
         early_stop_eval_freq=early_stopping_eval_freq
     )
-    tf.logging.info(msg='Finished GridSearch! Restoring best performing parameter set...')
     best_params = grid_search.best_params_
+    tf.logging.info(msg='Finished GridSearch! Best performing parameter set: %s' % best_params)
     # This is a refit operation, notify TensorBoard to replace the previous run's logging data:
     best_params['refit'] = True
     # Replace the current model parameters with the best combination from the GridSearch:
     current_params = tfh_classifier.get_params()
+    tf.logging.info(msg='Serializing Grid Search CV results to: %s' % os.path.join(log_dir, 'gs_results.pkl'))
+    gs_results = grid_search.cv_results_
+    df_gs_results = pd.DataFrame.from_dict(gs_results)
+    gs_results_path = os.path.join(log_dir, 'gs_results.csv')
+    df_gs_results.to_csv(gs_results_path)
+    # print(df_gs_results.head())
     current_params.update(best_params)
     tfh_classifier.set_params(**current_params)
     tf.logging.info(msg='Model hyperparmaters have been set to the highest scoring settings reported by GridSearch. '
@@ -542,7 +545,8 @@ def main(run_config):
     """
     summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
     model_export_dir = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp', 'trained_model')
-    _prepare_tensor_board_directories(tb_summaries_dir='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model\\')
+    _clear_temp_folder(os.path.join(summaries_dir, os.pardir))
+    # _prepare_tensor_board_directories(tb_summaries_dir='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model\\')
     _prepare_model_export_directories(model_export_dir=model_export_dir)
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
@@ -602,29 +606,36 @@ def main(run_config):
 
 
 if __name__ == '__main__':
+    tf.logging.set_verbosity(tf.logging.INFO)
+    tf.logging.info(msg='TensorFlow Version: %s' % tf.VERSION)
+    tf.logging.info(msg='tf.keras Version: %s' % tf.keras.__version__)
     run_configs = {
         'DEBUG': {
+            'dataset': 'DEBUG',
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
             'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
-            'dataset': 'DEBUG'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
         },
         'BOON': {
+            'dataset': 'BOON',
             'image_dir': 'D:\\data\\BOON\\images',
             'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
-            'dataset': 'BOON'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
         },
         'GoingDeeper': {
+            'dataset': 'GoingDeeper',
             'image_dir': 'D:\\data\\GoingDeeperData\\images',
             'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
-            'dataset': 'GoingDeeper'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
         },
         'SERNEC': {
+            'dataset': 'SERNEC',
             'image_dir': 'D:\\data\\SERNEC\\images',
             'bottleneck_path': 'D:\\data\\SERNEC\\bottlenecks.pkl',
-            'dataset': 'SERNEC'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['DEBUG'])
+    main(run_configs['BOON'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:

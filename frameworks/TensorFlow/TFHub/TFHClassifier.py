@@ -852,6 +852,9 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                                 train_cm.save_csv(os.path.join(tb_log_dir_train, 'confusion_matrix'))
                                 val_cm.save_html(os.path.join(tb_log_dir_val, 'confusion_matrix'))
                                 val_cm.save_csv(os.path.join(tb_log_dir_val, 'confusion_matrix'))
+                            # Since we are early stopping, need to save checkpoint for restore:
+                            tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % os.path.join(self.ckpt_dir, 'model.ckpt'))
+                            self._train_saver.save(sess, os.path.join(self.ckpt_dir, 'model.ckpt'))
                             break
                     else:
                         if self.dataset != 'SERNEC':
