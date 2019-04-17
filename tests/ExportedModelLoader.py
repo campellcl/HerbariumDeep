@@ -34,10 +34,9 @@ def read_tensor_from_image_file(file_name, input_height=299, input_width=299, in
     return result
 
 
-class TFHClassifier:
+class TrainedTFHClassifier:
     relative_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp'
     model_path = os.path.join(relative_path, 'trained_model')
-
 
     def __init__(self, model_path, model_label_file_path):
         self.model_path = model_path
@@ -64,26 +63,67 @@ class TFHClassifier:
             tf.logging.info('label: %s, %.2f%%' % (labels[i], results[i] * 100))
         return labels, results
 
-if __name__ == '__main__':
+
+def main(run_config):
     model_label_file_path = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\trained_model', 'class_labels.txt')
-    tfh_classifier = TFHClassifier(
+    tfh_classifier = TrainedTFHClassifier(
         model_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\trained_model',
         model_label_file_path=model_label_file_path
     )
     # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg')
     # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.JPG')
     labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg")
-    print('True Sample Class: \'aconitum napellus l\'')
-    print('labels: %s' % labels)
-    print('y_proba: %s' % results)
+    print('True Sample Class Label: \'aconitum napellus l\'')
+    # print('labels: %s' % labels)
+    # print('y_proba: %s' % results)
+    # print('sanity check (sum y_proba): %s' % sum(results))
+    print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]))
 
     labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\anemone coronaria l\\1441326217337cmDHzGcGpgMbbZ1H.jpg")
-    print('True Sample Class: \'anemone coronaria l\'')
-    print('labels: %s' % labels)
-    print('y_proba: %s' % results)
+    print('True Sample Class Label: \'anemone coronaria l\'')
+    # print('labels: %s' % labels)
+    # print('y_proba: %s' % results)
+    # print('sanity check (sum y_proba): %s' % sum(results))
+    print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]))
 
     labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\ajuga iva (l.) schreb\\1441351317032Va9XmHMbLugbA56p.jpg")
-    print('True Sample Class: \'ajuga iva\'')
-    print('labels: %s' % labels)
-    print('y_proba: %s' % results)
+    print('True Sample Class Label: \'ajuga iva\'')
+    # print('labels: %s' % labels)
+    # print('y_proba: %s' % results)
+    # print('sanity check (sum y_proba): %s' % sum(results))
+    print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]))
+
+
+if __name__ == '__main__':
+    tf.logging.set_verbosity(tf.logging.INFO)
+    tf.logging.info(msg='TensorFlow Version: %s' % tf.VERSION)
+    tf.logging.info(msg='tf.keras Version: %s' % tf.keras.__version__)
+    run_configs = {
+        'DEBUG': {
+            'dataset': 'DEBUG',
+            'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
+            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
+        },
+        'BOON': {
+            'dataset': 'BOON',
+            'image_dir': 'D:\\data\\BOON\\images',
+            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+        },
+        'GoingDeeper': {
+            'dataset': 'GoingDeeper',
+            'image_dir': 'D:\\data\\GoingDeeperData\\images',
+            'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+        },
+        'SERNEC': {
+            'dataset': 'SERNEC',
+            'image_dir': 'D:\\data\\SERNEC\\images',
+            'bottleneck_path': 'D:\\data\\SERNEC\\bottlenecks.pkl',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
+        }
+    }
+    main(run_configs['BOON'])
+
 
