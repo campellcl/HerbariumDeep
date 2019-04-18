@@ -9,7 +9,7 @@ import tensorflow as tf
 import collections
 from sklearn import model_selection
 from sklearn.metrics import accuracy_score
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, ShuffleSplit
 # from sklearn.model_selection import ParameterGrid
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
@@ -17,6 +17,21 @@ import pandas as pd
 import numpy as np
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
+
+
+class CrossValidationSplitter(ShuffleSplit):
+
+    def __init__(self, n_splits, test_size=None, train_size=None, random_state=None):
+        self.n_splits = n_splits
+        self.test_size = test_size
+        self.train_size = train_size
+        self.random_state = random_state
+
+    def get_n_splits(self, X, y, groups=None):
+        return self.n_splits
+
+    def split(self, X, y=None, groups=None):
+        yield([i for i in range(self.train_size)], [j for j in range(self.train_size, self.train_size + self.test_size)])
 
 
 def _prepare_tensor_board_directories(tb_summaries_dir, intermediate_output_graphs_dir=None):
@@ -421,6 +436,8 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
 
 def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
 
+    num_train_samples = train_bottlenecks.shape[0]
+    num_val_samples = val_bottlenecks.shape[0]
     """
     Note on Train Batch Sizes:
         16 Comes from the paper: Going Deeper in the Automated Identification of Herbarium Specimens
@@ -487,12 +504,14 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     tfh_classifier = TFHClassifier(dataset=dataset, random_state=42, class_labels=class_labels, tb_logdir=log_dir)
     tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
-    cv = [(slice(None), slice(None))]
-    grid_search = GridSearchCV(tfh_classifier, params, cv=cv, verbose=2, refit=False, return_train_score=False)
+    custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_val_samples, n_splits=1)
+    grid_search = GridSearchCV(tfh_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, return_train_score=False)
     tf.logging.info(msg='Running GridSearch...')
+    X = np.concatenate((train_bottlenecks, val_bottlenecks))
+    y = np.concatenate((train_ground_truth_indices, val_ground_truth_indices))
     grid_search.fit(
-        X=train_bottlenecks,
-        y=train_ground_truth_indices,
+        X=X,
+        y=y,
         X_valid=val_bottlenecks,
         y_valid=val_ground_truth_indices,
         n_epochs=num_epochs,

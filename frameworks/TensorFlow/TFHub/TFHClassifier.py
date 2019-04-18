@@ -908,8 +908,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
     def predict_proba(self, X):
         # tf.logging.info(msg='predict_proba called with X.shape: %s' % (X.shape,))
-        # ON RESUME: PREDICT PROBA AND PREDICT STILL ATTEMPTING TO ALLOCATE TENSOR OF SIZE X, ensure this is never X_Train with sernec (as too large OOM)
-        # ALSO, why predict called with X_train not X_val?
         if not self._train_session:
             raise NotFittedError("This %s instance is not fitted yet" % self.__class__.__name__)
         with self._train_session.as_default() as sess:
