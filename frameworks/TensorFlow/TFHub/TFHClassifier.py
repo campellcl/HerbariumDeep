@@ -906,6 +906,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             # self.export_model(saved_model_dir=saved_model_dir, human_readable_class_labels=self.class_labels, final_tensor_name='y_proba')
             return self
 
+
     def predict_proba(self, X):
         # tf.logging.info(msg='predict_proba called with X.shape: %s' % (X.shape,))
         if not self._train_session:
