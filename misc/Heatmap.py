@@ -63,17 +63,17 @@ def main():
     y_ticks_left_minor = np.arange(0, heatmap_dims[0], 0.5)
 
     for i in range(data.shape[0]):
-        optim_index = i // 2
+        optim_index = i % num_optimizers
         optimizer = optimizers[optim_index]
-        activ_index = i % 2
+        activ_index = i % num_activations
         activation = activations[activ_index]
         optimizer_repr = convert_optimizer_to_axes_label(optimizer)
         y_tick_labels_left_major.append(optimizer_repr)
         y_tick_labels_left_minor.append(activation)
         for j in range(data.shape[1]):
-            tb_index = j % 2
+            tb_index = j % num_train_batch_sizes
             train_batch_size = train_batch_sizes[tb_index]
-            initializer_index = j // 2
+            initializer_index = j % num_initializers
             initializer = initializers[initializer_index]
 
             df_subset = df[df.optimizer == optimizer]
@@ -149,7 +149,7 @@ def main():
     ax_top.tick_params(axis='x', labelsize=8)
 
     ax_bot.imshow(data)
-    ax_top.imshow(data)
+    # ax_top.imshow(data)
 
     scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
     scalar_mappable._A = []

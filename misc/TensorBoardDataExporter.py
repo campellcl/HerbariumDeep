@@ -153,6 +153,7 @@ class TensorBoardDataExporter:
             # root_tb_log_dir = os.path.abspath(os.path.join(os.path.join(dir, os.pardir), os.pardir))
             relative_parent_dir = dir[len(self.root_summaries_dir):]
             relative_parent_dir_split = relative_parent_dir.split('\\')
+            relative_parent_dir_split = [rel_dir for rel_dir in relative_parent_dir_split if rel_dir != '']
             if relative_parent_dir_split[0] == 'gs':
                 # The root folder under self.log_dir is part fo the grid search:
                 if relative_parent_dir_split[1] == 'train':
@@ -282,6 +283,7 @@ class TensorBoardDataExporter:
         winner_val_hyperparams_df = TensorBoardDataExporter._convert_grid_search_events_to_hyperparameter_dataframe(gs_hyper_strings=winner_hyper_strings['val'], gs_event_dataframes=winner_event_dataframes['val'])
         return gs_train_hyperparams_df, gs_val_hyperparams_df, winner_train_hyperparams_df, winner_val_hyperparams_df
 
+
 def plot_scatter_plot(hyperparams_df):
     """
     plot_scatter_plot: Uses plotly to create a 3d scatter plot of the hyperparameter combinations and their accuracies.
@@ -346,6 +348,7 @@ def plot_scatter_plot(hyperparams_df):
     )
     fig = go.Figure(data=data, layout=layout)
     plot(fig)
+
 
 def plot_scatter_plot_with_sliders(hyperparams_df):
     """
@@ -435,7 +438,8 @@ def plot_scatter_plot_with_sliders(hyperparams_df):
 if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     # path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\val\\"
-    __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\'
+    # __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\'
+    __path = 'D:\\data\\GoingDeeperData\\training summaries\\4-22-2019\\summaries'
     tb_exporter = TensorBoardDataExporter(root_summaries_dir=__path)
     __gs_hyper_strings, __gs_event_dataframes, __winner_hyper_strings, __winner_event_dataframes = tb_exporter.export_all_summaries_as_csv()
     __gs_train_hyperparams_df, __gs_val_hyperparams_df, __winner_train_hyperparams_df, __winner_val_hyperparams_df = \
