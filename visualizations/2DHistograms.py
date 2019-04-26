@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 
 
 def main():
@@ -42,6 +43,7 @@ def main():
     #     optim_index = i
     pass
 
+    # Reference: https://stackoverflow.com/a/32186074/3429090
     fig = plt.figure()
     plt.title('Training Batch Size vs. Fit Time')
     plt.xlabel('Training Batch Size')
@@ -50,7 +52,8 @@ def main():
     cm = plt.cm.get_cmap('viridis')
     sc = plt.scatter(df['train_batch_size'], fit_time_min, c=df['best_epoch_acc'], vmin=0.0, vmax=1.0, cmap=cm)
     plt.xticks(ticks=[20, 60, 100, 1000], labels=['20', '60', '100', '1000'])
-    plt.colorbar(sc)
+    clb = plt.colorbar(sc)
+    clb.ax.set_title('Best Epoch Accuracy (Validation Set)')
     plt.show()
 
     # Same figure with spines in x-axis:
@@ -82,9 +85,13 @@ def main():
     ax.set_xlabel('Training Batch Size')
     ax.set_ylabel('Fit Time (minutes)')
 
-    cax = fig.add_axes([0.27, 0.8, 0.5, 0.05])
-    # plt.colorbar(fig, ax=cax)
-    fig.colorbar(cm, vmin=0, vmax=1.0, cax=cax, orientation='vertical')
+    # ax3.set_visible(False)
+    # cax = fig.add_axes([0.27, 0.8, 0.5, 0.05])
+    # plt.colorbar(fig, ax=ax3)
+
+    # scalar_mappable = matplotlib.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=0, vmax=1))
+    # scalar_mappable._A = df['best_epoch_acc']
+    # fig.colorbar(scalar_mappable, cax=ax3, orientation='vertical')
 
     plt.show()
 
