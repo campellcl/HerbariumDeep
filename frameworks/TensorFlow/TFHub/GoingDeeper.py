@@ -3,6 +3,7 @@ GoingDeeper.py
 Implementation of Pipelined TensorFlow Transfer Learning.
 """
 import os
+# os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import sys
 import argparse
 import tensorflow as tf
@@ -435,7 +436,6 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
 
 
 def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
-
     num_train_samples = train_bottlenecks.shape[0]
     num_val_samples = val_bottlenecks.shape[0]
     """
@@ -449,11 +449,14 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
             'activation': [activations['LeakyReLU'], activations['ELU']],
             'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
-            'train_batch_size': [20, 60, 1000]
+            'train_batch_size': [20, 60, 100, 1000]
         }
-        num_epochs = 100000  # 100,000
-        eval_freq = 100
-        early_stopping_eval_freq = 1
+        # num_epochs = 100000  # 100,000
+        # eval_freq = 100
+        # early_stopping_eval_freq = 1
+        num_epochs = 100000 # 100, 000
+        eval_freq = 10
+        early_stopping_eval_freq = 5
         ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'GoingDeeper':
@@ -507,6 +510,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_val_samples, n_splits=1)
     grid_search = GridSearchCV(tfh_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, return_train_score=False)
     tf.logging.info(msg='Running GridSearch...')
+    # NOTE: This looks counter intuitive, but the custom_cv_splitter will separate these back out when called by GS:
     X = np.concatenate((train_bottlenecks, val_bottlenecks))
     y = np.concatenate((train_ground_truth_indices, val_ground_truth_indices))
     grid_search.fit(
@@ -654,7 +658,7 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['GoingDeeper'])
+    main(run_configs['SERNEC'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
