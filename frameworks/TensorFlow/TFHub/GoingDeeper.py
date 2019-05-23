@@ -566,8 +566,8 @@ def main(run_config):
     """
     TensorBoard summaries directory:
     """
-    summaries_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
-    model_export_dir = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp', 'trained_model')
+    summaries_dir = 'C:\\tmp\\summaries'
+    model_export_dir = os.path.join('C:\\tmp', 'trained_model')
     _clear_temp_folder(os.path.join(summaries_dir, os.pardir))
     # _prepare_tensor_board_directories(tb_summaries_dir='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model\\')
     _prepare_model_export_directories(model_export_dir=model_export_dir)
@@ -596,7 +596,7 @@ def main(run_config):
         adam_beta2=0.999,
         adam_epsilon=1e-08
     )
-    tb_log_dir = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries'
+    tb_log_dir = 'C:\\tmp\\summaries'
     _run_grid_search(
         dataset=run_config['dataset'],
         train_bottlenecks=train_bottlenecks,
@@ -658,7 +658,7 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['SERNEC'])
+    main(run_configs['DEBUG'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
