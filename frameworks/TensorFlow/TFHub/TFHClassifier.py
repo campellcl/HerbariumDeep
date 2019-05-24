@@ -713,40 +713,41 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         self.relative_tb_log_dir_val = os.path.join(self.relative_tb_log_dir_val, self.__repr__())
 
         ''' Setup directories related to checkpointing and model save and restore: '''
-        if not self.refit:
-            # Create grid search training directory:
-            if not os.path.exists(self.relative_tb_log_dir_train):
-                try:
-                    os.mkdir(self.relative_tb_log_dir_train)
-                except OSError as err:
-                    print('FATAL ERROR: Could not create train checkpoint dir manually. Received error: %s' % err)
-            # Create grid search validation directory:
-            if not os.path.exists(self.relative_tb_log_dir_val):
-                try:
-                    os.mkdir(self.relative_tb_log_dir_val)
-                except OSError as err:
-                    print('FATAL ERROR: Could not create val checkpoint dir manually. Received error: %s' % err)
-            # Checkpoint directory relative to this specific instance's hyperparameter combination:
-            self.relative_ckpt_dir = os.path.join(self.relative_tb_log_dir_train, 'checkpoints')
-            # Attempt to manually create the directory that will later be used by checkpoint Summary writers:
-            if not os.path.exists(self.relative_ckpt_dir):
-                try:
-                    os.mkdir(self.relative_ckpt_dir)
-                except OSError as err:
-                    print('ERROR: Failed to create relative hyperparameter directory for checkpoint storage. Received error: %s' % err)
-            else:
-                print('WARNING: The relative checkpoint write directory somehow already exists prior to FileWriter invocation. Ensure Tensor Board summary writers have no conflict.')
-            # Ensure that the directory used by model export code DOES NOT already exist:
-            self.relative_model_export_dir = os.path.join(self.relative_tb_log_dir_train, 'trained_model')
-            if os.path.exists(self.relative_model_export_dir):
-               tf.logging.error(msg='Fatal error. Ensure model export directory: \'%s\' does not exist prior to save of eval graph' % self.relative_model_export_dir)
+
+        # Create grid search training directory:
+        if not os.path.exists(self.relative_tb_log_dir_train):
+            try:
+                os.mkdir(self.relative_tb_log_dir_train)
+            except OSError as err:
+                print('FATAL ERROR: Could not create train checkpoint dir manually. Received error: %s' % err)
+        # Create grid search validation directory:
+        if not os.path.exists(self.relative_tb_log_dir_val):
+            try:
+                os.mkdir(self.relative_tb_log_dir_val)
+            except OSError as err:
+                print('FATAL ERROR: Could not create val checkpoint dir manually. Received error: %s' % err)
+        # Checkpoint directory relative to this specific instance's hyperparameter combination:
+        self.relative_ckpt_dir = os.path.join(self.relative_tb_log_dir_train, 'checkpoints')
+        # Attempt to manually create the directory that will later be used by checkpoint Summary writers:
+        if not os.path.exists(self.relative_ckpt_dir):
+            try:
+                os.mkdir(self.relative_ckpt_dir)
+            except OSError as err:
+                print('ERROR: Failed to create relative hyperparameter directory for checkpoint storage. Received error: %s' % err)
         else:
-            grid_search_winner_saved_model_dir = os.path.join(self.saved_model_dir, 'gs_winner\\trained_model')
-            if not os.path.exists(grid_search_winner_saved_model_dir):
-                try:
-                    os.mkdir(grid_search_winner_saved_model_dir)
-                except OSError as err:
-                    print('FATAL ERROR: Could not save winning grid search model. Recieved error: %s' % err)
+            print('WARNING: The relative checkpoint write directory somehow already exists prior to FileWriter invocation. Ensure Tensor Board summary writers have no conflict.')
+        # Ensure that the directory used by model export code DOES NOT already exist:
+        self.relative_model_export_dir = os.path.join(self.relative_tb_log_dir_train, 'trained_model')
+        if os.path.exists(self.relative_model_export_dir):
+           tf.logging.error(msg='Fatal error. Ensure model export directory: \'%s\' does not exist prior to save of eval graph' % self.relative_model_export_dir)
+
+        # if self.refit:
+        #     grid_search_winner_saved_model_dir = os.path.join(self.saved_model_dir, 'gs_winner\\trained_model')
+        #     if not os.path.exists(grid_search_winner_saved_model_dir):
+        #         try:
+        #             os.mkdir(grid_search_winner_saved_model_dir)
+        #         except OSError as err:
+        #             print('FATAL ERROR: Could not save winning grid search model. Recieved error: %s' % err)
         return self.relative_tb_log_dir_train, self.relative_tb_log_dir_val
 
 

@@ -46,12 +46,31 @@ def _prepare_tensor_board_directories(tb_summaries_dir, intermediate_output_grap
     if tf.gfile.Exists(tb_summaries_dir):
         # Delete everything in the file recursively:
         tf.gfile.DeleteRecursively(tb_summaries_dir)
-    # Re-create (or create for the first time) the storage directory:
+    # Re-create (or create for the first time) the tensorboard root storage directory:
     tf.gfile.MakeDirs(tb_summaries_dir)
     # Check to see if intermediate computational graphs are to be stored:
     if intermediate_output_graphs_dir:
         if not os.path.exists(intermediate_output_graphs_dir):
             os.makedirs(intermediate_output_graphs_dir)
+    # Create tensorboard grid search subfolders:
+    grid_search_root_dir = os.path.join(tb_summaries_dir, 'gs')
+    tf.gfile.MakeDirs(grid_search_root_dir)
+
+    grid_search_winner_root_dir = os.path.join(tb_summaries_dir, 'gs_winner')
+    tf.gfile.MakeDirs(grid_search_winner_root_dir)
+
+    grid_search_train_dir = os.path.join(grid_search_root_dir, 'train')
+    tf.gfile.MakeDirs(grid_search_train_dir)
+
+    grid_search_winner_train_dir = os.path.join(grid_search_winner_root_dir, 'train')
+    tf.gfile.MakeDirs(grid_search_winner_train_dir)
+
+    grid_search_val_dir = os.path.join(grid_search_root_dir, 'val')
+    tf.gfile.MakeDirs(grid_search_val_dir)
+
+    grid_search_winner_val_dir = os.path.join(grid_search_winner_root_dir, 'val')
+    tf.gfile.MakeDirs(grid_search_winner_val_dir)
+
     return
 
 
@@ -567,7 +586,7 @@ def main(run_config):
     TensorBoard summaries directory:
     """
     summaries_dir = 'C:\\tmp\\summaries'
-    model_export_dir = os.path.join('C:\\tmp', 'trained_model')
+    model_export_dir = os.path.join('C:\\tmp\\summaries', 'trained_model')
     _clear_temp_folder(os.path.join(summaries_dir, os.pardir))
     # _prepare_tensor_board_directories(tb_summaries_dir='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\trained_model\\')
     _prepare_model_export_directories(model_export_dir=model_export_dir)
