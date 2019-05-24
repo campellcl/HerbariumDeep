@@ -16,8 +16,8 @@ he_init = tf.variance_scaling_initializer()
 class TFHClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, dataset, class_labels, optimizer=tf.train.AdamOptimizer, train_batch_size=-1, val_batch_size=-1,
                  activation=tf.nn.elu, initializer=he_init,
-                 batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='tmp\\summaries\\',
-                 ckpt_dir='tmp\\', saved_model_dir='tmp\\summaries\\', refit=False):
+                 batch_norm_momentum=None, dropout_rate=None, random_state=None, tb_logdir='C:\\tmp\\summaries\\',
+                 ckpt_dir='C:\\tmp', saved_model_dir='C:\\tmp\\summaries\\', refit=False):
         """
         __init__: Initializes the TensorFlow Hub Classifier (TFHC) by storing all hyperparameters.
         :param dataset: The dataset type: {BOON, GoingDeeper, SERNEC, debug}
@@ -698,24 +698,36 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         '''Some TensorBoard setup: '''
         # TB TrainWriter logging directory:
         if not self.refit:
-            tb_log_dir_train = os.path.join(self.tb_logdir, 'gs')
-            tb_log_dir_train = os.path.join(tb_log_dir_train, 'train')
+            self.relative_tb_log_dir_train = os.path.join(self.tb_logdir, 'gs')
+            self.relative_tb_log_dir_train = os.path.join(self.relative_tb_log_dir_train, 'train')
         else:
-            tb_log_dir_train = os.path.join(self.tb_logdir, 'train')
-        tb_log_dir_train = os.path.join(tb_log_dir_train, self.__repr__())
+            self.relative_tb_log_dir_train = os.path.join(self.tb_logdir, 'gs_winner\\train')
+        self.relative_tb_log_dir_train = os.path.join(self.relative_tb_log_dir_train, self.__repr__())
 
         # TB ValidationWriter logging directory:
         if not self.refit:
-            tb_log_dir_val = os.path.join(self.tb_logdir, 'gs')
-            tb_log_dir_val = os.path.join(tb_log_dir_val, 'val')
+            self.relative_tb_log_dir_val = os.path.join(self.tb_logdir, 'gs')
+            self.relative_tb_log_dir_val = os.path.join(self.relative_tb_log_dir_val, 'val')
         else:
-            tb_log_dir_val = os.path.join(self.tb_logdir, 'val')
-        tb_log_dir_val = os.path.join(tb_log_dir_val, self.__repr__())
+            self.relative_tb_log_dir_val = os.path.join(self.tb_logdir, 'gs_winner\\val')
+        self.relative_tb_log_dir_val = os.path.join(self.relative_tb_log_dir_val, self.__repr__())
 
-        ''' Setup related to checkpointing and model save and restore: '''
+        ''' Setup directories related to checkpointing and model save and restore: '''
         if not self.refit:
+            # Create grid search training directory:
+            if not os.path.exists(self.relative_tb_log_dir_train):
+                try:
+                    os.mkdir(self.relative_tb_log_dir_train)
+                except OSError as err:
+                    print('FATAL ERROR: Could not create train checkpoint dir manually. Received error: %s' % err)
+            # Create grid search validation directory:
+            if not os.path.exists(self.relative_tb_log_dir_val):
+                try:
+                    os.mkdir(self.relative_tb_log_dir_val)
+                except OSError as err:
+                    print('FATAL ERROR: Could not create val checkpoint dir manually. Received error: %s' % err)
             # Checkpoint directory relative to this specific instance's hyperparameter combination:
-            self.relative_ckpt_dir = tb_log_dir_train
+            self.relative_ckpt_dir = os.path.join(self.relative_tb_log_dir_train, 'checkpoints')
             # Attempt to manually create the directory that will later be used by checkpoint Summary writers:
             if not os.path.exists(self.relative_ckpt_dir):
                 try:
@@ -725,16 +737,17 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             else:
                 print('WARNING: The relative checkpoint write directory somehow already exists prior to FileWriter invocation. Ensure Tensor Board summary writers have no conflict.')
             # Ensure that the directory used by model export code DOES NOT already exist:
-            self.relative_model_export_dir = os.path.join(self.relative_ckpt_dir, 'trained_model')
+            self.relative_model_export_dir = os.path.join(self.relative_tb_log_dir_train, 'trained_model')
             if os.path.exists(self.relative_model_export_dir):
                tf.logging.error(msg='Fatal error. Ensure model export directory: \'%s\' does not exist prior to save of eval graph' % self.relative_model_export_dir)
         else:
-            raise NotImplementedError
-            relative_checkpoint_dir = os.path.join(self.ckpt_dir, 'trained_model')
-            relative_checkpoint_dir = os.path.join(relative_checkpoint_dir, 'checkpoints')
-            self.relative_ckpt_dir = relative_checkpoint_dir
-
-        return tb_log_dir_train, tb_log_dir_val
+            grid_search_winner_saved_model_dir = os.path.join(self.saved_model_dir, 'gs_winner\\trained_model')
+            if not os.path.exists(grid_search_winner_saved_model_dir):
+                try:
+                    os.mkdir(grid_search_winner_saved_model_dir)
+                except OSError as err:
+                    print('FATAL ERROR: Could not save winning grid search model. Recieved error: %s' % err)
+        return self.relative_tb_log_dir_train, self.relative_tb_log_dir_val
 
 
 
