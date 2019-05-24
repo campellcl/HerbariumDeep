@@ -485,7 +485,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
             'train_batch_size': [20, 60, 100, 1000]
         }
-        num_epochs = 10000  # 10,000
+        num_epochs = 100000  # 100,000
         eval_freq = 10
         early_stopping_eval_freq = 5
         ckpt_freq = 0
@@ -495,9 +495,9 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
             'activation': [activations['LeakyReLU'], activations['ELU']],
             'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
-            'train_batch_size': [20, 60, 100]
+            'train_batch_size': [20, 60, 100, 1000]
         }
-        num_epochs = 10000  # 10,000
+        num_epochs = 100000  # 100,000
         eval_freq = 10
         early_stopping_eval_freq = 5
         ckpt_freq = 0
@@ -677,7 +677,7 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['DEBUG'])
+    main(run_configs['SERNEC'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
