@@ -213,7 +213,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 # TODO: Can't restore values from the training graph to eval graph on instantiation.
                 # Restore the values from the training graph to the eval graph:
                 # self._train_saver.restore(self._eval_session, os.path.join(self.ckpt_dir, 'model.ckpt'))
-                tf.train.Saver().restore(self._eval_session, os.path.join(self.ckpt_dir, 'model.ckpt'))
+                tf.train.Saver().restore(self._eval_session, os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
 
                 # TODO: Will need to add the prediction Ops to the eval session graph for export after restore ^:
                 acc_eval_step, top_five_acc_eval_step, predictions = self._add_evaluation_step(
@@ -490,6 +490,22 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
         return acc_eval_step, top_five_acc_eval_step, predictions
 
+    def _build_train_session_for_model_export(self):
+        if self.random_state is not None:
+            tf.set_random_seed(self.random_state)
+            np.random.seed(self.random_state)
+        if not self._train_graph:
+            tf.logging.warning('Expected the training graph to be initialized prior to invocation of _build_train_session_for_model_export()...')
+            self._train_graph = tf.Graph()
+        if not self._train_session:
+            tf.logging.warning('Expected the training session to be initialized prior to invocation of _build_train_session_for_model_export()...')
+            augmented_train_graph, self._train_graph_bottleneck_tensor, self._train_graph_resized_input_tensor = TFHClassifier.create_module_graph(graph=self._train_graph, module_spec=self._module_spec)
+            self._train_session = tf.Session(graph=augmented_train_graph)
+        # Transfer learning re-train Ops are added to the training graph during fit (prior to this method's invocation).
+        # TODO: retrieve X_tensor (X:0), y_tensor (y:0), acc_eval_step, top_five_acc_eval_step, predictions
+        return self._train_session, self._train_graph_resized_input_tensor, self._train_graph_bottleneck_tensor,
+
+
     def _build_eval_session(self):
         if self.random_state is not None:
             tf.set_random_seed(self.random_state)
@@ -533,6 +549,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
           class_count: The number of classes.
           saved_model_dir: Directory in which to save exported model and variables.
         """
+        # Export eval graph for inference:
         self._eval_session, self._eval_graph_resized_input_tensor, _, _, _, _, _ = self._build_eval_session()
         with self._eval_session.graph.as_default() as graph:
             inputs = {'resized_image_input_tensor': tf.saved_model.utils.build_tensor_info(self._eval_graph_resized_input_tensor)}
@@ -543,7 +560,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 outputs=outputs,
                 method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME
             )
-            builder = tf.saved_model.builder.SavedModelBuilder(saved_model_dir)
+            builder = tf.saved_model.builder.SavedModelBuilder(os.path.join(saved_model_dir, 'inference'))
             builder.add_meta_graph_and_variables(
                 self._eval_session, [tf.saved_model.tag_constants.SERVING],
                 signature_def_map={
@@ -552,6 +569,30 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 main_op=tf.tables_initializer()
             )
             builder.save()
+        # training_saved_model_dir is the path to the saved version of the model used for resuming training if interrupted:
+        training_saved_model_dir = os.path.join(saved_model_dir, 'training')
+        train_builder = tf.saved_model.builder.SavedModelBuilder(training_saved_model_dir)
+        with self._train_session as sess:
+            inputs = {
+                'resized_image_input_tensor': tf.saved_model.utils.build_tensor_info(self._train_graph_resized_input_tensor),
+                'training_op': tf.saved_model.utils.build_tensor_info(self._training_op[0])
+            }
+            out_classes = sess.graph.get_tensor_by_name('train_graph/retrain_ops/final_retrain_ops/%s:0' % final_tensor_name)
+            outputs = {'y_proba': tf.saved_model.utils.build_tensor_info(out_classes)}
+            training_signatures = tf.saved_model.signature_def_utils.build_signature_def(
+                inputs=inputs,
+                outputs=outputs,
+                method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME
+            )
+            train_builder.add_meta_graph_and_variables(
+                self._train_session, [tf.saved_model.tag_constants.TRAINING],
+                signature_def_map={
+                    tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: training_signatures
+                },
+                main_op=tf.tables_initializer()
+            )
+            # train_builder.add_meta_graph(sess, [tf.saved_model.tag_constants.TRAINING], training_signatures, strip_default_attrs=True)
+        train_builder.save()
 
         # Export labels as text file for use in inference:
         with tf.gfile.GFile(os.path.join(saved_model_dir, 'class_labels.txt'), 'w') as fp:
@@ -594,38 +635,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             #         'predict_images':
             #     }
             # )
+        return
 
-        # The SavedModel should hold the eval graph.
-        # eval_sess, resized_input_tensor, X_tensor, y_tensor, acc_eval_step, top_five_acc_eval_step, predictions = \
-        #     self._build_eval_session()
-
-        # graph = eval_sess.graph
-        # with self._eval_graph.as_default():
-        #     inputs = {'image': tf.saved_model.utils.build_tensor_info(self._eval_graph_resized_input_tensor)}
-        #
-        #     out_classes = self._eval_session.graph.get_tensor_by_name('eval_graph/retrain_ops/final_retrain_ops/%s:0' % final_tensor_name)
-        #     outputs = {
-        #         'prediction': tf.saved_model.utils.build_tensor_info(out_classes)
-        #     }
-        #
-        #     signature = tf.saved_model.signature_def_utils.build_signature_def(
-        #         inputs=inputs,
-        #         outputs=outputs,
-        #         method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
-        #
-        #     legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
-        #
-        #     # Save out the SavedModel.
-        #     builder = tf.saved_model.builder.SavedModelBuilder(saved_model_dir)
-        #     builder.add_meta_graph_and_variables(
-        #         self._eval_session, [tf.saved_model.tag_constants.SERVING],
-        #         signature_def_map={
-        #             tf.saved_model.signature_constants.
-        #                 DEFAULT_SERVING_SIGNATURE_DEF_KEY:
-        #                 signature
-        #         },
-        #         legacy_init_op=legacy_init_op)
-        #     builder.save()
 
     def simple_save_model(self):
         pass
@@ -957,7 +968,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             # saved_model_dir = os.path.join('C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\trained_models', self.__repr__())
             self.export_model(saved_model_dir=self.relative_model_export_dir, human_readable_class_labels=self.class_labels, final_tensor_name='y_proba')
             return self
-
 
     def predict_proba(self, X):
         # tf.logging.info(msg='predict_proba called with X.shape: %s' % (X.shape,))
