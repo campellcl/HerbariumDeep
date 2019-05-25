@@ -10,6 +10,7 @@ import os
 from collections import OrderedDict
 import numpy as np
 import copy
+import statistics
 
 
 class ImageExecutor:
@@ -27,7 +28,9 @@ class ImageExecutor:
         self.accepted_extensions = accepted_extensions
         self.df_images = None
         self.cleaned_images = False
+        self._summary_stats = {}
         self._clean_images()
+
 
     def _get_raw_image_lists_df(self):
         col_names = {'class', 'path', 'bottleneck'}
@@ -144,7 +147,9 @@ class ImageExecutor:
             elif 'subsp.' in label or 'subspecies' in label:
                 species_with_subspecies_info.append(label)
         tf.logging.info(msg='\t\t\tDetected %d unique labels with variety (varietas) designation.' % len(species_with_variety_info))
+        self._summary_stats['num_raw_labels_with_var_designation'] = len(species_with_variety_info)
         tf.logging.info(msg='\t\t\tDetected %d unique labels with subspecies designation.' % len(species_with_subspecies_info))
+        self._summary_stats['num_raw_labels_with_subspecies_designation'] = len(species_with_subspecies_info)
 
         species_with_variety_old_label_mappings = OrderedDict()
         tf.logging.info(msg='\t\tRemapping class labels with \'varietas\' designation...')
@@ -222,6 +227,7 @@ class ImageExecutor:
             if len(label.split(' ')) == 1:
                 genus_level_labels.append(label)
         tf.logging.info(msg='\t\tDetected %d labels designated at genus level taxonomic rank.' % len(genus_level_labels))
+        self._summary_stats['num_raw_class_labels_with_genus_level_rank_only'] = len(genus_level_labels)
         for genus in genus_level_labels:
             tf.logging.info(msg='\t\tRemoving specie label with genus level designation: %s' % genus)
             self.image_lists.pop(genus)
@@ -241,6 +247,7 @@ class ImageExecutor:
                 labels_with_authorship_info.append(label)
         tf.logging.info(msg='\t\tDetected %d labels determined to contain taxonomic authorship information.'
                             % len(labels_with_authorship_info))
+        self._summary_stats['num_raw_class_labels_with_taxonomic_authorship_info'] = len(labels_with_authorship_info)
         labels_with_authorship_info_mappings = OrderedDict()
         for label in labels_with_authorship_info:
             label_sans_authorship = ''
@@ -285,6 +292,7 @@ class ImageExecutor:
                     labels_with_hybrid_genera.append(label)
                     break
         tf.logging.info(msg='\t\tDetected %d labels with hybrid genera.' % len(labels_with_hybrid_genera))
+        self._summary_stats['num_raw_class_labels_with_hybrid_genera'] = len(labels_with_hybrid_genera)
         for label in labels_with_hybrid_genera:
             self.image_lists.pop(label)
             tf.logging.info(msg='\t\t\tDropping label with designation hybrid-genus: %s' % label)
@@ -308,16 +316,22 @@ class ImageExecutor:
             'viburnum rafinesqueanum': 'viburnum rafinesquianum',
             'spirodela polyrrhiza': 'spirodela polyrhiza'
         })
+        num_class_labels_manually_remapped = 0
+        encountered_mappings = {}
         for incorrect_label, correct_label in explicit_mappings_incorrect_to_correct.items():
             if incorrect_label in self.image_lists.keys():
+                if incorrect_label not in encountered_mappings:
+                    encountered_mappings[incorrect_label] = correct_label
                 if correct_label in self.image_lists.keys():
                     self.image_lists[correct_label].extend(self.image_lists[incorrect_label])
                     self.image_lists.pop(incorrect_label)
                 else:
                     self.image_lists[correct_label] = self.image_lists[incorrect_label]
                     self.image_lists.pop(incorrect_label)
+                num_class_labels_manually_remapped += 1
+        self._summary_stats['num_class_labels_manually_remapped'] = num_class_labels_manually_remapped
         with open(os.path.join(self.logging_dir, 'labels_with_user_identified_anomalies_old_to_new.txt'), 'w') as fp:
-            for old_label, new_label in explicit_mappings_incorrect_to_correct.items():
+            for old_label, new_label in encountered_mappings.items():
                 fp.write('\'%s\' -> \'%s\'\n' % (old_label, new_label))
         tf.logging.info(msg='\t\tExported list of anomalous user-identified class labels removed to: \'%s\'' % (self.logging_dir + '\\labels_with_user_identified_anomalies_old_to_new.txt'))
         return self.image_lists
@@ -361,23 +375,57 @@ class ImageExecutor:
                 fp.write('\'%s\'\n' % label)
 
     def _ensure_min_num_sample_images(self):
+        num_cleaned_labels_with_less_than_min_num_samples = 0
         cleaned_labels_with_more_than_min_num_samples = []
         image_lists = copy.deepcopy(self.image_lists)
         for label in self.image_lists:
             if len(self.image_lists[label]) <= self.min_num_images_per_class:
                 image_lists.pop(label)
+                num_cleaned_labels_with_less_than_min_num_samples += 1
             else:
                 cleaned_labels_with_more_than_min_num_samples.append(label)
         self.image_lists = image_lists
+        self._summary_stats['num_cleaned_labels_with_less_than_min_num_samples'] = num_cleaned_labels_with_less_than_min_num_samples
+
         with open(os.path.join(self.logging_dir, 'cleaned_labels_with_sample_count_enforced.txt'), 'w') as fp:
             for label in cleaned_labels_with_more_than_min_num_samples:
                 fp.write('\'%s\'\n' % label)
         return self.image_lists
 
+    def _calculate_summary_statistics(self):
+        assert self.cleaned_images is True
+        num_unique_cleaned_class_labels = len(self.image_lists.keys())
+        num_present_sample_images = sum(len(lst) for lst in self.image_lists.values())  # may not be valid jpegs
+        enforced_min_num_samples_per_class = self.min_num_images_per_class
+        class_labels_and_image_counts = {}
+        for class_label, image_list in self.image_lists.items():
+            if class_label not in class_labels_and_image_counts:
+                class_labels_and_image_counts[class_label] = len(image_list)
+            else:
+                class_labels_and_image_counts[class_label] += len(image_list)
+        actual_min_num_samples_per_class = min(class_labels_and_image_counts.values())
+        actual_max_num_samples_per_class = max(class_labels_and_image_counts.values())
+        mean_num_samples_per_class = np.mean(list(class_labels_and_image_counts.values()))
+        median_num_samples_per_class = statistics.median(list(class_labels_and_image_counts.values()))
+        mode_num_samples_per_class = statistics.mode(class_labels_and_image_counts.values())
+        mode_count = len([img_count for clss_label, img_count in class_labels_and_image_counts.items() if img_count == mode_num_samples_per_class])
+        with open(os.path.join(self.logging_dir, 'image_executor_summary_stats.txt'), 'w') as fp:
+            fp.write('Number of Unique Cleaned Class Labels: %d\n' % num_unique_cleaned_class_labels)
+            fp.write('Total Number of Present (not necessarily readable) Sample Images: %d\n' % num_present_sample_images)
+            fp.write('Enforced Minimum Number of Samples-per-Class: %d\n' % enforced_min_num_samples_per_class)
+            fp.write('Actual Minimum Number of Samples-per-Class: %d\n' % actual_min_num_samples_per_class)
+            fp.write('Enforced Maximum Number of Samples-per-Class: 1^{27} - 1 ~= 134M\n')
+            fp.write('Actual Maximum Number of Samples-per-Class: %d\n' % actual_max_num_samples_per_class)
+            fp.write('Mean Number of Samples-per-Class: %.2f\n' % mean_num_samples_per_class)
+            fp.write('Median Number of Samples-per-Class: %d\n' % median_num_samples_per_class)
+            fp.write('Mode Number of Samples-per-Class: %d (%d counts)\n' % (mode_num_samples_per_class, mode_count))
+
     def _clean_images(self):
         # self.df_images = self._get_raw_image_lists_df()
         tf.logging.info(msg='Populating raw image lists prior to cleaning...')
         self.image_lists = self._get_raw_image_lists()
+        # These are the raw class labels that have at least one downloaded image:
+        self._summary_stats['num_raw_class_labels_with_images'] = len(self.image_lists.keys())
         # TODO: check all the acquired images to see if they are actually decode-able in tensorflow.
         tf.logging.info(msg='Done, obtained raw image lists. Now cleaning class label: \'scientificName\' in the obtained raw data...')
         self.image_lists = self._clean_scientific_name()
@@ -385,8 +433,11 @@ class ImageExecutor:
         self._ensure_min_num_sample_images()
         tf.logging.info(msg='Running sanity checks on cleaned data...')
         self._run_sanity_checks_on_cleaned_data()
-        tf.logging.info(msg='Sanity checks complete. ImageExector instance flagging images as cleaned.')
+        tf.logging.info(msg='Sanity checks complete. ImageExecutor instance flagging images as cleaned.')
         self.cleaned_images = True
+        tf.logging.info(msg='Calculating summary statistics...')
+        self._calculate_summary_statistics()
+        tf.logging.info(msg='Exported relevant summary statistics to: \'%s\'' % os.path.join(self.logging_dir, 'image_executor_summary_stats.txt'))
 
     def get_image_lists(self):
         if self.cleaned_images:
