@@ -315,7 +315,7 @@ class BottleneckExecutor:
                             df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
-                if i % 100 == 0:
+                if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
             self.df_bottlenecks = df_bottlenecks
@@ -341,6 +341,7 @@ class BottleneckExecutor:
         if not self.cached_all_bottlenecks:
             self._resume_caching_bottlenecks()
         return self.df_bottlenecks
+
     # def cache_all_bottlenecks(self):
     #     """
     #     cache_all_bottlenecks: Takes every sample image in every dataset (train, val, test) and forward propagates the
@@ -404,14 +405,14 @@ if __name__ == '__main__':
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
 
     # BOON Configuration:
-    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    image_path = 'D:\\data\\BOON\\images\\'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\BOON\\images\\'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
-    # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    # image_path = 'D:\\data\\GoingDeeperData\\images'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+    bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    image_path = 'D:\\data\\GoingDeeperData\\images'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     # SERNEC Cofiguration:
     # bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
@@ -428,3 +429,4 @@ if __name__ == '__main__':
     # bottleneck_executor._cache_all_bottlenecks()
     # bottleneck_executor._resume_caching_bottlenecks()
     bottlenecks_df = bottleneck_executor.get_bottlenecks()
+    train_bottlenecks, val_bottlenecks, test_bottlenecks = bottleneck_executor.get_partitioned_bottlenecks()
