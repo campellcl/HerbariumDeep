@@ -11,6 +11,8 @@ from collections import OrderedDict
 import numpy as np
 import copy
 import statistics
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 
 class ImageExecutor:
@@ -446,10 +448,38 @@ class ImageExecutor:
             self._clean_images()
             return self.image_lists
 
+    def get_random_sample_images(self, num_random_images):
+        if not self.cleaned_images:
+            self._clean_images()
+        random_class_indices = np.random.randint(0, len(self.image_lists.keys()), size=num_random_images)
+        random_class_labels = [list(self.image_lists.keys())[idx] for idx in random_class_indices]
+        random_relative_indices = [np.random.randint(0, len(self.image_lists[rand_class_label])) for rand_class_label in random_class_labels]
+        return [self.image_lists[rand_class_label][rand_relative_idx] for rand_class_label, rand_relative_idx in zip(random_class_labels, random_relative_indices)]
+
+    def display_sample_images(self, sample_image_paths):
+        images = []
+        for img_path in sample_image_paths:
+            img = mpimg.imread(img_path)
+            images.append(img)
+        fig, axes = plt.subplots(2, 2)
+        print(axes)
+        axes[0, 0].imshow(images[0])
+        axes[0, 0].set_aspect('equal')
+        axes[0, 1].imshow(images[1])
+        axes[0, 1].set_aspect('equal')
+        axes[1, 0].imshow(images[2])
+        axes[1, 0].set_aspect('equal')
+
+        plt.subplots_adjust(wspace=0, hspace=0)
+        plt.show()
+
 
 def main(root_dir, logging_dir):
     img_executor = ImageExecutor(img_root_dir=root_dir, logging_dir=logging_dir, accepted_extensions=['jpg', 'jpeg'], min_num_images_per_class=20)
     image_lists = img_executor.get_image_lists()
+    random_images = img_executor.get_random_sample_images(num_random_images=3)
+    print(random_images)
+    img_executor.display_sample_images(random_images)
 
 
 if __name__ == '__main__':
@@ -457,9 +487,9 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
 
     # BOON Configuration:
-    # root_dir = 'D:\\data\\BOON\\images'
-    # logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
-    # main(root_dir=root_dir, logging_dir=logging_dir)
+    root_dir = 'D:\\data\\BOON\\images'
+    logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    main(root_dir=root_dir, logging_dir=logging_dir)
 
     # GoingDeeper Configuration:
     # root_dir = 'D:\\data\\GoingDeeperData\\images'
@@ -467,6 +497,6 @@ if __name__ == '__main__':
     # main(root_dir=root_dir, logging_dir=logging_dir)
 
     # SERNEC Configuration:
-    root_dir = 'D:\\data\\SERNEC\\images'
-    logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
-    main(root_dir=root_dir, logging_dir=logging_dir)
+    # root_dir = 'D:\\data\\SERNEC\\images'
+    # logging_dir = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
+    # main(root_dir=root_dir, logging_dir=logging_dir)
