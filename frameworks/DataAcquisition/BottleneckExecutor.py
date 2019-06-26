@@ -14,8 +14,8 @@ import time
 from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
-MAX_IMAGE_BATCH_SIZE = 400  # With more than 555 sized: [299, 299, 3] images per forward pass, hitting OOM GPU? errors
-
+# MAX_IMAGE_BATCH_SIZE = 400  # With more than 555 sized: [299, 299, 3] images per forward pass, hitting OOM GPU? errors
+MAX_IMAGE_BATCH_SIZE = 5
 
 def _add_jpeg_decoding(module_spec):
     """Adds operations that perform JPEG decoding and resizing to the graph...
@@ -140,6 +140,7 @@ class BottleneckExecutor:
             try:
                 resized_input_values = np.squeeze(resized_input_values)
                 bottleneck_values = self._session.run(self.bottleneck_tensor, {self.resized_image_tensor: resized_input_values})
+                del resized_input_values
                 # bottleneck_values = np.squeeze(bottleneck_values)
                 return bottleneck_values
             except Exception as err:
@@ -241,11 +242,9 @@ class BottleneckExecutor:
         return bottlenecks
 
     def _resume_caching_bottlenecks(self):
-        existing_bottlenecks = None
-        df_bottlenecks = None
         if os.path.exists(self.compressed_bottleneck_file_path):
-            existing_bottlenecks = self._load_bottlenecks()
-            df_bottlenecks = existing_bottlenecks.copy(deep=True)
+            self.df_bottlenecks = self._load_bottlenecks()
+            # df_bottlenecks = existing_bottlenecks.copy(deep=True)
         else:
             self._cache_all_bottlenecks()
             exit(0)
@@ -253,7 +252,7 @@ class BottleneckExecutor:
         resume_class_label = None
         resume_class_label_index = -1
         for i, (clss_label, image_paths) in enumerate(image_lists.items()):
-            if clss_label not in existing_bottlenecks['class'].values:
+            if clss_label not in self.df_bottlenecks['class'].values:
                 # Resume from this class label
                 resume_class_label = clss_label
                 resume_class_label_index = i
@@ -261,7 +260,7 @@ class BottleneckExecutor:
         if resume_class_label_index == -1:
             tf.logging.info(msg='All bottlenecks have already been computed! BottleneckExecutor will provide access '
                                 'to verbatim loaded bottlenecks\' dataframe.')
-            self.df_bottlenecks = df_bottlenecks
+            # self.df_bottlenecks = df_bottlenecks
             self.cached_all_bottlenecks = True
             return
         target_classes = list(self.image_lists.keys())
@@ -277,6 +276,7 @@ class BottleneckExecutor:
         with self._session as sess:
             init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
             sess.run(init)
+            sess.graph.finalize()
             for i, clss in enumerate(target_classes):
                 if i < resume_class_label_index:
                     continue
@@ -301,7 +301,7 @@ class BottleneckExecutor:
                         )
                         bottleneck_counts_and_time_stamps.append((1, time.time() - ts))
                         # Append the generated bottleneck to the dataframe:
-                        df_bottlenecks.loc[len(df_bottlenecks)] = {
+                        self.df_bottlenecks.loc[len(self.df_bottlenecks)] = {
                             'class': clss,
                             'path': image_path_batches[j][0],
                             'bottleneck': bottleneck
@@ -312,16 +312,15 @@ class BottleneckExecutor:
                         bottleneck_counts_and_time_stamps.append((len(image_data_batch), time.time() - ts))
                         # Append the generated bottlenecks to the dataframe:
                         for k, img_path in enumerate(image_path_batches[j]):
-                            df_bottlenecks.loc[len(df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
+                            self.df_bottlenecks.loc[len(self.df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
                 if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
-                    df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
-            self.df_bottlenecks = df_bottlenecks
+                    self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
             self.cached_all_bottlenecks = True
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
-            df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
 
     def get_partitioned_bottlenecks(self, train_percent=.80, val_percent=.20, test_percent=.20, random_state=42):
         bottlenecks = self.get_bottlenecks()
