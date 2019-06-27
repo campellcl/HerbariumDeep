@@ -14,6 +14,7 @@ from sklearn.model_selection import GridSearchCV, ShuffleSplit
 # from sklearn.model_selection import ParameterGrid
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
+from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 import pandas as pd
 import numpy as np
 
@@ -273,13 +274,11 @@ def _get_class_labels(bottlenecks):
     return class_labels
 
 
-def _run_setup(dataset, bottleneck_path, tb_summaries_dir):
+def _run_setup(tb_summaries_dir):
     """
     _run_setup: Performs initial setup operations by:
         1) Setting verbosity of TensorFlow logging output
         2) Purging (or creating new) TensorBoard logging directories
-        3) Retrieving the bottlenecks dataframe from disk
-        4) Partitioning the bottlenecks dataframe into training and testing sets.
     :param bottleneck_path: The file path to the compressed bottlenecks dataframe.
     :return:
     """
@@ -289,33 +288,7 @@ def _run_setup(dataset, bottleneck_path, tb_summaries_dir):
     # Delete any TensorBoard summaries left over from previous runs:
     _prepare_tensor_board_directories(tb_summaries_dir=tb_summaries_dir)
     tf.logging.info(msg='Removed left over tensorboard summaries from previous runs.')
-
-    # Retrieve the bottlenecks dataframe or alert the user and terminate:
-    bottlenecks = _load_bottlenecks(bottleneck_path)
-
-    # Get a list of unique class labels for use in one-hot encoding:
-    class_labels = _get_class_labels(bottlenecks)
-
-    # Partition the bottlenecks dataframe:
-    if dataset == 'SERNEC':
-        train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
-            bottlenecks=bottlenecks,
-            random_state=0,
-            train_percent=.90,
-            val_percent=.10,
-            test_percent=.10
-        )
-    else:
-        train_bottlenecks, val_bottlenecks, test_bottlenecks = _partition_bottlenecks_dataframe(
-            bottlenecks=bottlenecks,
-            random_state=0
-        )
-    bottleneck_dataframes = {'train': train_bottlenecks, 'val': val_bottlenecks, 'test': test_bottlenecks}
-    tf.logging.info(
-        'Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), and testing (N=%d) datasets.'
-        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0])
-    )
-    return bottleneck_dataframes, class_labels
+    return
 
 
 def _get_random_cached_bottlenecks(bottleneck_dataframes, how_many, category, class_labels):
@@ -592,19 +565,43 @@ def main(run_config):
     _prepare_model_export_directories(model_export_dir=model_export_dir)
 
     # Run preliminary setup operations and retrieve partitioned bottlenecks dataframe:
-    bottleneck_dataframes, class_labels = _run_setup(bottleneck_path=run_config['bottleneck_path'], tb_summaries_dir=summaries_dir, dataset=run_config['dataset'])
+    _run_setup(tb_summaries_dir=summaries_dir)
+    bottleneck_executor = BottleneckExecutor(
+        image_dir=run_config['image_dir'],
+        tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
+        compressed_bottleneck_file_path=run_config['bottleneck_path'],
+        logging_dir=run_config['logging_dir']
+    )
+    bottlenecks = bottleneck_executor.get_bottlenecks()
+    train_bottlenecks, val_bottlenecks, test_bottlenecks = bottleneck_executor.get_partitioned_bottlenecks(train_percent=0.80, val_percent=0.20, test_percent=0.20)
+    class_labels = list(bottlenecks['class'].unique())
+    tf.logging.info(
+        'Partitioned (N=%d) total bottleneck vectors into training (N=%d), validation (N=%d), and testing (N=%d) datasets.'
+        % (bottlenecks.shape[0], train_bottlenecks.shape[0], val_bottlenecks.shape[0], test_bottlenecks.shape[0])
+    )
     tf.logging.info('Detected %d unique class labels in the bottlenecks dataframe' % len(class_labels))
-
-    train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
-        bottleneck_dataframe=bottleneck_dataframes['train'],
-        class_labels=class_labels
-    )
-
-    val_bottlenecks, val_ground_truth_indices = _get_all_cached_bottlenecks(
-        bottleneck_dataframe=bottleneck_dataframes['val'],
-        class_labels=class_labels
-    )
-    tf.logging.info(msg='Obtained bottleneck values from dataframe. Performed corresponding one-hot encoding of class labels')
+    train_bottleneck_values = train_bottlenecks['bottleneck'].tolist()
+    train_bottleneck_values = np.array(train_bottleneck_values)
+    val_bottleneck_values = val_bottlenecks['bottleneck'].tolist()
+    val_bottleneck_values = np.array(val_bottleneck_values)
+    train_bottleneck_ground_truth_labels = train_bottlenecks['class'].values
+    # Convert the labels into indices (one hot encoding by index):
+    train_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                                      for ground_truth_label in train_bottleneck_ground_truth_labels])
+    val_bottleneck_ground_truth_labels = val_bottlenecks['class'].values
+    # Convert the labels into indices (one hot encoding by index):
+    val_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                                    for ground_truth_label in val_bottleneck_ground_truth_labels])
+    # train_bottlenecks, train_ground_truth_indices = _get_all_cached_bottlenecks(
+    #     bottleneck_dataframe=bottleneck_dataframes['train'],
+    #     class_labels=class_labels
+    # )
+    #
+    # val_bottlenecks, val_ground_truth_indices = _get_all_cached_bottlenecks(
+    #     bottleneck_dataframe=bottleneck_dataframes['val'],
+    #     class_labels=class_labels
+    # )
+    # tf.logging.info(msg='Obtained bottleneck values from dataframe. Performed corresponding one-hot encoding of class labels')
     initializer_options = get_initializer_options()
     activation_options = get_activation_options(leaky_relu_alpha=0.2)
     # User MUST provide all default arguments or a KeyError will be thrown:
@@ -618,14 +615,14 @@ def main(run_config):
     tb_log_dir = 'C:\\tmp\\summaries'
     _run_grid_search(
         dataset=run_config['dataset'],
-        train_bottlenecks=train_bottlenecks,
-        train_ground_truth_indices=train_ground_truth_indices,
+        train_bottlenecks=train_bottleneck_values,
+        train_ground_truth_indices=train_bottleneck_ground_truth_indices,
         initializers=initializer_options,
         activations=activation_options,
         optimizers=optimizer_options,
         class_labels=class_labels,
-        val_bottlenecks=val_bottlenecks,
-        val_ground_truth_indices=val_ground_truth_indices,
+        val_bottlenecks=val_bottleneck_values,
+        val_ground_truth_indices=val_bottleneck_ground_truth_indices,
         log_dir=tb_log_dir,
         model_export_dir=model_export_dir
     )
@@ -656,28 +653,28 @@ if __name__ == '__main__':
             'dataset': 'DEBUG',
             'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
             'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
         },
         'BOON': {
             'dataset': 'BOON',
             'image_dir': 'D:\\data\\BOON\\images',
             'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
         },
         'GoingDeeper': {
             'dataset': 'GoingDeeper',
             'image_dir': 'D:\\data\\GoingDeeperData\\images',
             'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
         },
         'SERNEC': {
             'dataset': 'SERNEC',
             'image_dir': 'D:\\data\\SERNEC\\images',
             'bottleneck_path': 'D:\\data\\SERNEC\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['SERNEC'])
+    main(run_configs['BOON'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
