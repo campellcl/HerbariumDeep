@@ -311,11 +311,17 @@ class BottleneckExecutor:
                         # Append the generated bottlenecks to the dataframe:
                         for k, img_path in enumerate(image_path_batches[j]):
                             self.df_bottlenecks.loc[len(self.df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
+                            '''
+                            I know it's odd to have saving logic here. However, the MAX_IMAGE_BATCH_SIZE is determined
+                                by the size of the image sizes and the amount of system RAM. Therefore, in order to avoid starving the OS
+                                of RAM, it is necessary to periodically update the dataframe in denominations of MAX_IMAGE_BATCH_SIZE. If
+                                this is not done, then the backup may be performed with more image data than is capable of fitting into memory. 
+                            '''
+                            if k % MAX_IMAGE_BATCH_SIZE == 0:
+                                tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+                                self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
-                if i % 10 == 0:
-                    tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
-                    self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
             self.cached_all_bottlenecks = True
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
             self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
