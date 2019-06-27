@@ -186,7 +186,7 @@ class BottleneckExecutor:
                 tf.logging.info('[%d/%d] Computing bottleneck vectors for %d samples in class \'%s\'' % (i+1, num_classes, len(image_paths), clss))
                 # Iterate over batches of image paths:
                 for j, image_path_batch in enumerate(image_path_batches):
-                    image_data_batch = [tf.gfile.Gfile(image_path, 'rb').read() for image_path in image_path_batch]
+                    image_data_batch = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_path_batch]
                     tf.logging.info('\tComputing batch [%d/%d]...' % (j+1, len(image_path_batches)))
                     ts = time.time()
                     if len(image_data_batch) == 1:
@@ -226,7 +226,10 @@ class BottleneckExecutor:
             # Bottlenecks .pkl file exists, read from disk:
             tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'' % bottleneck_path)
             try:
-                bottlenecks = pd.read_pickle(bottleneck_path)
+                # bottlenecks = pd.read_pickle(bottleneck_path)
+                bottlenecks = pd.read_csv(bottleneck_path.replace('.pkl', '.csv'))
+                bottlenecks['bottleneck'] = list(np.load(bottleneck_path.replace('.pkl', '.npy')))
+                # dfb['bottleneck'] = list(np.load('bottlenecks_partial.npy'))
                 tf.logging.info(msg='Bottleneck file \'%s\' successfully restored from disk.'
                                     % os.path.basename(bottleneck_path))
             except EOFError as err:
@@ -243,9 +246,9 @@ class BottleneckExecutor:
         if os.path.exists(self.compressed_bottleneck_file_path):
             self.df_bottlenecks = self._load_bottlenecks()
             # df_bottlenecks = existing_bottlenecks.copy(deep=True)
-        else:
-            self._cache_all_bottlenecks()
-            exit(0)
+        # else:
+        #     self._cache_all_bottlenecks()
+        #     exit(0)
         image_lists = self.image_executor.get_image_lists()
         resume_class_label = None
         resume_class_label_index = -1
@@ -317,9 +320,16 @@ class BottleneckExecutor:
                                 of RAM, it is necessary to periodically update the dataframe in denominations of MAX_IMAGE_BATCH_SIZE. If
                                 this is not done, then the backup may be performed with more image data than is capable of fitting into memory. 
                             '''
-                            if k % MAX_IMAGE_BATCH_SIZE == 0:
+                            if k == 0:
+                                continue
+                            if k % (MAX_IMAGE_BATCH_SIZE * 3) == 0:
                                 tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
-                                self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+                                self.df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
+                                np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(self.df_bottlenecks['bottleneck']), allow_pickle=False)
+                                # dfb = pd.read_csv('bottlenecks_partial.csv')
+                                # dfb['bottleneck'] = list(np.load('bottlenecks_partial.npy'))
+                                # self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path, pickle)
+                                # self.df_bottlenecks.to_hdf(self.compressed_bottleneck_file_path.replace('.pkl', '.h5'), key='bottlenecks', mode='w')
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
             self.cached_all_bottlenecks = True
