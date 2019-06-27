@@ -15,7 +15,7 @@ from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 # MAX_IMAGE_BATCH_SIZE = 400  # With more than 555 sized: [299, 299, 3] images per forward pass, hitting OOM GPU? errors
-MAX_IMAGE_BATCH_SIZE = 5
+MAX_IMAGE_BATCH_SIZE = 400
 
 def _add_jpeg_decoding(module_spec):
     """Adds operations that perform JPEG decoding and resizing to the graph...
@@ -117,7 +117,7 @@ class BottleneckExecutor:
             # Use the existing session:
             if image_data is None:
                 # Need to run image decoding:
-                image_data = tf.gfile.Gfile(image_path, 'rb').read()
+                image_data = tf.gfile.GFile(image_path, 'rb').read()
             # First decode the JPEG image, resize it, and rescale the pixel values.
             resized_input_value = self._session.run(self.decoded_image_tensor, {self.jpeg_data_tensor: image_data})
             # Then run it through the source network:
@@ -176,20 +176,18 @@ class BottleneckExecutor:
         with self._session as sess:
             init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
             sess.run(init)
-
             for i, clss in enumerate(target_classes):
                 image_paths = self.image_lists[clss]
-                images_data = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_paths]
                 '''
-                Use batch size for the forward propagation with actual images otherwise OOM GPU errors occur:
+                Since the images are high quality, they take quite a bit of RAM. Only load in images in denominations of
+                    MAX_IMAGE_BATCH_SIZE.
                 '''
-                image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
-                image_data_batches = [images_data[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
-                tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\''
-                                % (i+1, num_classes, len(image_paths), clss))
-                # Iterate over the batches:
-                for j, image_data_batch in enumerate(image_data_batches):
-                    tf.logging.info('\tComputing batch [%d/%d]...' % (j+1, len(image_data_batches)))
+                image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(image_paths), MAX_IMAGE_BATCH_SIZE)]
+                tf.logging.info('[%d/%d] Computing bottleneck vectors for %d samples in class \'%s\'' % (i+1, num_classes, len(image_paths), clss))
+                # Iterate over batches of image paths:
+                for j, image_path_batch in enumerate(image_path_batches):
+                    image_data_batch = [tf.gfile.Gfile(image_path, 'rb').read() for image_path in image_path_batch]
+                    tf.logging.info('\tComputing batch [%d/%d]...' % (j+1, len(image_path_batches)))
                     ts = time.time()
                     if len(image_data_batch) == 1:
                         # The batch partitioning resulted in a single scalar by itself:
@@ -281,17 +279,17 @@ class BottleneckExecutor:
                 if i < resume_class_label_index:
                     continue
                 image_paths = self.image_lists[clss]
-                images_data = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_paths]
                 '''
-                Use batch size for the forward propagation with actual images otherwise OOM GPU errors occur:
+                Since the images are high quality for the BOONE dataset, they take a large amount of RAM. Only load in
+                    images in denominations of MAX_IMAGE_BATCH_SIZE. 
                 '''
-                image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
-                image_data_batches = [images_data[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(images_data), MAX_IMAGE_BATCH_SIZE)]
+                image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(image_paths), MAX_IMAGE_BATCH_SIZE)]
                 tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\''
                                 % (i+1, num_classes, len(image_paths), clss))
-                # Iterate over the batches:
-                for j, image_data_batch in enumerate(image_data_batches):
-                    tf.logging.info('\tComputing batch [%d/%d]...' % (j+1, len(image_data_batches)))
+                # Iterate over the batches of image paths:
+                for j, image_path_batch in enumerate(image_path_batches):
+                    image_data_batch = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_path_batch]
+                    tf.logging.info('\tComputing batch [%d/%d]...' % (j+1, len(image_path_batches)))
                     ts = time.time()
                     if len(image_data_batch) == 1:
                         # The batch partitioning resulted in a single scalar by itself:
