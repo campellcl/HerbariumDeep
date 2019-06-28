@@ -243,6 +243,8 @@ class BottleneckExecutor:
         return bottlenecks
 
     def _resume_caching_bottlenecks(self):
+        bottleneck_save_frequency = MAX_IMAGE_BATCH_SIZE * 2
+
         if os.path.exists(self.compressed_bottleneck_file_path):
             self.df_bottlenecks = self._load_bottlenecks()
             # df_bottlenecks = existing_bottlenecks.copy(deep=True)
@@ -278,6 +280,7 @@ class BottleneckExecutor:
             init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
             sess.run(init)
             sess.graph.finalize()
+            num_bottlenecks_since_last_save = 0
             for i, clss in enumerate(target_classes):
                 if i < resume_class_label_index:
                     continue
@@ -314,18 +317,18 @@ class BottleneckExecutor:
                         # Append the generated bottlenecks to the dataframe:
                         for k, img_path in enumerate(image_path_batches[j]):
                             self.df_bottlenecks.loc[len(self.df_bottlenecks)] = {'class': clss, 'path': img_path, 'bottleneck': bottlenecks[k]}
+                            num_bottlenecks_since_last_save += 1
                             '''
                             I know it's odd to have saving logic here. However, the MAX_IMAGE_BATCH_SIZE is determined
                                 by the size of the image sizes and the amount of system RAM. Therefore, in order to avoid starving the OS
                                 of RAM, it is necessary to periodically update the dataframe in denominations of MAX_IMAGE_BATCH_SIZE. If
                                 this is not done, then the backup may be performed with more image data than is capable of fitting into memory. 
                             '''
-                            if k == 0:
-                                continue
-                            if k % (MAX_IMAGE_BATCH_SIZE * 3) == 0:
-                                tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+                            if num_bottlenecks_since_last_save % bottleneck_save_frequency == 0:
+                                tf.logging.info(msg='\tBacking up bottleneck files to: \'%s\'' % self.compressed_bottleneck_file_path)
                                 self.df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
                                 np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(self.df_bottlenecks['bottleneck']), allow_pickle=False)
+                                num_bottlenecks_since_last_save = 0
                                 # dfb = pd.read_csv('bottlenecks_partial.csv')
                                 # dfb['bottleneck'] = list(np.load('bottlenecks_partial.npy'))
                                 # self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path, pickle)
@@ -334,7 +337,9 @@ class BottleneckExecutor:
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
             self.cached_all_bottlenecks = True
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
-            self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            self.df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
+            np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(self.df_bottlenecks['bottleneck']), allow_pickle=False)
+            # self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
 
     def get_partitioned_bottlenecks(self, train_percent=.80, val_percent=.20, test_percent=.20, random_state=42):
         bottlenecks = self.get_bottlenecks()
