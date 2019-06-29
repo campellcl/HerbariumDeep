@@ -970,13 +970,16 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             return self
 
     def predict_proba(self, X):
-        # TODO: REset nested computtational grpah?
-        # ON RESUME: WHY NESTED COMP GRAPH? HOW TO RESUME.
-        # tf.reset_default_graph()
-        # imported_meta = tf.train.import_meta_graph(os.path.join(self.saved_model_dir, '*.meta'))
-        # with tf.Session() as sess:
-        #     imported_meta.restore(sess, tf.train.latest_checkpoint(os.path.join(self.relative_ckpt_dir, 'model.ckpt')))
-
+        '''
+        predict_proba: This is called by sklearn internally during training to score accuracy metrics for model ranking.
+            The custom CVSplitter class should yield the right data to this method, but this can be tested by examining
+            the input shape of X and comparing it to the training subset dimensions. Note that this method uses the
+            eval graph to perform evaluations, however this is permissible since the eval_graph is identical to the
+            train_graph with the primary difference being the exclusion of an optimizer, and the gradients themselves.
+            Recall that the eval_graph is built by restoring the checkpoints of the last train_graph weights.
+        :param X:
+        :return:
+        '''
         if not self._train_session:
             raise NotFittedError("This %s instance is not fitted yet" % self.__class__.__name__)
         if self._train_session._closed:
@@ -986,7 +989,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 eval_sess_X = sess.graph.get_tensor_by_name('eval_graph/retrain_ops/input/X:0')
                 return eval_sess_y_proba.eval(feed_dict={eval_sess_X: X})
 
-            ''' Use this code if you want to restore the training session from last checkpoint and eval with the training graph. '''
+            ''' Use this code if you want to restore the training session from last checkpoint and eval with the training graph instead. '''
             # tf.reset_default_graph()
             # train_sess = tf.Session(graph=self._train_graph)
             # with train_sess.as_default() as sess:

@@ -248,9 +248,9 @@ class BottleneckExecutor:
         if os.path.exists(self.compressed_bottleneck_file_path):
             self.df_bottlenecks = self._load_bottlenecks()
             # df_bottlenecks = existing_bottlenecks.copy(deep=True)
-        # else:
-        #     self._cache_all_bottlenecks()
-        #     exit(0)
+        else:
+            self._cache_all_bottlenecks()
+            exit(0)
         image_lists = self.image_executor.get_image_lists()
         resume_class_label = None
         resume_class_label_index = -1
@@ -418,9 +418,9 @@ if __name__ == '__main__':
     # Disable double logging output:
 
     # Debug Configurations:
-    # bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl'
-    # image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
+    bottleneck_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl'
+    image_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
 
     # BOON Configuration:
     # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
@@ -428,9 +428,9 @@ if __name__ == '__main__':
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
-    bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    image_path = 'D:\\data\\GoingDeeperData\\images'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+    # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\GoingDeeperData\\images'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     # SERNEC Cofiguration:
     # bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
