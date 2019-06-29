@@ -574,8 +574,8 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         train_builder = tf.saved_model.builder.SavedModelBuilder(training_saved_model_dir)
         with self._train_session as sess:
             inputs = {
-                'resized_image_input_tensor': tf.saved_model.utils.build_tensor_info(self._train_graph_resized_input_tensor),
-                'training_op': tf.saved_model.utils.build_tensor_info(self._training_op[0])
+                'resized_image_input_tensor': tf.saved_model.utils.build_tensor_info(self._train_graph_resized_input_tensor)
+                # 'training_op': tf.saved_model.utils.build_tensor_info(self._training_op[0])
             }
             out_classes = sess.graph.get_tensor_by_name('train_graph/retrain_ops/final_retrain_ops/%s:0' % final_tensor_name)
             outputs = {'y_proba': tf.saved_model.utils.build_tensor_info(out_classes)}
@@ -970,11 +970,29 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             return self
 
     def predict_proba(self, X):
-        # tf.logging.info(msg='predict_proba called with X.shape: %s' % (X.shape,))
+        # TODO: REset nested computtational grpah?
+        # ON RESUME: WHY NESTED COMP GRAPH? HOW TO RESUME.
+        # tf.reset_default_graph()
+        # imported_meta = tf.train.import_meta_graph(os.path.join(self.saved_model_dir, '*.meta'))
+        # with tf.Session() as sess:
+        #     imported_meta.restore(sess, tf.train.latest_checkpoint(os.path.join(self.relative_ckpt_dir, 'model.ckpt')))
+
         if not self._train_session:
             raise NotFittedError("This %s instance is not fitted yet" % self.__class__.__name__)
-        with self._train_session.as_default() as sess:
-            return self._y_proba.eval(feed_dict={self._X: X})
+        if self._train_session._closed:
+            # Use the eval graph on the training data:
+            with self._eval_session as sess:
+                eval_sess_y_proba = sess.graph.get_tensor_by_name('eval_graph/retrain_ops/final_retrain_ops/y_proba:0')
+                eval_sess_X = sess.graph.get_tensor_by_name('eval_graph/retrain_ops/input/X:0')
+                return eval_sess_y_proba.eval(feed_dict={eval_sess_X: X})
+
+            ''' Use this code if you want to restore the training session from last checkpoint and eval with the training graph. '''
+            # tf.reset_default_graph()
+            # train_sess = tf.Session(graph=self._train_graph)
+            # with train_sess.as_default() as sess:
+            #     self._train_saver.restore(sess, os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
+            #     # y_proba = sess.graph.get_tensor_by_name('train_graph/retrain_ops/final_retrain_ops/y_proba:0')
+            #     return self._y_proba.eval(feed_dict={self._X: X})
 
     def predict(self, X):
         # tf.logging.info(msg='predict called with X.shape: %s' % (X.shape,))
