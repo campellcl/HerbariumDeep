@@ -459,8 +459,11 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'train_batch_size': [20, 60, 100, 1000]
         }
         num_epochs = 100000  # 100,000
+        # num_epochs = 2
         eval_freq = 10
+        # eval_freq = 1
         early_stopping_eval_freq = 5
+        # early_stopping_eval_freq = 1
         ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'BOON':
@@ -477,12 +480,12 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'DEBUG':
         params = {
-            'initializer': [initializers['he_normal']],
+            'initializer': [initializers['he_normal'], initializers['he_uniform']],
             'activation': [activations['LeakyReLU']],
-            'optimizer': [optimizers['Nesterov']],
+            'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
             'train_batch_size': [10, 20]
         }
-        num_epochs = 100
+        num_epochs = 1000
         eval_freq = 10
         early_stopping_eval_freq = 5
         ckpt_freq = 0
@@ -674,7 +677,7 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['BOON'])
+    main(run_configs['GoingDeeper'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
