@@ -916,9 +916,10 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                                 val_cm.save_html(os.path.join(tb_log_dir_val, 'confusion_matrix'))
                                 val_cm.save_csv(os.path.join(tb_log_dir_val, 'confusion_matrix'))
                             # Since we are early stopping, need to save checkpoint for restore:
-                            tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
-                            self._train_saver.save(sess, os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
-                            break
+                            is_last_step = True
+                            # tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
+                            # self._train_saver.save(sess, os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
+                            # break
                     else:
                         if self.dataset != 'SERNEC':
                             # Run eval metrics on the entire training dataset (as no validation set is available):
@@ -944,6 +945,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 if is_last_step:
                     tf.logging.info(msg='Writing checkpoint (model snapshot) to \'%s\'' % os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
                     self._train_saver.save(sess, os.path.join(self.relative_ckpt_dir, 'model.ckpt'))
+                    break
                     # Constant OP for tf.Serving export code of stand-alone model goes here:
                     # tf.logging.info(msg='Writing computational graph with constant-op conversion to \'%s\'' % self.tb_logdir)
                     # intermediate_file_name = (self.ckpt_dir + 'intermediate_' + str(epoch) + '.pb')
@@ -998,10 +1000,17 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
             #     return self._y_proba.eval(feed_dict={self._X: X})
 
     def predict(self, X):
-        # tf.logging.info(msg='predict called with X.shape: %s' % (X.shape,))
+        # ON RESUME: OFF BY ON ERROR WHEN max(class_indices) yeilds 996 instead of 995 (zero based index)
+        tf.logging.info(msg='predict called with X.shape: %s' % (X.shape,))
         class_indices = np.argmax(self.predict_proba(X), axis=1)
+        # Off by one index reduction:
+        class_indices_corrected = [1 - len(self.classes_) if class_index == len(self.classes_) else class_index for class_index in class_indices]
+        # tf.logging.info(msg='Size of class indices: %s' % (class_indices.shape,))
+        # tf.logging.info(msg='Maximum value in class indices: %s' % max(class_indices))
+        # tf.logging.info(msg='Size of self.classes_: %s' % (len(self.classes_)))
+        # tf.logging.info(msg='self.classes_: %s' % self.classes_)
         return np.array([[self.classes_[class_index]]
-                         for class_index in class_indices], np.int32)
+                         for class_index in class_indices_corrected], np.int32)
 
     def save(self, path):
         # Save model checkpoint:
