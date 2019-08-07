@@ -40,10 +40,18 @@ class CrossValidationSplitter(ShuffleSplit):
 
 
 class GridSearchCVSaveRestore:
+    """
+    GridSearchCVSaveRestore: Similar to sklearn's GridSearchCV class, except with an additional save and restore
+        functionality utilized to resume a previously interrupted GridSearch. This functionality is contingent on
+        TensorFlow's model serialization as performed in the base estimator (TFHClassifier.py).
+    """
 
-    def __init__(self, param_grid, scoring, cv, refit, verbose, error_score, return_train_score=False):
+    def __init__(self, estimator, param_grid, scoring, cv, refit, verbose, error_score, return_train_score=False):
         """
-
+        __init__: Initialization method for objects of type GridSearchCVSaveRestore.
+        :param estimator: estimator object (traditionally a TFHClassifier instance for this project)
+            This is assumed to implement the scikit-learn estimator interface. Either estimator needs to provide a
+            ```score``` function, or ``scoring`` must be passed.
         :param param_grid: Dictionary with parameters names (string) as keys and lists of parameter settings to try
             as values.
         :param scoring: string, callable, list/tuple, dict or None, default: None
