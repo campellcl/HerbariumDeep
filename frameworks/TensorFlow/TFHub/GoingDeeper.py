@@ -434,7 +434,6 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     Note on Train Batch Sizes:
         16 Comes from the paper: Going Deeper in the Automated Identification of Herbarium Specimens
         20 and 60 come from the paper: Plant Identification Using Deep Neural Networks with Hyperparameter Optimization via Transfer Learning
-        
     """
     if dataset == 'SERNEC':
         params = {
@@ -446,7 +445,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         # num_epochs = 100000  # 100,000
         # eval_freq = 100
         # early_stopping_eval_freq = 1
-        num_epochs = 100000 # 100, 000
+        num_epochs = 100000     # 100,000
         eval_freq = 10
         early_stopping_eval_freq = 5
         ckpt_freq = 0
@@ -459,12 +458,14 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'train_batch_size': [20, 60, 100, 1000]
         }
         num_epochs = 100000  # 100,000
-        # num_epochs = 2
         eval_freq = 10
-        # eval_freq = 1
         early_stopping_eval_freq = 5
-        # early_stopping_eval_freq = 1
         ckpt_freq = 0
+        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
+        # num_epochs = 2
+        # eval_freq = 1
+        # early_stopping_eval_freq = 1
+        # ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'BOON':
         params = {
