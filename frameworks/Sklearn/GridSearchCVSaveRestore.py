@@ -273,8 +273,9 @@ class GridSearchCVSaveRestore(BaseSearchCV):
                 nonlocal results
                 results = self._format_results(
                     all_candidate_params, scorers, n_splits, all_out)
-                return results
                 logging.warning('evaluate_candidate not finished being implemented.')
+                return results
+
                 # raise NotImplementedError('evaluate_candidate not finished being implemented.')
             self._run_search(evaluate_candidate)
 
