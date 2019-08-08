@@ -6,6 +6,7 @@ Similar to the Sklearn native grid search, but is capable of being interrupted a
     * https://github.com/scikit-learn/scikit-learn/blob/1495f6924/sklearn/model_selection/_search.py#L829
     * https://scikit-learn.org/stable/modules/grid_search.html#grid-search
 """
+import logging
 import numpy as np
 from collections.abc import Mapping, Sequence, Iterable
 from functools import partial, reduce
@@ -14,7 +15,10 @@ import operator
 from sklearn.base import BaseEstimator, is_classifier, clone
 # from sklearn.model_selection._search import MetaEstimatorMixin, ABCMeta
 from sklearn.model_selection import GridSearchCV, ShuffleSplit
-
+from sklearn.model_selection._split import check_cv
+from sklearn.utils.validation import indexable
+from sklearn.metrics.scorer import _check_multimetric_scoring, check_scoring
+from sklearn.utils._joblib import Parallel, delayed
 
 class CrossValidationSplitter(ShuffleSplit):
     """
@@ -50,16 +54,14 @@ class ParameterGrid:
 
     Source: This code was copied verbatim (for educational usage) from the sklearn source code located at:
         * https://github.com/scikit-learn/scikit-learn/blob/1495f69242646d239d89a5713982946b8ffcf9d9/sklearn/model_selection/_search.py#L45
+    Accordingly, the author of the rest of this software (Christopher Campell) has no claim to the code written herein.
 
     Parameters
     ----------
     param_grid : dict of string to sequence, or sequence of such
-        The parameter grid to explore, as a dictionary mapping estimator
-        parameters to sequences of allowed values.
-        An empty dict signifies default parameters.
-        A sequence of dicts signifies a sequence of grids to search, and is
-        useful to avoid exploring parameter combinations that make no sense
-        or have no effect. See the examples below.
+        The parameter grid to explore, as a dictionary mapping estimator parameters to sequences of allowed values. An
+        empty dict signifies default parameters. A sequence of dicts signifies a sequence of grids to search, and is
+        useful to avoid exploring parameter combinations that make no sense or have no effect. See the examples below.
     """
 
     def __init__(self, param_grid):
@@ -167,7 +169,7 @@ class GridSearchCVSaveRestore:
     return_train_score = None
     _cv_results = None
 
-    def __init__(self, estimator, param_grid, scoring, cv, refit, verbose, error_score, return_train_score=False):
+    def __init__(self, estimator, param_grid, cv, refit, verbose, error_score, scoring=None, return_train_score=False):
         """
         __init__: Initialization method for objects of type GridSearchCVSaveRestore.
         :param estimator: estimator object (traditionally a TFHClassifier instance for this project)
@@ -175,18 +177,6 @@ class GridSearchCVSaveRestore:
             ```score``` function, or ``scoring`` must be passed.
         :param param_grid: Dictionary with parameters names (string) as keys and lists of parameter settings to try
             as values.
-        :param scoring: string, callable, list/tuple, dict or None, default: None
-            A single string (see :ref:`scoring_parameter`) or a callable (see :ref:`scoring`) to evaluate the
-            predictions on the test set. For evaluating multiple metrics, either give a list of (unique) strings or a
-            dict with names as keys and callables as values.
-
-            NOTE that when using custom scorers, each scorer should return a single value. Metric functions returning a
-            list/array of values can be wrapped into multiple scorers that return one value each.
-
-            See :ref:`multimetric_grid_search` for an example.
-
-            If None, the estimator's score method is used.
-
         :param cv: int, cross-validation generator or an iterable. Determines the cross-validation splitting strategy.
             Possible inputs for cv are:
                 - An iterable yielding (train, test) splits as arrays of indices.
@@ -200,6 +190,17 @@ class GridSearchCVSaveRestore:
             Value to assign to the score if an error occurs in estimator fitting. If set to 'raise', the error is raised.
             If a numeric value is given, FitFailedWarning is raised. This parameter does not affect the refit
             step, which will always raise the error. Default is 'raise' but from version 0.22 it will change to np.nan.
+        :param scoring: string, callable, list/tuple, dict or None, default: None
+            A single string (see :ref:`scoring_parameter`) or a callable (see :ref:`scoring`) to evaluate the
+            predictions on the test set. For evaluating multiple metrics, either give a list of (unique) strings or a
+            dict with names as keys and callables as values.
+
+            NOTE that when using custom scorers, each scorer should return a single value. Metric functions returning a
+            list/array of values can be wrapped into multiple scorers that return one value each.
+
+            See :ref:`multimetric_grid_search` for an example.
+
+            If None, the estimator's score method is used.
         :param return_train_score: boolean, default=False
             If ``False``, the ``cv_results_`` attribute will not include training scores. Computing training scores is
             used to get insights on how different parameter settings impact the overfitting/underfitting trade-off.
@@ -254,8 +255,8 @@ class GridSearchCVSaveRestore:
         self.estimator = estimator
         self.param_grid = param_grid
         _check_param_grid(param_grid)
-        self._cv_results = {}
-        raise NotImplementedError
+        logging.warning('GridSearchCVSaveRestore.__init__ method may not be implemented yet in entirety. Reference sklearn\'s BaseEstimator superclass.')
+        # raise NotImplementedError("__init__ method not finished being implemented yet. Reference sklearn's BaseEstimator superclass")
 
     def _run_search(self, evaluate_candidates):
         """
@@ -275,6 +276,13 @@ class GridSearchCVSaveRestore:
         raise NotImplementedError
 
     def score(self, X, y=None):
+        """
+        score: Returns the score on the given data, if the estimator has been refit. Uses the score defined by the
+            ``scoring`` parameter where provided (during instantiation), and the ``best_estimator_.score`` method otherwise.
+        :param X:
+        :param y:
+        :return:
+        """
         raise NotImplementedError
 
     def fit(self, X, y=None, groups=None, **fit_params):
@@ -289,8 +297,46 @@ class GridSearchCVSaveRestore:
             with a "Group" `cv` instance (e.g., `GroupKFold`).
         :param fit_params: dict of string -> object
             Parameters passed to the ```fit``` method of the estimator.
+
+        Source: This method was copied almost verbatim (for educational usage only) from the sklearn source code
+            available here:
+            * https://github.com/scikit-learn/scikit-learn/blob/1495f69242646d239d89a5713982946b8ffcf9d9/sklearn/model_selection/_search.py#L583
+
         :return:
         """
+        estimator = self.estimator
+        cv = check_cv(self.cv, y, classifier=is_classifier(estimator=estimator))
+
+        logging.warning('GridSearchCVSaveRestore.fit() access to a protected member of class '
+                        'sklearn.model_selection._split (method check_cv) not yet screened.')
+
+        scorers, _ = _check_multimetric_scoring(self.estimator, scoring=self.scoring)
+        logging.warning('multimetric scoring not implemented yet. Do not attempt to use.')
+
+        refit_metric = 'score'
+        X, y, groups = indexable(X, y, groups)
+        n_splits = cv.get_n_splits(X, y, groups)
+        base_estimator = clone(self.estimator)
+
+        parallel = Parallel(n_jobs=self.n_jobs)
+
+        fit_and_score_kwargs = dict(scorer=scorers, fit_params=fit_params, return_train_score=self.return_train_score,
+                                    return_n_test_samples=True, return_times=True, return_parameters=False,
+                                    error_score=self.error_score, verbose=self.verbose)
+        results = {}
+        all_candidate_params = []
+        all_out = []
+
+        def evaluate_candidates(candidate_params):
+            candidate_params = list(candidate_params)
+            n_candidates = len(candidate_params)
+
+            if self.verbose > 0:
+                print("Fitting {0} folds for each of {1} candidates, totalling {2} fits".format(
+                              n_splits, n_candidates, n_candidates * n_splits))
+
+
+
         raise NotImplementedError
 
     def save_grid_search(self, save_freq):
