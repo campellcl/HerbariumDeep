@@ -15,6 +15,7 @@ from sklearn.model_selection import GridSearchCV, ShuffleSplit
 import time
 from frameworks.TensorFlow.TFHub.TFHClassifier import TFHClassifier
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
+from frameworks.Sklearn.GridSearchCVSaveRestore import GridSearchCVSaveRestore
 import pandas as pd
 import numpy as np
 
@@ -427,7 +428,8 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
-def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers, class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
+def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers,
+                     class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
     num_train_samples = train_bottlenecks.shape[0]
     num_val_samples = val_bottlenecks.shape[0]
     """
@@ -499,26 +501,35 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         ckpt_freq = None
         early_stopping_eval_freq = None
         exit(-1)
-
     tfh_classifier = TFHClassifier(dataset=dataset, random_state=42, class_labels=class_labels, tb_logdir=log_dir)
-    tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier)')
+    tf.logging.info(msg='Initialized TensorFlowHub Classifier (TFHClassifier) Instance')
     # This looks odd, but drops the CV from GridSearchCV. See: https://stackoverflow.com/a/44682305/3429090
     custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_val_samples, n_splits=1)
-    grid_search = GridSearchCV(tfh_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, return_train_score=False)
-    tf.logging.info(msg='Running GridSearch...')
-    # NOTE: This looks counter intuitive, but the custom_cv_splitter will separate these back out when called by GS:
+    ''' New Custom Grid Search with Save and Restore Code '''
+    grid_search = GridSearchCVSaveRestore(
+        estimator=tfh_classifier, param_grid=params, cv=custom_cv_splitter,
+        verbose=2, refit=False, return_train_score=False, error_score='raise', scoring=None
+    )
+    tf.logging.info(msg='Instantiated GridSearch.')
     X = np.concatenate((train_bottlenecks, val_bottlenecks))
     y = np.concatenate((train_ground_truth_indices, val_ground_truth_indices))
-    grid_search.fit(
-        X=X,
-        y=y,
-        X_valid=val_bottlenecks,
-        y_valid=val_ground_truth_indices,
-        n_epochs=num_epochs,
-        eval_freq=eval_freq,
-        ckpt_freq=ckpt_freq,
-        early_stop_eval_freq=early_stopping_eval_freq
-    )
+
+    ''' Legacy Sklearn as driver code: '''
+    # grid_search = GridSearchCV(tfh_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, return_train_score=False)
+    # tf.logging.info(msg='Running GridSearch...')
+    # NOTE: This looks counter intuitive, but the custom_cv_splitter will separate these back out when called by GS:
+    # X = np.concatenate((train_bottlenecks, val_bottlenecks))
+    # y = np.concatenate((train_ground_truth_indices, val_ground_truth_indices))
+    # grid_search.fit(
+    #     X=X,
+    #     y=y,
+    #     X_valid=val_bottlenecks,
+    #     y_valid=val_ground_truth_indices,
+    #     n_epochs=num_epochs,
+    #     eval_freq=eval_freq,
+    #     ckpt_freq=ckpt_freq,
+    #     early_stop_eval_freq=early_stopping_eval_freq
+    # )
     best_params = grid_search.best_params_
     tf.logging.info(msg='Finished GridSearch! Best performing parameter set: %s' % best_params)
     # This is a refit operation, notify TensorBoard to replace the previous run's logging data:
@@ -678,7 +689,7 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['GoingDeeper'])
+    main(run_configs['BOON'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
