@@ -507,13 +507,22 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_val_samples, n_splits=1)
     ''' New Custom Grid Search with Save and Restore Code '''
     grid_search = GridSearchCVSaveRestore(
-        estimator=tfh_classifier, param_grid=params, cv=custom_cv_splitter,
+        estimator=tfh_classifier, param_grid=params, cv_results_save_freq=1, cv=custom_cv_splitter,
         verbose=2, refit=False, return_train_score=False, error_score='raise', scoring=None
     )
     tf.logging.info(msg='Instantiated GridSearch.')
     X = np.concatenate((train_bottlenecks, val_bottlenecks))
     y = np.concatenate((train_ground_truth_indices, val_ground_truth_indices))
-
+    grid_search.fit(
+        X=X,
+        y=y,
+        X_valid=val_bottlenecks,
+        y_valid=val_ground_truth_indices,
+        n_epochs=num_epochs,
+        eval_freq=eval_freq,
+        ckpt_freq=ckpt_freq,
+        early_stopping_eval_freq=early_stopping_eval_freq
+    )
     ''' Legacy Sklearn as driver code: '''
     # grid_search = GridSearchCV(tfh_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, return_train_score=False)
     # tf.logging.info(msg='Running GridSearch...')
