@@ -310,9 +310,15 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         #  Search all candidates in param_grid:
         #         evaluate_candidates(ParameterGrid(self.param_grid))
         param_grid = ParameterGrid(self.param_grid)
-        for param_set in param_grid:
-            param_set_results = evaluate_candidate(param_set)
-            param_set_score = param_set_results['mean_test_score']
+
+        # NOTE: this method is currently being called by fit with only a single candidate, hence the looping structure
+        #   is not only irrelevant, but potentially incorrect/dangerous in the presence of parallelism.
+
+        # for param_set in param_grid:
+        #     param_set_results = evaluate_candidate(param_set)
+        #     param_set_score = param_set_results['mean_test_score']
+        all_results = evaluate_candidate(param_grid)
+
         raise NotImplementedError('_run_search not implemented in subclass. Awaiting de-parallelization of evaluate_candidates.')
 
 # class GridSearchCVSaveRestore:
