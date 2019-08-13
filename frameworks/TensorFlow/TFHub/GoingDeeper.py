@@ -437,6 +437,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         16 Comes from the paper: Going Deeper in the Automated Identification of Herbarium Specimens
         20 and 60 come from the paper: Plant Identification Using Deep Neural Networks with Hyperparameter Optimization via Transfer Learning
     """
+    cv_results_save_loc = os.path.join(log_dir, 'gs')
     if dataset == 'SERNEC':
         params = {
             'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
@@ -459,15 +460,16 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
             'train_batch_size': [20, 60, 100, 1000]
         }
-        num_epochs = 100000  # 100,000
-        eval_freq = 10
-        early_stopping_eval_freq = 5
-        ckpt_freq = 0
-        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
-        # num_epochs = 2
-        # eval_freq = 1
-        # early_stopping_eval_freq = 1
+        # num_epochs = 100000  # 100,000
+        # eval_freq = 10
+        # early_stopping_eval_freq = 5
         # ckpt_freq = 0
+        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
+        tf.logging.warning(msg='WARNING: DEBUG SETTINGS CURRENTLY IN EFFECT')
+        num_epochs = 3
+        eval_freq = 1
+        early_stopping_eval_freq = 1
+        ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'BOON':
         params = {
@@ -476,9 +478,15 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
             'train_batch_size': [20, 60, 100, 1000]
         }
-        num_epochs = 100000  # 100,000
-        eval_freq = 10
-        early_stopping_eval_freq = 5
+        # num_epochs = 100000  # 100,000
+        # eval_freq = 10
+        # early_stopping_eval_freq = 5
+        # ckpt_freq = 0
+        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
+        tf.logging.warning(msg='WARNING: DEBUG SETTINGS CURRENTLY IN EFFECT')
+        num_epochs = 3
+        eval_freq = 1
+        early_stopping_eval_freq = 1
         ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'DEBUG':
@@ -507,8 +515,8 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     custom_cv_splitter = CrossValidationSplitter(train_size=num_train_samples, test_size=num_val_samples, n_splits=1)
     ''' New Custom Grid Search with Save and Restore Code '''
     grid_search = GridSearchCVSaveRestore(
-        estimator=tfh_classifier, param_grid=params, cv_results_save_freq=1, cv=custom_cv_splitter,
-        verbose=2, refit=False, return_train_score=False, error_score='raise', scoring=None
+        estimator=tfh_classifier, param_grid=params, cv_results_save_freq=1, cv_results_save_loc=cv_results_save_loc,
+        cv=custom_cv_splitter, verbose=2, refit=False, return_train_score=False, error_score='raise', scoring=None
     )
     tf.logging.info(msg='Instantiated GridSearch.')
     X = np.concatenate((train_bottlenecks, val_bottlenecks))
@@ -521,7 +529,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         n_epochs=num_epochs,
         eval_freq=eval_freq,
         ckpt_freq=ckpt_freq,
-        early_stopping_eval_freq=early_stopping_eval_freq
+        early_stop_eval_freq=early_stopping_eval_freq
     )
     ''' Legacy Sklearn as driver code: '''
     # grid_search = GridSearchCV(tfh_classifier, params, cv=custom_cv_splitter, verbose=2, refit=False, return_train_score=False)

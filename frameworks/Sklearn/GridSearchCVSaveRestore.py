@@ -7,6 +7,8 @@ Similar to the Sklearn native grid search, but is capable of being interrupted a
     * https://scikit-learn.org/stable/modules/grid_search.html#grid-search
 """
 import logging
+import warnings
+import pickle
 import numpy as np
 from collections.abc import Mapping, Sequence, Iterable
 from functools import partial, reduce
@@ -19,8 +21,12 @@ from sklearn.model_selection import GridSearchCV, ShuffleSplit
 from sklearn.model_selection._split import check_cv
 from sklearn.model_selection._validation import _fit_and_score
 from sklearn.utils.validation import indexable
+from sklearn.utils.fixes import MaskedArray
 from sklearn.metrics.scorer import _check_multimetric_scoring, check_scoring
 from sklearn.utils._joblib import Parallel, delayed
+from scipy.stats import rankdata
+from collections import defaultdict
+import Lib.copy
 
 
 class CrossValidationSplitter(ShuffleSplit):
@@ -166,13 +172,15 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         * https://github.com/scikit-learn/scikit-learn/blob/1495f69242646d239d89a5713982946b8ffcf9d9/sklearn/model_selection/_search.py#L829
     """
 
-    def __init__(self, estimator, param_grid, cv_results_save_freq, scoring=None, n_jobs=None, iid='warn', refit=True, cv='warn',
+    def __init__(self, estimator, param_grid, cv_results_save_freq, cv_results_save_loc, scoring=None, n_jobs=None, iid='warn', refit=True, cv='warn',
                  verbose=0, pre_dispatch='2*n_jobs', error_score='raise-deprecating', return_train_score=False):
         """
         __init__: Initialization method for objects of type GridSearchCVSaveRestore.
         :param estimator:
         :param param_grid:
-        :param cv_results_save_freq: How frequently (in terms of trained models) the GridSearch's c
+        :param cv_results_save_freq: How frequently (in terms of trained models) the GridSearch's cv_results dict should
+            be serialized and saved to disk.
+        :param cv_results_save_loc: The file location for the saved cv_results.
         :param scoring:
         :param n_jobs:
         :param iid:
@@ -187,11 +195,13 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         super().__init__(estimator=estimator, scoring=scoring, n_jobs=n_jobs, iid=iid,
                          refit=refit, cv=cv, verbose=verbose, pre_dispatch=pre_dispatch, error_score=error_score,
                          return_train_score=return_train_score)
+        
         self.param_grid = param_grid
         _check_param_grid(param_grid=param_grid)
 
         ''' My Modifications to Class Attributes '''
         self.cv_results_save_freq = cv_results_save_freq
+        self.cv_results_save_loc = cv_results_save_loc
 
     def fit(self, X, y=None, groups=None, **fit_params):
         """
@@ -228,58 +238,126 @@ class GridSearchCVSaveRestore(BaseSearchCV):
 
         base_estimator = clone(self.estimator)
 
-        parallel = Parallel(n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch)
+        # parallel = Parallel(n_jobs=self.n_jobs, verbose=self.verbose, pre_dispatch=self.pre_dispatch)
 
         fit_and_score_kwargs = dict(scorer=scorers, fit_params=fit_params, return_train_score=self.return_train_score,
                                     return_n_test_samples=True, return_times=True, return_parameters=False,
                                     error_score=self.error_score, verbose=self.verbose)
 
-        results = {}
-        with parallel:
-            all_candidate_params = []
-            all_out = []
+        results = []
+        all_candidate_params = []
+        all_out = []
 
-            def evaluate_candidate(candidate_param):
-                """
-                evaluate_candidate: Similar to sklearn's evaluate_candidates method (see below) but only evaluates a single
-                    candidate. This is done in order to control the saving of the Grid Search's cv_results dictionary.
-                :param candidate_param:
-                :return:
-                """
-                n_candidates = 1
+        # def evaluate_candidate(candidate_param):
+        #     """
+        #     evaluate_candidate: Similar to sklearn's evaluate_candidates method (see below) but only evaluates a single
+        #         candidate. This is done in order to control the saving of the Grid Search's cv_results dictionary.
+        #     :param candidate_param:
+        #     :return:
+        #     """
+        #     n_candidates = 1
+        #
+        #     if self.verbose > 0:
+        #         print("Fitting {0} folds for each of {1} candidates, totalling {2} fits".format(
+        #                           n_splits, n_candidates, n_candidates * n_splits))
+        #
+        #     # out = parallel(delayed(_fit_and_score)(clone(base_estimator),
+        #     #                                        X, y, train=train, test=test, parameters=parameters, **fit_and_score_kwargs)
+        #     #                for parameters, (train, test) in product(candidate_param, cv.split(X, y, groups)))
+        #
+        #     print('list(cv.split(X, y, groups)): %s' % list(cv.split(X, y, groups)))
+        #     print('candidate_param: %s' % candidate_param)
+        #     print('list(product(candidate_param, cv.split(X, y, groups))): %s' % list(product(candidate_param, cv.split(X, y, groups))))
+        #     # print(_fit_and_score(clone(base_estimator), X, y, ))
+        #
+        #     parameters, (train, test) = product(candidate_param, cv.split(X, y, groups))
+        #     out = None
+        #
+        #     # A bit of syntactical sugar here with unrolling the Parallel call, see: https://stackoverflow.com/a/51934579/3429090
+        #     # delayed(_fit_and_score)(clone(base_estimator), X, y, train=train, test=test, parameters=parameters, **fit_and_score_kwargs) for parameters, (train, test) in product(candidate_param, cv.split(X, y, groups))
+        #     # _fit_and_score(base_estimator, X, y, )
+        #
+        #     if len(out) < 1:
+        #         raise ValueError('No fits were performed. '
+        #                          'Was the CV iterator empty? '
+        #                          'Were there no candidates?')
+        #     elif len(out) != n_candidates * n_splits:
+        #         raise ValueError('cv.split and cv.get_n_splits returned '
+        #                          'inconsistent results. Expected {} '
+        #                          'splits, got {}'
+        #                          .format(n_splits,
+        #                                  len(out) // n_candidates))
+        #
+        #     all_candidate_params.extend(candidate_param)
+        #     all_out.extend(out)
+        #
+        #     results = self._format_results(
+        #         all_candidate_params, scorers, n_splits, all_out)
+        #     logging.warning('evaluate_candidate not finished being implemented.')
+        #     return results
+        #
+        #     # raise NotImplementedError('evaluate_candidate not finished being implemented.')
 
-                if self.verbose > 0:
-                    print("Fitting {0} folds for each of {1} candidates, totalling {2} fits".format(
-                                      n_splits, n_candidates, n_candidates * n_splits))
+        def evaluate_candidates(candidate_params):
+            candidate_params = list(candidate_params)
+            n_candidates = len(candidate_params)
 
-                out = parallel(delayed(_fit_and_score)(clone(base_estimator),
-                                                       X, y, train=train, test=test, parameters=parameters, **fit_and_score_kwargs)
-                               for parameters, (train, test) in product(candidate_param, cv.split(X, y, groups)))
+            if self.verbose > 0:
+                print("Fitting {0} folds for each of {1} candidates, totalling {2} fits".format(
+                              n_splits, n_candidates, n_candidates * n_splits))
 
-                if len(out) < 1:
-                    raise ValueError('No fits were performed. '
-                                     'Was the CV iterator empty? '
-                                     'Were there no candidates?')
-                elif len(out) != n_candidates * n_splits:
-                    raise ValueError('cv.split and cv.get_n_splits returned '
-                                     'inconsistent results. Expected {} '
-                                     'splits, got {}'
-                                     .format(n_splits,
-                                             len(out) // n_candidates))
+            # print('list(cv.split(X, y, groups)): %s' % list(cv.split(X, y, groups)))
+            # print('list(product(candidate_params, cv.split(X, y, groups))): %s' % list(product(candidate_params, cv.split(X, y, groups))))
 
-                all_candidate_params.extend(candidate_param)
+            fold_num = 0
+            for parameters, (train, test) in product(candidate_params, cv.split(X, y, groups)):
+                print('product index/fold number: %d' % fold_num)
+                print('\tparams: %s' % parameters)
+                print('\ttrain: %s' % train)
+                print('\ttest: %s' % test)
+                out = _fit_and_score(estimator=clone(base_estimator), X=X, y=y, train=train, test=test, parameters=parameters, **fit_and_score_kwargs)
+                print('\tout: %s' % out)
+
+                all_candidate_params.extend(candidate_params)
                 all_out.extend(out)
-
+                # nonlocal keyword is exactly what it sounds like, uses the outer function scope: w3schools.com/python/ref_keyword_nonlocal.asp
                 nonlocal results
-                results = self._format_results(
-                    all_candidate_params, scorers, n_splits, all_out)
-                logging.warning('evaluate_candidate not finished being implemented.')
-                return results
+                # results = self._format_results(all_candidate_params, scorers, n_splits, all_out)
+                result = self._format_result(candidate_param=parameters, scorer=scorers, n_splits=n_splits, out=out)
+                results.append(result)
+                # Just finished training a model, should cv_results be saved?
+                if fold_num % self.cv_results_save_freq == 0:
+                    self._save_cv_results(cv_results=results)
+                fold_num += 1
+            return results
 
-                # raise NotImplementedError('evaluate_candidate not finished being implemented.')
-            self._run_search(evaluate_candidate)
+        self._run_search(evaluate_candidates)
 
-    def _run_search(self, evaluate_candidate):
+    def _save_cv_results(self, cv_results):
+        # Convert functions to their names for serialization:
+        serialized_cv_results = cv_results.__repr__()
+        with open(self.cv_results_save_loc + '\\cv_results.pkl', 'wb') as fp:
+            pickle.dump(serialized_cv_results, fp)
+
+        # cv_results_serializable = Lib.copy.deepcopy(cv_results)
+        # for model_i, model in enumerate(cv_results):
+        #     for model_param_key, model_param_value in cv_results[model_i]['params'].items():
+        #         if not isinstance(model_param_value, int):
+        #             try:
+        #                 cv_results[model_i]['params'][model_param_key] = model_param_value._tf_api_names[0]
+        #             except IndexError as err:
+        #                 # There is no tf_api_name for this method, try the v1 name;
+        #                 try:
+        #                     cv_results[model_i]['params'][model_param_key] = model_param_value._tf_api_names_v1[0]
+        #                 except IndexError as err:
+        #                     cv_results[model_i]['params'][model_param_key] = 'UNKNOWN'
+        #                     warnings.warn('WARNING: Cannot serialize a method without a tensorflow api name (v0 or v1)! Defaulting parameter name to: \'UNKNOWN\'')
+        #         else:
+        #             pass
+        logging.info('Saved pickled cv_results to: \'%s\\cv_results.pkl\'' % self.cv_results_save_loc)
+        return
+
+    def _run_search(self, evaluate_candidates):
         """
         Repeatedly calls `evaluate_candidates` to conduct a search. This method, implemented in sub-classes (i.e. this
         class), makes it possible to customize the the scheduling of evaluations: GridSearchCV and RandomizedSearchCV
@@ -318,9 +396,130 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         # for param_set in param_grid:
         #     param_set_results = evaluate_candidate(param_set)
         #     param_set_score = param_set_results['mean_test_score']
-        all_results = evaluate_candidate(param_grid)
+        # all_results = evaluate_candidate(param_grid)
+        all_results = evaluate_candidates(param_grid)
 
         raise NotImplementedError('_run_search not implemented in subclass. Awaiting de-parallelization of evaluate_candidates.')
+
+    def _format_result(self, candidate_param, scorer, n_splits, out):
+        """
+        format_result: Similar to sklearn's _format_results method (see below) with the primary difference being that
+            this method formats a single result for the purposes of serialization during save-and-restore functionality
+            of a sequential based grid search.
+        :source sklearn: https://github.com/scikit-learn/scikit-learn/blob/1495f69242646d239d89a5713982946b8ffcf9d9/sklearn/model_selection/_search.py#L729
+        :param candidate_param: The parameters associated with this particular candidate model.
+        :param scorer: The method used on the held out data to choose the best parameters for the model.
+        :param n_splits: The number of cross-validation splits (folds/iterations).
+        :param out: The output metrics calculated from the call to _fit_and_score(), note that this includes the score
+            as determined by the scorer function. Also includes fit time in seconds.
+        :return:
+        """
+        n_candidates = 1    # Use _format_results method instead, if this is not the case.
+
+        # if one choose to see train score, "out" will contain train score info
+        if self.return_train_score:
+            train_score_dict = out[0]
+            test_score_dict = out[1]
+            test_sample_count = out[2]
+            fit_time_in_sec = out[3]
+            score_time_in_sec = out[4]
+        else:
+            test_score_dict = out[0]
+            test_sample_count = out[1]
+            fit_time_in_sec = out[2]
+            score_time_in_sec = out[3]
+
+        # test_score_dicts and train_score dicts are lists of dictionaries and
+        # we make them into dict of lists
+        # test_scores = _aggregate_score_dicts(test_score_dicts)
+        # if self.return_train_score:
+        #     train_scores = _aggregate_score_dicts(train_score_dicts)
+
+        result = {
+            'test_score': test_score_dict['score'],
+            'test_sample_count': test_sample_count,
+            'fit_time_in_sec': fit_time_in_sec,
+            'score_time_in_sec': score_time_in_sec,
+            'params': candidate_param
+        }
+
+        # results = {}
+        #
+        # def _store(key_name, array, weights=None, splits=False, rank=False):
+        #     """A small helper to store the scores/times to the cv_results_"""
+        #     # When iterated first by splits, then by parameters
+        #     # We want `array` to have `n_candidates` rows and `n_splits` cols.
+        #     array = np.array(array, dtype=np.float64).reshape(n_candidates, n_splits)
+        #
+        #     if splits:
+        #         for split_i in range(n_splits):
+        #             # Uses closure to alter the results
+        #             results["split%d_%s"
+        #                     % (split_i, key_name)] = array[:, split_i]
+        #
+        #     array_means = np.average(array, axis=1, weights=weights)
+        #     results['mean_%s' % key_name] = array_means
+        #     # Weighted std is not directly available in numpy
+        #     array_stds = np.sqrt(np.average((array - array_means[:, np.newaxis]) ** 2, axis=1, weights=weights))
+        #     results['std_%s' % key_name] = array_stds
+        #
+        #     if rank:
+        #         results["rank_%s" % key_name] = np.asarray(
+        #             rankdata(-array_means, method='min'), dtype=np.int32)
+
+        # _store('fit_time', fit_time_in_sec)
+        # _store('score_time', score_time_in_sec)
+        # Use one MaskedArray and mask all the places where the param is not
+        # applicable for that candidate. Use defaultdict as each candidate may
+        # not contain all the params
+        # param_results = defaultdict(partial(MaskedArray, np.empty(n_candidates,), mask=True, dtype=object))
+        # for cand_i, params in enumerate(candidate_param):
+        #     for name, value in params.items():
+        #         # An all masked empty array gets created for the key
+        #         # `"param_%s" % name` at the first occurrence of `name`.
+        #         # Setting the value at an index also unmasks that index
+        #         param_results["param_%s" % name][cand_i] = value
+        #
+        # results.update(param_results)
+        # # Store a list of param dicts at the key 'params'
+        # results['params'] = candidate_param
+        #
+        # # NOTE test_sample counts (weights) remain the same for all candidates
+        # test_sample_counts = np.array(test_sample_counts[:n_splits], dtype=np.int)
+        #
+        # iid = self.iid
+        # if self.iid == 'warn':
+        #     warn = False
+        #     for scorer_name in scorer.keys():
+        #         scores = test_score[scorer_name].reshape(n_candidates,
+        #                                                   n_splits)
+        #         means_weighted = np.average(scores, axis=1,
+        #                                     weights=test_sample_counts)
+        #         means_unweighted = np.average(scores, axis=1)
+        #         if not np.allclose(means_weighted, means_unweighted,
+        #                            rtol=1e-4, atol=1e-4):
+        #             warn = True
+        #             break
+        #
+        #     if warn:
+        #         warnings.warn("The default of the `iid` parameter will change "
+        #                       "from True to False in version 0.22 and will be"
+        #                       " removed in 0.24. This will change numeric"
+        #                       " results when test-set sizes are unequal.",
+        #                       DeprecationWarning)
+        #     iid = True
+        #
+        # for scorer_name in scorer.keys():
+        #     # Computed the (weighted) mean and std for test scores alone
+        #     _store('test_%s' % scorer_name, test_score_dict[scorer_name],
+        #            splits=True, rank=True,
+        #            weights=test_sample_counts if iid else None)
+        #     if self.return_train_score:
+        #         _store('train_%s' % scorer_name, train_score_dict[scorer_name],
+        #                splits=True)
+        #
+        # return results
+        return result
 
 # class GridSearchCVSaveRestore:
 #     """
