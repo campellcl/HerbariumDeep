@@ -11,6 +11,7 @@ import ast
 import logging
 import warnings
 import pickle
+import json
 import numpy as np
 from collections.abc import Mapping, Sequence, Iterable
 from functools import partial, reduce
@@ -338,14 +339,30 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         self._run_search(evaluate_candidates)
 
     def _save_cv_results(self, cv_results):
+        # serialized_cv_results = Lib.copy.deepcopy(cv_results)
+        # cv_results is a list of dictionaries
+        for dictionary in cv_results:
+            parameters = dictionary['params']
+            for param, method in parameters.items():
+                if not isinstance(method, int):
+                    parameters[param] = method.__repr__()
+
+
         # Convert functions to their names for serialization:
-        serialized_cv_results = cv_results.__repr__()
+        # serialized_cv_results = cv_results.__repr__()
         # Add tick marks so ast.literal_eval can read the function names upon deserialization:
-        serialized_cv_results = str.replace(serialized_cv_results, '<', '\'<')
-        serialized_cv_results = str.replace(serialized_cv_results, '>', '>\'')
-        serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.pkl')
-        with open(serialized_cv_results_path, 'wb') as fp:
-            pickle.dump(serialized_cv_results, fp)
+        # serialized_cv_results = str.replace(serialized_cv_results, '<', '\'<')
+        # serialized_cv_results = str.replace(serialized_cv_results, '>', '>\'')
+        # serialized_cv_results = str.replace(serialized_cv_results, '<', '\"<')
+        # serialized_cv_results = str.replace(serialized_cv_results, '>', '>\"')
+        # serialized_cv_results = str.replace(serialized_cv_results, '\'', '\"')
+        serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.json')
+        with open(serialized_cv_results_path, 'w') as fp:
+            json.dump(cv_results, fp)
+
+        # serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.pkl')
+        # with open(serialized_cv_results_path, 'wb') as fp:
+        #     pickle.dump(serialized_cv_results, fp)
 
         # cv_results_serializable = Lib.copy.deepcopy(cv_results)
         # for model_i, model in enumerate(cv_results):
@@ -362,7 +379,8 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         #                     warnings.warn('WARNING: Cannot serialize a method without a tensorflow api name (v0 or v1)! Defaulting parameter name to: \'UNKNOWN\'')
         #         else:
         #             pass
-        print('Saved pickled cv_results to: \'%s\'' % serialized_cv_results_path)
+        # print('Saved pickled cv_results to: \'%s\'' % serialized_cv_results_path)
+        print('Saved json serialized cv_results to: \'%s\'' % serialized_cv_results_path)
         return
 
     def _run_search(self, evaluate_candidates):
