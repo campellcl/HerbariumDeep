@@ -437,7 +437,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         16 Comes from the paper: Going Deeper in the Automated Identification of Herbarium Specimens
         20 and 60 come from the paper: Plant Identification Using Deep Neural Networks with Hyperparameter Optimization via Transfer Learning
     """
-    cv_results_save_loc = os.path.join(log_dir, 'gs')
+    cv_results_save_loc = 'C:\\cv_results\\'
     if dataset == 'SERNEC':
         params = {
             'initializer': [initializers['he_normal'], initializers['he_uniform'], initializers['truncated_normal']],
