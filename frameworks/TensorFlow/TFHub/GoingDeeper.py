@@ -553,11 +553,11 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     best_params['refit'] = True
     # Replace the current model parameters with the best combination from the GridSearch:
     current_params = tfh_classifier.get_params()
-    tf.logging.info(msg='Serializing Grid Search CV results to: %s' % os.path.join(log_dir, 'gs_results.pkl'))
-    gs_results = grid_search.cv_results_
-    df_gs_results = pd.DataFrame.from_dict(gs_results)
-    gs_results_path = os.path.join(log_dir, 'gs_results.csv')
-    df_gs_results.to_csv(gs_results_path)
+    # tf.logging.info(msg='Serializing Grid Search CV results to: %s' % os.path.join(log_dir, 'gs_results.pkl'))
+    # gs_results = grid_search.cv_results_
+    # df_gs_results = pd.DataFrame.from_dict(gs_results)
+    # gs_results_path = os.path.join(log_dir, 'gs_results.csv')
+    # df_gs_results.to_csv(gs_results_path)
     # print(df_gs_results.head())
     current_params.update(best_params)
     tfh_classifier.set_params(**current_params)
