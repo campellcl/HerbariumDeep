@@ -11,6 +11,8 @@ import ast
 import logging
 import warnings
 import pickle
+import time
+import types
 import json
 import numpy as np
 from collections.abc import Mapping, Sequence, Iterable
@@ -206,6 +208,7 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         ''' My Modifications to Class Attributes '''
         self.cv_results_save_freq = cv_results_save_freq
         self.cv_results_save_loc = cv_results_save_loc
+        self.cv_results = []
 
     def fit(self, X, y=None, groups=None, **fit_params):
         """
@@ -308,7 +311,7 @@ class GridSearchCVSaveRestore(BaseSearchCV):
             n_candidates = len(candidate_params)
 
             if self.verbose > 0:
-                print("Fitting {0} folds for each of {1} candidates, totalling {2} fits".format(
+                print("Fitting {0} folds for each of {1} remaining candidates, totalling {2} fits".format(
                               n_splits, n_candidates, n_candidates * n_splits))
 
             # print('list(cv.split(X, y, groups)): %s' % list(cv.split(X, y, groups)))
@@ -330,56 +333,68 @@ class GridSearchCVSaveRestore(BaseSearchCV):
                 # results = self._format_results(all_candidate_params, scorers, n_splits, all_out)
                 result = self._format_result(candidate_param=parameters, scorer=scorers, n_splits=n_splits, out=out)
                 results.append(result)
+                self.cv_results.append(result)
                 # Just finished training a model, should cv_results be saved?
                 if fold_num % self.cv_results_save_freq == 0:
-                    self._save_cv_results(cv_results=results)
+                    self._save_cv_results()
                 fold_num += 1
-            return results
+            return self.cv_results
 
         self._run_search(evaluate_candidates)
 
-    def _save_cv_results(self, cv_results):
+        if self.refit or not self.multimetric_:
+            if callable(self.refit):
+                self.best_index_ = self.refit(results)
+                if not isinstance(self.best_index_, (int, np.integer)):
+                    raise TypeError('best_index_ returned is not an integer')
+                if (self.best_index_ < 0 or self.best_index_ >= len(self.cv_results)):
+                    raise IndexError('best_index_ index out of range')
+            else:
+                self.best_index_ = 0
+                self.best_score_ = self.cv_results[0]['test_score']
+                for i, cv_result in enumerate(self.cv_results):
+                    if cv_result['test_score'] >= self.best_score_:
+                        self.best_index_ = i
+                        self.best_score_ = cv_result['test_score']
+            self.best_params_ = self.cv_results[self.best_index_]['params']
+
+        if self.refit:
+            self.best_estimator_ = clone(base_estimator).set_params(**self.best_params_)
+            refit_start_time = time.time()
+            if y is not None:
+                self.best_estimator_.fit(X, y, **fit_params)
+            else:
+                self.best_estimator_.fit(X, **fit_params)
+            refit_end_time = time.time()
+            self.refit_time_ = refit_end_time - refit_start_time
+
+        # Store the only scorer not as a dict for single metric evaluation
+        self.scorer_ = scorers if self.multimetric_ else scorers['score']
+        self.n_splits_ = n_splits
+        return self
+
+    def _save_cv_results(self):
         # serialized_cv_results = Lib.copy.deepcopy(cv_results)
-        # cv_results is a list of dictionaries
-        for dictionary in cv_results:
+        # NOTE: self.cv_results should already be updated with the serialized file by now.
+
+        # Replace all the functions in the dictionary with a string representation of the function for serialization:
+        for dictionary in self.cv_results:
             parameters = dictionary['params']
             for param, method in parameters.items():
                 if not isinstance(method, int):
-                    parameters[param] = method.__repr__()
+                    if not isinstance(method, str):
+                        if isinstance(method, types.ClassType):
+                            parameters[param] = str(method)
+                        else:
+                            parameters[param] = method.__repr__()
 
+        # Extend the list of imported cv_results with the newly computed cv_results:
+        # self.cv_results.extend(new_cv_results)
 
-        # Convert functions to their names for serialization:
-        # serialized_cv_results = cv_results.__repr__()
-        # Add tick marks so ast.literal_eval can read the function names upon deserialization:
-        # serialized_cv_results = str.replace(serialized_cv_results, '<', '\'<')
-        # serialized_cv_results = str.replace(serialized_cv_results, '>', '>\'')
-        # serialized_cv_results = str.replace(serialized_cv_results, '<', '\"<')
-        # serialized_cv_results = str.replace(serialized_cv_results, '>', '>\"')
-        # serialized_cv_results = str.replace(serialized_cv_results, '\'', '\"')
         serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.json')
         with open(serialized_cv_results_path, 'w') as fp:
-            json.dump(cv_results, fp)
+            json.dump(self.cv_results, fp)
 
-        # serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.pkl')
-        # with open(serialized_cv_results_path, 'wb') as fp:
-        #     pickle.dump(serialized_cv_results, fp)
-
-        # cv_results_serializable = Lib.copy.deepcopy(cv_results)
-        # for model_i, model in enumerate(cv_results):
-        #     for model_param_key, model_param_value in cv_results[model_i]['params'].items():
-        #         if not isinstance(model_param_value, int):
-        #             try:
-        #                 cv_results[model_i]['params'][model_param_key] = model_param_value._tf_api_names[0]
-        #             except IndexError as err:
-        #                 # There is no tf_api_name for this method, try the v1 name;
-        #                 try:
-        #                     cv_results[model_i]['params'][model_param_key] = model_param_value._tf_api_names_v1[0]
-        #                 except IndexError as err:
-        #                     cv_results[model_i]['params'][model_param_key] = 'UNKNOWN'
-        #                     warnings.warn('WARNING: Cannot serialize a method without a tensorflow api name (v0 or v1)! Defaulting parameter name to: \'UNKNOWN\'')
-        #         else:
-        #             pass
-        # print('Saved pickled cv_results to: \'%s\'' % serialized_cv_results_path)
         print('Saved json serialized cv_results to: \'%s\'' % serialized_cv_results_path)
         return
 
@@ -409,60 +424,69 @@ class GridSearchCVSaveRestore(BaseSearchCV):
                 if score[0] < score[1]:
                     evaluate_candidates([{'C': 0.1}])
         """
-        # TODO: Looks like this is intended to operate in parallel as evaluate_candidates returns all evaluations. Need to
-        #   create a custom evaluate candidate function.
-
-        #  Search all candidates in param_grid:
-        #         evaluate_candidates(ParameterGrid(self.param_grid))
         param_grid = ParameterGrid(self.param_grid)
 
-        # Was this grid search previously interrupted? If so, restore from the serialized version:
-        serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.pkl')
+        ''' Was this grid search previously interrupted? If so, restore from the serialized version: '''
+        serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.json')
         serialized_cv_results = None
+
         if os.path.isfile(serialized_cv_results_path):
-            with open(serialized_cv_results_path, 'rb') as fp:
-                serialized_cv_results = pickle.load(fp)
+            with open(serialized_cv_results_path, 'r') as fp:
+                serialized_cv_results = json.load(fp)
+            self.cv_results = serialized_cv_results
         else:
+            # Grid Search not previously interrupted, attempt to compute entire grid search and periodically save results:
             all_results = evaluate_candidates(param_grid)
+            self.cv_results = all_results
             return
 
-        # Modify the parameter grid to exclude already completed grid searches:
+        ''' Modify the parameter grid to exclude the already completed grid searches: '''
         param_grid_list = list(param_grid)
-        serialized_cv_results_list = ast.literal_eval(serialized_cv_results)
+        serialized_cv_results_list = serialized_cv_results
 
         param_grid_list_indices_of_already_computed_params = []
+        already_computed_cv_results = []
 
-        for i, previously_computed_params in enumerate(serialized_cv_results_list):
+        for i, previously_computed_params in enumerate(self.cv_results):
             for j, param_grid_params in enumerate(param_grid_list):
                 activation_func = param_grid_params['activation'].__repr__()
                 activation_func = activation_func.split('at')[0].strip(' ')
                 previously_computed_activation_func = previously_computed_params['params']['activation'].split('at')[0].strip(' ')
+                previously_computed_activation_func = previously_computed_activation_func.replace('\'', '')
 
                 initializer_func = param_grid_params['initializer']
-                try:
-                    initializer_func = param_grid_params['initializer'].__repr__()
-                    initializer_func = initializer_func.split('at')[0].strip(' ')
-                    previously_computed_initializer_func = previously_computed_params['params']['initializer'].split('at')[0].strip(' ')
-                except TypeError as err:
-                    # <class 'tensorflow.python.ops.init_ops.TruncatedNormal'> is already in repr form:
-                    previously_computed_initializer_func = previously_computed_params['params']['initializer']
+                if isinstance(initializer_func, types.ClassType):
+                    # Type <class 'tensorflow.python.ops.init_ops.TruncatedNormal'>
+                    initializer_func = str(initializer_func)
+                else:
+                    initializer_func = initializer_func.__repr__()
+                    try:
+                        initializer_func = initializer_func.split('at')[0].strip(' ')
+                    except TypeError as err:
+                        # <class 'tensorflow.python.ops.init_ops.TruncatedNormal'> is already in repr form:
+                        pass
 
-                # if isinstance(initializer_func, function):
-                #     initializer_func = param_grid_params['initializer'].__repr__()
-                #     initializer_func = initializer_func.split('at')[0].strip(' ')
-                #     previously_computed_initializer_func = previously_computed_params['params']['initializer'].split('at')[0].strip(' ')
-                # else:
-                #     previously_computed_initializer_func = previously_computed_params['params']['initializer']
-
-                # try:
-                #     initializer_func = param_grid_params['initializer'].__repr__()
-                # except TypeError as err:
-                #     print(err)
-                #     print(param_grid_params['initializer'])
+                previously_computed_initializer_func = previously_computed_params['params']['initializer']
+                if isinstance(previously_computed_initializer_func, types.ClassType):
+                    print('yay')
+                    pass
+                elif isinstance(previously_computed_initializer_func, str):
+                    if 'TruncatedNormal' in previously_computed_initializer_func:
+                        pass
+                    else:
+                        previously_computed_initializer_func = previously_computed_initializer_func.split('at')[0].strip(' ')
+                else:
+                    try:
+                        previously_computed_initializer_func = previously_computed_initializer_func.split('at')[0].strip(' ')
+                        # previously_computed_initializer_func = previously_computed_initializer_func.replace('\'', '')
+                    except TypeError as err:
+                        # <class 'tensorflow.python.ops.init_ops.TruncatedNormal'> is already in repr form:
+                        pass
 
                 optimizer_func = param_grid_params['optimizer'].__repr__()
                 optimizer_func = optimizer_func.split('at')[0].strip(' ')
                 previously_computed_optimizer_func = previously_computed_params['params']['optimizer'].split('at')[0].strip(' ')
+                previously_computed_optimizer_func = previously_computed_optimizer_func.replace('\'', '')
 
                 train_batch_size = param_grid_params['train_batch_size']
                 previously_computed_train_batch_size = previously_computed_params['params']['train_batch_size']
@@ -472,51 +496,22 @@ class GridSearchCVSaveRestore(BaseSearchCV):
                         if optimizer_func == previously_computed_optimizer_func:
                             if train_batch_size == previously_computed_train_batch_size:
                                 param_grid_list_indices_of_already_computed_params.append(i)
+                                print('Already computed parameters: %s' % previously_computed_params['params'])
 
         param_grid_list_indices_of_already_computed_params = np.unique(param_grid_list_indices_of_already_computed_params)
-        print('Detected %d/%d already trained models from the grid search which will be excluded.'
+        print('Detected %d/%d models already fit/trained during a prior grid search. These parameters will be excluded.'
               % (len(param_grid_list_indices_of_already_computed_params), len(param_grid_list)))
-        for list_index in param_grid_list_indices_of_already_computed_params:
-            param_grid_list.pop(list_index)
+
+        assert len(param_grid_list_indices_of_already_computed_params) == len(self.cv_results)
+
+        # Update the existing parameter grid by removing the parameters that have already been precomputed:
+        for list_index in sorted(param_grid_list_indices_of_already_computed_params, reverse=True):
+            # param_grid_list.pop(list_index)
+            del param_grid_list[list_index]
+
         # Now restore the cv_results dictionary for sklearn's internal comparisons:
         remaining_results = evaluate_candidates(param_grid_list)
-        # TODO: insert the previously computed results alongside remaining results
-        print('woah.')
-        # TODO: insert relevant information into cv_results so sklearn will utilize serialized info for comparison.
-        raise NotImplementedError('Need to remove indices from param grid!')
-
-        # for i, param_set in enumerate(param_grid_list):
-        #     activation_func = param_set['activation'].__repr__()
-        #     activation_func = activation_func.split('at')[0].strip(' ')
-        #     previously_computed_activation_func = serialized_cv_results_list[i]['params']['activation'].split('at')[0].strip(' ')
-        #
-        #     initializer_func = param_set['initializer'].__repr__()
-        #     initializer_func = initializer_func.split('at')[0].strip(' ')
-        #     previously_computed_initializer_func = serialized_cv_results_list[i]['params']['initializer'].split('at')[0].strip(' ')
-        #
-        #     optimizer_func = param_set['optimizer'].__repr__()
-        #     optimizer_func = optimizer_func.split('at')[0].strip(' ')
-        #     previously_computed_optimizer_func = serialized_cv_results_list[i]['params']['optimizer'].split('at')[0].strip(' ')
-        #
-        #     train_batch_size = param_set['params']['train_batch_size']
-        #     previously_computed_train_batch_size = serialized_cv_results_list[i]['params']['train_batch_size']
-        #
-        #     if activation_func == previously_computed_activation_func:
-        #         if initializer_func == previously_computed_initializer_func:
-        #             if optimizer_func == previously_computed_optimizer_func:
-        #                 if train_batch_size == previously_computed_train_batch_size:
-        #                     indices_of_already_computed_params.append(i)
-
-        # NOTE: this method is currently being called by fit with only a single candidate, hence the looping structure
-        #   is not only irrelevant, but potentially incorrect/dangerous in the presence of parallelism.
-
-        # for param_set in param_grid:
-        #     param_set_results = evaluate_candidate(param_set)
-        #     param_set_score = param_set_results['mean_test_score']
-        # all_results = evaluate_candidate(param_grid)
-        all_results = evaluate_candidates(param_grid)
-
-        raise NotImplementedError('_run_search not implemented in subclass. Awaiting de-parallelization of evaluate_candidates.')
+        return
 
     def _format_result(self, candidate_param, scorer, n_splits, out):
         """
