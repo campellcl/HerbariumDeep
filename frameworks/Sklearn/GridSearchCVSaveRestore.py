@@ -375,22 +375,27 @@ class GridSearchCVSaveRestore(BaseSearchCV):
 
     def _save_cv_results(self):
         # serialized_cv_results = Lib.copy.deepcopy(cv_results)
-        # NOTE: self.cv_results should already be updated with the serialized file by now.
+        # NOTE: self.cv_results should already be updated with the serialized file prior to this function's invocation.
 
         # Replace all the functions in the dictionary with a string representation of the function for serialization:
         for dictionary in self.cv_results:
             parameters = dictionary['params']
             for param, method in parameters.items():
                 if not isinstance(method, int):
+                    # If this is an integer, we don't need to convert to a string __repr__.
                     if not isinstance(method, str):
+                        # If we are simply re-serializing a function that has already had __repr__ called, there is no
+                        #   need to call __repr__ again (or we get double quotes messing up string equality checks).
                         if isinstance(method, types.ClassType):
+                            # If this is one of the weird parameters that is actually a class instead of a function,
+                            #   e.g. TruncatedNormal initializer, then the class can't be called with initializer.__repr__()
+                            #   without arguments. So just use the string representation of the method.
                             parameters[param] = str(method)
                         else:
+                            # This is not one of the weird parameters that is a class, so just call the __repr__ method
+                            #   of the associated function.
                             parameters[param] = method.__repr__()
-
-        # Extend the list of imported cv_results with the newly computed cv_results:
-        # self.cv_results.extend(new_cv_results)
-
+        # Dump the serialized method names to the folder for restoration if the search crashes.
         serialized_cv_results_path = os.path.join(self.cv_results_save_loc, 'cv_results.json')
         with open(serialized_cv_results_path, 'w') as fp:
             json.dump(self.cv_results, fp)
