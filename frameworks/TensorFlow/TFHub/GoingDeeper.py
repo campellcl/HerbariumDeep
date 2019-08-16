@@ -18,6 +18,7 @@ from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 from frameworks.Sklearn.GridSearchCVSaveRestore import GridSearchCVSaveRestore
 import pandas as pd
 import numpy as np
+from Lib.copy import copy, deepcopy
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 
@@ -428,6 +429,61 @@ def get_optimizer_options(static_learning_rate, momentum_const=None, adam_beta1=
     return optimizer_options
 
 
+def _deserialize_best_gs_params(serialized_gs_params, gs_deserialized_init_params):
+    """
+    _deserialize_best_gs_params: Converts the string names of the serialized methods back into executable functions for use
+        during refit operations once the initial grid search has been completed.
+    :param serialized_gs_params: The serialized grid search parameters which contain string representations of methods.
+    :return:
+    """
+    deserialized_params = {}
+    serialized_initializer = serialized_gs_params['initializer']
+    if 'VarianceScaling' in serialized_initializer:
+        if 'truncated_normal' in serialized_initializer:
+            deserialized_params['initializer'] = gs_deserialized_init_params['initializer'][0]
+        elif 'uniform' in serialized_initializer:
+            deserialized_params['initializer'] = gs_deserialized_init_params['initializer'][1]
+        else:
+            tf.logging.error(msg='CRITICAL ERROR: Failed to deserialize grid search \'initializer\' parameter. Any future refit operations WILL FAIL.')
+    elif 'TruncatedNormal' in serialized_initializer:
+        deserialized_params['initializer'] = gs_deserialized_init_params['initializer'][2]
+    else:
+        tf.logging.error(msg='CRITICAL ERROR: Failed to deserialize grid search \'initializer\' parameter. Any future refit operations WILL FAIL.')
+
+    serialized_activation = serialized_gs_params['activation']
+    if 'leaky_relu' in serialized_activation:
+        deserialized_params['activation'] = gs_deserialized_init_params['activation'][0]
+    elif 'function elu' in serialized_activation:
+        deserialized_params['activation'] = gs_deserialized_init_params['activation'][1]
+    else:
+        tf.logging.error(msg='CRITICAL ERROR: Failed to deserialize grid search \'activation\' parameter. Any future refit operations WILL FAIL.')
+
+    serialized_optimizer = serialized_gs_params['optimizer']
+    if 'MomentumOptimizer' in serialized_optimizer:
+        deserialized_params['optimizer'] = gs_deserialized_init_params['optimizer'][0]
+    elif 'AdamOptimizer' in serialized_optimizer:
+        deserialized_params['optimizer'] = gs_deserialized_init_params['optimizer'][1]
+    else:
+        tf.logging.error(msg='CRITICAL ERROR: Failed to deserialize grid search \'optimizer\' parameter. Any future refit operations WILL FAIL.')
+
+    serialized_train_batch_size = serialized_gs_params['train_batch_size']
+    deserialized_train_batch_size = False
+    for train_batch_size in gs_deserialized_init_params['train_batch_size']:
+        if train_batch_size == serialized_train_batch_size:
+            deserialized_params['train_batch_size'] = train_batch_size
+            deserialized_train_batch_size = True
+            break
+    if not deserialized_train_batch_size:
+        tf.logging.error(msg='CRITICAL ERROR: Failed to deserialize grid search \'train_batch_size\' parameter. Any future refit operations WILL FAIL.')
+
+    # Copy over any other keys from the serialized updated dictionary to the deserialized one:
+    for inherited_key in serialized_gs_params.keys():
+        if inherited_key not in deserialized_params:
+            deserialized_params[inherited_key] = deepcopy(serialized_gs_params[inherited_key])
+
+    return deserialized_params
+
+
 def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, initializers, activations, optimizers,
                      class_labels, log_dir, model_export_dir, val_bottlenecks=None, val_ground_truth_indices=None):
     num_train_samples = train_bottlenecks.shape[0]
@@ -553,13 +609,9 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     best_params['refit'] = True
     # Replace the current model parameters with the best combination from the GridSearch:
     current_params = tfh_classifier.get_params()
-    # tf.logging.info(msg='Serializing Grid Search CV results to: %s' % os.path.join(log_dir, 'gs_results.pkl'))
-    # gs_results = grid_search.cv_results_
-    # df_gs_results = pd.DataFrame.from_dict(gs_results)
-    # gs_results_path = os.path.join(log_dir, 'gs_results.csv')
-    # df_gs_results.to_csv(gs_results_path)
-    # print(df_gs_results.head())
     current_params.update(best_params)
+    # Before we assign the parameters directly to the TFHClassifier instance, we need to deserialize the methods:
+    current_params = _deserialize_best_gs_params(serialized_gs_params=current_params, gs_deserialized_init_params=params)
     tfh_classifier.set_params(**current_params)
     tf.logging.info(msg='Model hyperparmaters have been set to the highest scoring settings reported by GridSearch. '
                         'Now fitting a classifier with these hyperparameters...')
@@ -574,12 +626,13 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
         ckpt_freq=ckpt_freq,
         early_stop_eval_freq=early_stopping_eval_freq
     )
-    tf.logging.info(msg='Classifier re-fit! Model ready for inference.')
+    tf.logging.info(msg='Classifier re-fit! Model ready for inference. Refit model exported for training and inference '
+                        'to the above directories.')
     y_pred = tfh_classifier.predict(X=val_bottlenecks)
     print('Classifier accuracy_score: %.2f' % accuracy_score(val_ground_truth_indices, y_pred))
 
-    tf.logging.info(msg='Exporting re-fit model for future inference and evaluation to: %s' % model_export_dir)
-    tfh_classifier.export_model(saved_model_dir=model_export_dir, human_readable_class_labels=class_labels)
+    # tf.logging.info(msg='Exporting re-fit model for future inference and evaluation to: %s' % model_export_dir)
+    # tfh_classifier.export_model(saved_model_dir=model_export_dir, human_readable_class_labels=class_labels)
 
 
 def main(run_config):
