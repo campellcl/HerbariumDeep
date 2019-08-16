@@ -2,6 +2,8 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import accuracy_score
 import tensorflow as tf
+from tensorflow.python.saved_model import constants
+from tensorflow.python.framework import ops
 import tensorflow.contrib.slim as slim
 import tensorflow_hub as hub
 import numpy as np
@@ -584,62 +586,70 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                 outputs=outputs,
                 method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME
             )
-            train_builder.add_meta_graph_and_variables(
-                self._train_session, [tf.saved_model.tag_constants.TRAINING],
-                signature_def_map={
-                    tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: training_signatures
-                },
-                main_op=tf.tables_initializer()
-            )
+            # Does the tables initializer already exist with a saved_model_main_op?
+            if not ops.get_collection(constants.MAIN_OP_KEY):
+                train_builder.add_meta_graph_and_variables(
+                    self._train_session, [tf.saved_model.tag_constants.TRAINING],
+                    signature_def_map={
+                        tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: training_signatures
+                    },
+                    main_op=tf.tables_initializer()
+                )
+            else:
+                # TODO: This code will throw an error that a closed session was attempted to be used. Which contradicts
+                #   print(sess._closed()
+                # tables initializer somehow already exists with the save model main op...
+                train_builder.add_meta_graph_and_variables(
+                    self._train_session, [tf.saved_model.tag_constants.TRAINING],
+                    signature_def_map={
+                        tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: training_signatures
+                    }
+                )
             # train_builder.add_meta_graph(sess, [tf.saved_model.tag_constants.TRAINING], training_signatures, strip_default_attrs=True)
         train_builder.save()
-
         # Export labels as text file for use in inference:
         with tf.gfile.GFile(os.path.join(saved_model_dir, 'class_labels.txt'), 'w') as fp:
             fp.write('\n'.join(human_readable_class_labels) + '\n')
-            # Build signature definition map:
-            # feature_configs = {
-            #     'resized_input_tensor': tf.FixedLenFeature(shape=self._eval_graph_resized_input_tensor.shape, dtype=tf.float32)
-            # }
-            # serialized_eval_graph_resized_input_tensor = tf.parse_example(
-            #     self._eval_graph_resized_input_tensor,
-            #     feature_configs
-            # )
-            # model_inputs = tf.saved_model.utils.build_tensor_info(serialized_eval_graph_resized_input_tensor)
-            # classification_inputs = {
-            #     'resized_input_image': tf.saved_model.utils.build_tensor_info(self._eval_graph_resized_input_tensor)
-            # }
-            # classification_output_classes = {
-            #     'y_proba': self._eval_session.graph.get_tensor_by_name('eval_graph/retrain_ops/final_retrain_ops/%s:0' % final_tensor_name)
-            # }
-            # outputs = {
-            #     'y_proba': tf.saved_model.utils.build_tensor_info()
-            # }
-            # classification_signature = (
-            #     tf.saved_model.signature_def_utils.build_signature_def(
-            #         inputs={
-            #             tf.saved_model.signature_constants.CLASSIFY_INPUTS: classification_inputs
-            #         },
-            #         outputs={
-            #             tf.saved_model.signature_constants.CLASSIFY_OUTPUT_CLASSES: classification_outputs
-            #         },
-            #         method_name=tf.saved_model.signature_constants.CLASSIFY_METHOD_NAME
-            #     )
-            # )
-            # tensor_info_x = tf.saved_model.utils.build_tensor_info(self._eval_graph.get_tensor_by_name('source_model/pre_trained_hub_module/inception_v3_hub/InceptionV3/input:0'))
 
-            # builder = tf.saved_model.builder.SavedModelBuilder(saved_model_dir)
-            # builder.add_meta_graph_and_varaibles(
-            #     sess, [tf.saved_model.tag_constants.SERVING],
-            #     signature_def_map={
-            #         'predict_images':
-            #     }
-            # )
+        # Build signature definition map:
+        # feature_configs = {
+        #     'resized_input_tensor': tf.FixedLenFeature(shape=self._eval_graph_resized_input_tensor.shape, dtype=tf.float32)
+        # }
+        # serialized_eval_graph_resized_input_tensor = tf.parse_example(
+        #     self._eval_graph_resized_input_tensor,
+        #     feature_configs
+        # )
+        # model_inputs = tf.saved_model.utils.build_tensor_info(serialized_eval_graph_resized_input_tensor)
+        # classification_inputs = {
+        #     'resized_input_image': tf.saved_model.utils.build_tensor_info(self._eval_graph_resized_input_tensor)
+        # }
+        # classification_output_classes = {
+        #     'y_proba': self._eval_session.graph.get_tensor_by_name('eval_graph/retrain_ops/final_retrain_ops/%s:0' % final_tensor_name)
+        # }
+        # outputs = {
+        #     'y_proba': tf.saved_model.utils.build_tensor_info()
+        # }
+        # classification_signature = (
+        #     tf.saved_model.signature_def_utils.build_signature_def(
+        #         inputs={
+        #             tf.saved_model.signature_constants.CLASSIFY_INPUTS: classification_inputs
+        #         },
+        #         outputs={
+        #             tf.saved_model.signature_constants.CLASSIFY_OUTPUT_CLASSES: classification_outputs
+        #         },
+        #         method_name=tf.saved_model.signature_constants.CLASSIFY_METHOD_NAME
+        #     )
+        # )
+        # tensor_info_x = tf.saved_model.utils.build_tensor_info(self._eval_graph.get_tensor_by_name('source_model/pre_trained_hub_module/inception_v3_hub/InceptionV3/input:0'))
+
+        # builder = tf.saved_model.builder.SavedModelBuilder(saved_model_dir)
+        # builder.add_meta_graph_and_varaibles(
+        #     sess, [tf.saved_model.tag_constants.SERVING],
+        #     signature_def_map={
+        #         'predict_images':
+        #     }
+        # )
         return
-
-
-    def simple_save_model(self):
-        pass
 
     def save_graph_to_file(self, graph_file_name, module_spec, class_count):
         """
@@ -760,8 +770,6 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
         #         except OSError as err:
         #             print('FATAL ERROR: Could not save winning grid search model. Recieved error: %s' % err)
         return self.relative_tb_log_dir_train, self.relative_tb_log_dir_val
-
-
 
     def fit(self, X, y, n_epochs=100, X_valid=None, y_valid=None, eval_freq=1, ckpt_freq=1, early_stop_eval_freq=1):
         """
