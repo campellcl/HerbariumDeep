@@ -613,7 +613,7 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
     # Before we assign the parameters directly to the TFHClassifier instance, we need to deserialize the methods:
     current_params = _deserialize_best_gs_params(serialized_gs_params=current_params, gs_deserialized_init_params=params)
     tfh_classifier.set_params(**current_params)
-    tf.logging.info(msg='Model hyperparmaters have been set to the highest scoring settings reported by GridSearch. '
+    tf.logging.info(msg='Model hyperparameters have been set to the highest scoring settings reported by GridSearch. '
                         'Now fitting a classifier with these hyperparameters...')
     # Re-fit the model using the best parameter combination from the GridSearch:
     tfh_classifier.fit(
