@@ -98,7 +98,7 @@ def main(run_config):
     # labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\anemone coronaria l\\1441326217337cmDHzGcGpgMbbZ1H.jpg")
     # print('True Sample Class Label: \'anemone coronaria l\'')
     # print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
-    
+
     # labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\ajuga iva (l.) schreb\\1441351317032Va9XmHMbLugbA56p.jpg")
     # print('True Sample Class Label: \'ajuga iva\'')
     # print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
