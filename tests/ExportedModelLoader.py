@@ -73,28 +73,35 @@ def main(run_config):
         model_path=os.path.join(model_path, 'inference'),
         model_label_file_path=model_label_file_path
     )
-    # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg')
-    # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.JPG')
-    labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg")
-    print('True Sample Class Label: \'aconitum napellus l\'')
-    # print('labels: %s' % labels)
-    # print('y_proba: %s' % results)
-    # print('sanity check (sum y_proba): %s' % sum(results))
+    ''' For BOONE trained classifiers: '''
+    labels, results = tfh_classifier.classify_image(image_path="D:\\data\\BOON\\images\\Adiantum pedatum\\o3nDj8h7LZbGBYp874WCuB.jpeg")
+    print('True Sample Class Label: \'Adiantum pedatum\'')
     print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
 
-    labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\anemone coronaria l\\1441326217337cmDHzGcGpgMbbZ1H.jpg")
-    print('True Sample Class Label: \'anemone coronaria l\'')
-    # print('labels: %s' % labels)
-    # print('y_proba: %s' % results)
-    # print('sanity check (sum y_proba): %s' % sum(results))
+    labels, results = tfh_classifier.classify_image(image_path='D:\\data\\BOON\\images\\Solidago bicolor\\fToebpoXH3t8NeXta94qyf.jpeg')
+    print('True Sample Class Label: \'Solidago bicolor\'')
     print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
 
-    labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\ajuga iva (l.) schreb\\1441351317032Va9XmHMbLugbA56p.jpg")
-    print('True Sample Class Label: \'ajuga iva\'')
+    labels, results = tfh_classifier.classify_image(image_path='D:\\data\\BOON\\images\\Trillium undulatum\\kdtEranKBEGLnmYXBuviLP.jpeg')
+    print('True Sample Class Label: \'Trillium undulatum\'')
+    print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
+
     # print('labels: %s' % labels)
     # print('y_proba: %s' % results)
     # print('sanity check (sum y_proba): %s' % sum(results))
-    print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
+
+    ''' For GoingDeeper trained classifiers: '''
+    # labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg")
+    # print('True Sample Class Label: \'aconitum napellus l\'')
+    # print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
+
+    # labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\anemone coronaria l\\1441326217337cmDHzGcGpgMbbZ1H.jpg")
+    # print('True Sample Class Label: \'anemone coronaria l\'')
+    # print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
+    
+    # labels, results = tfh_classifier.classify_image(image_path="C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\ajuga iva (l.) schreb\\1441351317032Va9XmHMbLugbA56p.jpg")
+    # print('True Sample Class Label: \'ajuga iva\'')
+    # print('Predicted Class Label: %s (%.2f%%)' % (labels[np.argmax(results)], results[np.argmax(results)]*100))
 
 
 if __name__ == '__main__':
