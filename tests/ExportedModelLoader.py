@@ -65,9 +65,12 @@ class TrainedTFHClassifier:
 
 
 def main(run_config):
-    model_label_file_path = os.path.join('C:\\tmp\\summaries\\trained_model', 'class_labels.txt')
+    model_path = 'C:\\tmp\\summaries\\gs_winner\\train'
+    model_path = os.path.join(model_path, os.listdir(model_path)[0])
+    model_path = os.path.join(model_path, 'trained_model')
+    model_label_file_path = os.path.join(model_path, 'class_labels.txt')
     tfh_classifier = TrainedTFHClassifier(
-        model_path='C:\\tmp\\summaries\\trained_model',
+        model_path=os.path.join(model_path, 'inference'),
         model_label_file_path=model_label_file_path
     )
     # labels, results = tfh_classifier.classify_image(image_path='C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\aconitum napellus l\\1441326927238znOeMSdai1MWUE2N.jpg')
@@ -124,4 +127,4 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['DEBUG'])
+    main(run_configs['BOON'])
