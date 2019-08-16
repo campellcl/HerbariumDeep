@@ -255,56 +255,6 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         all_candidate_params = []
         all_out = []
 
-        # def evaluate_candidate(candidate_param):
-        #     """
-        #     evaluate_candidate: Similar to sklearn's evaluate_candidates method (see below) but only evaluates a single
-        #         candidate. This is done in order to control the saving of the Grid Search's cv_results dictionary.
-        #     :param candidate_param:
-        #     :return:
-        #     """
-        #     n_candidates = 1
-        #
-        #     if self.verbose > 0:
-        #         print("Fitting {0} folds for each of {1} candidates, totalling {2} fits".format(
-        #                           n_splits, n_candidates, n_candidates * n_splits))
-        #
-        #     # out = parallel(delayed(_fit_and_score)(clone(base_estimator),
-        #     #                                        X, y, train=train, test=test, parameters=parameters, **fit_and_score_kwargs)
-        #     #                for parameters, (train, test) in product(candidate_param, cv.split(X, y, groups)))
-        #
-        #     print('list(cv.split(X, y, groups)): %s' % list(cv.split(X, y, groups)))
-        #     print('candidate_param: %s' % candidate_param)
-        #     print('list(product(candidate_param, cv.split(X, y, groups))): %s' % list(product(candidate_param, cv.split(X, y, groups))))
-        #     # print(_fit_and_score(clone(base_estimator), X, y, ))
-        #
-        #     parameters, (train, test) = product(candidate_param, cv.split(X, y, groups))
-        #     out = None
-        #
-        #     # A bit of syntactical sugar here with unrolling the Parallel call, see: https://stackoverflow.com/a/51934579/3429090
-        #     # delayed(_fit_and_score)(clone(base_estimator), X, y, train=train, test=test, parameters=parameters, **fit_and_score_kwargs) for parameters, (train, test) in product(candidate_param, cv.split(X, y, groups))
-        #     # _fit_and_score(base_estimator, X, y, )
-        #
-        #     if len(out) < 1:
-        #         raise ValueError('No fits were performed. '
-        #                          'Was the CV iterator empty? '
-        #                          'Were there no candidates?')
-        #     elif len(out) != n_candidates * n_splits:
-        #         raise ValueError('cv.split and cv.get_n_splits returned '
-        #                          'inconsistent results. Expected {} '
-        #                          'splits, got {}'
-        #                          .format(n_splits,
-        #                                  len(out) // n_candidates))
-        #
-        #     all_candidate_params.extend(candidate_param)
-        #     all_out.extend(out)
-        #
-        #     results = self._format_results(
-        #         all_candidate_params, scorers, n_splits, all_out)
-        #     logging.warning('evaluate_candidate not finished being implemented.')
-        #     return results
-        #
-        #     # raise NotImplementedError('evaluate_candidate not finished being implemented.')
-
         def evaluate_candidates(candidate_params):
             if isinstance(candidate_params, dict) or isinstance(candidate_params, defaultdict):
                 candidate_params = list(candidate_params)
@@ -381,16 +331,30 @@ class GridSearchCVSaveRestore(BaseSearchCV):
         for dictionary in self.cv_results:
             parameters = dictionary['params']
             for param, method in parameters.items():
+
                 if not isinstance(method, int):
                     # If this is an integer, we don't need to convert to a string __repr__.
                     if not isinstance(method, str):
                         # If we are simply re-serializing a function that has already had __repr__ called, there is no
                         #   need to call __repr__ again (or we get double quotes messing up string equality checks).
-                        if isinstance(method, types.ClassType):
-                            # If this is one of the weird parameters that is actually a class instead of a function,
-                            #   e.g. TruncatedNormal initializer, then the class can't be called with initializer.__repr__()
-                            #   without arguments. So just use the string representation of the method.
-                            parameters[param] = str(method)
+                        if param == 'initializer':
+                            if isinstance(method, types.ClassType):
+                                # If this is one of the weird parameters that is actually a class instead of a function,
+                                #   e.g. TruncatedNormal initializer, then the class can't be called with initializer.__repr__()
+                                #   without arguments. So just use the string representation of the method.
+                                parameters[param] = str(method)
+                                continue
+                            else:
+                                str_repr = method.__repr__()
+                                # For initializers, need to distinguish between types of VarianceScaling initializers:
+                                # VarianceScaling initializer
+                                start_idx = str_repr.find('VarianceScaling')
+                                l_substr = str_repr[0:start_idx+len('VarianceScaling')]
+                                r_substr = str_repr[start_idx+len('VarianceScaling'):]
+                                l_substr = l_substr + ' ' + method.distribution
+                                str_repr = l_substr + r_substr
+                                parameters[param] = str_repr
+                                continue
                         else:
                             # This is not one of the weird parameters that is a class, so just call the __repr__ method
                             #   of the associated function.
@@ -465,24 +429,28 @@ class GridSearchCVSaveRestore(BaseSearchCV):
                     initializer_func = str(initializer_func)
                 else:
                     initializer_func = initializer_func.__repr__()
+                    start_idx = initializer_func.find('VarianceScaling')
+                    l_substr = initializer_func[0:start_idx+len('VarianceScaling')]
+                    r_substr = initializer_func[start_idx+len('VarianceScaling'):]
+                    l_substr = l_substr + ' ' + param_grid_params['initializer'].distribution
+                    initializer_func = l_substr + r_substr
                     try:
-                        initializer_func = initializer_func.split('at')[0].strip(' ')
+                        initializer_func = initializer_func.split(' at ')[0].strip(' ')
                     except TypeError as err:
                         # <class 'tensorflow.python.ops.init_ops.TruncatedNormal'> is already in repr form:
                         pass
 
                 previously_computed_initializer_func = previously_computed_params['params']['initializer']
                 if isinstance(previously_computed_initializer_func, types.ClassType):
-                    print('yay')
                     pass
                 elif isinstance(previously_computed_initializer_func, str):
                     if 'TruncatedNormal' in previously_computed_initializer_func:
                         pass
                     else:
-                        previously_computed_initializer_func = previously_computed_initializer_func.split('at')[0].strip(' ')
+                        previously_computed_initializer_func = previously_computed_initializer_func.split(' at ')[0].strip(' ')
                 else:
                     try:
-                        previously_computed_initializer_func = previously_computed_initializer_func.split('at')[0].strip(' ')
+                        previously_computed_initializer_func = previously_computed_initializer_func.split(' at ')[0].strip(' ')
                         # previously_computed_initializer_func = previously_computed_initializer_func.replace('\'', '')
                     except TypeError as err:
                         # <class 'tensorflow.python.ops.init_ops.TruncatedNormal'> is already in repr form:
