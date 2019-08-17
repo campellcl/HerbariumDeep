@@ -814,6 +814,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
 
         # needed in case of early stopping:
         max_checks_without_progress = early_stop_eval_freq
+        num_digits_for_relative_tolerance = 6
         checks_without_progress = 0
         best_loss = np.infty
         best_params = None
@@ -898,7 +899,7 @@ class TFHClassifier(BaseEstimator, ClassifierMixin):
                         self._val_writer.add_summary(val_summary, epoch)
 
                         # Early stopping logic:
-                        if loss_val < best_loss:
+                        if round(loss_val, num_digits_for_relative_tolerance) < round(best_loss, num_digits_for_relative_tolerance):
                             best_params = self._get_model_params()
                             best_loss = loss_val
                             checks_without_progress = 0
