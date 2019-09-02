@@ -516,16 +516,16 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
             'train_batch_size': [20, 60, 100, 1000]
         }
-        # num_epochs = 100000  # 100,000
-        # eval_freq = 10
-        # early_stopping_eval_freq = 5
-        # ckpt_freq = 0
-        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
-        tf.logging.warning(msg='WARNING: DEBUG SETTINGS CURRENTLY IN EFFECT')
-        num_epochs = 3
-        eval_freq = 1
-        early_stopping_eval_freq = 1
+        num_epochs = 100000  # 100,000
+        eval_freq = 10
+        early_stopping_eval_freq = 5
         ckpt_freq = 0
+        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
+        # tf.logging.warning(msg='WARNING: DEBUG SETTINGS CURRENTLY IN EFFECT')
+        # num_epochs = 3
+        # eval_freq = 1
+        # early_stopping_eval_freq = 1
+        # ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'BOON':
         params = {
@@ -534,16 +534,16 @@ def _run_grid_search(dataset, train_bottlenecks, train_ground_truth_indices, ini
             'optimizer': [optimizers['Nesterov'], optimizers['Adam']],
             'train_batch_size': [20, 60, 100, 1000]
         }
-        # num_epochs = 100000  # 100,000
-        # eval_freq = 10
-        # early_stopping_eval_freq = 5
-        # ckpt_freq = 0
-        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
-        tf.logging.warning(msg='WARNING: DEBUG SETTINGS CURRENTLY IN EFFECT')
-        num_epochs = 3
-        eval_freq = 1
-        early_stopping_eval_freq = 1
+        num_epochs = 100000  # 100,000
+        eval_freq = 10
+        early_stopping_eval_freq = 5
         ckpt_freq = 0
+        ''' Debug Configurations for Grid Search save and restore functionality testing: '''
+        # tf.logging.warning(msg='WARNING: DEBUG SETTINGS CURRENTLY IN EFFECT')
+        # num_epochs = 3
+        # eval_freq = 1
+        # early_stopping_eval_freq = 1
+        # ckpt_freq = 0
         tf.logging.info(msg='Initialized SKLearn parameter grid: %s' % params)
     elif dataset == 'DEBUG':
         params = {
@@ -759,7 +759,7 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\SERNEC'
         }
     }
-    main(run_configs['BOON'])
+    main(run_configs['GoingDeeper'])
     '''
     Execute this script under a shell instead of importing as a module. Ensures that the main function is called with
     the proper command line arguments (builds on default argparse). For more information see:
