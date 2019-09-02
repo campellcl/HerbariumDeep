@@ -270,9 +270,9 @@ class GridSearchCVSaveRestore(BaseSearchCV):
             fold_num = 0
             for parameters, (train, test) in product(candidate_params, cv.split(X, y, groups)):
                 print('product index/fold number: %d' % fold_num)
-                print('\tparams: %s' % parameters)
-                print('\ttrain: %s' % train)
-                print('\ttest: %s' % test)
+                # print('\tparams: %s' % parameters)
+                # print('\ttrain: %s' % train)
+                # print('\ttest: %s' % test)
                 out = _fit_and_score(estimator=clone(base_estimator), X=X, y=y, train=train, test=test, parameters=parameters, **fit_and_score_kwargs)
                 print('\tout: %s' % out)
 
