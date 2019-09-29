@@ -166,14 +166,14 @@ def aggregate_occurrences_and_images():
         field or record.
     :return:
     """
-    for i, (subdir, dirs, files) in enumerate(os.walk(args.STORE + '/collections')):
+    for i, (subdir, dirs, files) in enumerate(os.walk(os.path.join(args.STORE, 'collections'))):
         # print(subdir)
         if i != 0:
             # If already merged don't re-merge:
-            if not os.path.isfile(subdir + '\df_meta.csv'):
+            if not os.path.isfile(os.path.join(subdir, '\df_meta.csv')):
                 # Ignore zero (the root directory \SERNEC).
                 print('\tPerforming Aggregation: %d %s' % (i, subdir))
-                with open(subdir + '/images.csv', 'r') as fp:
+                with open(os.path.join(subdir, 'images.csv'), 'r') as fp:
                     df_imgs = pd.read_csv(fp)
                 # Check to ensure this collection has image data:
                 if df_imgs.empty:
@@ -191,7 +191,7 @@ def aggregate_occurrences_and_images():
                               'Attempting automated resolution by replacing unknown characters with ? replacement character...')
                         try:
                             # First pass just detects the corrupted lines for more advanced error handling later:
-                            with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
+                            with open(os.path.join(subdir, 'occurrences.csv'), 'r', errors='replace') as fp:
                                 raw = fp.read()
                                 lines = raw.splitlines()
                                 error_lines = {}
@@ -206,7 +206,7 @@ def aggregate_occurrences_and_images():
                                   'PLEASE SPECIFY RESOLUTION STRATEGY')
                         print('\t\tWarning: Attempting final read of corrupted occurrences.csv with ? replacement chars...')
                         try:
-                            with open(subdir + '/occurrences.csv', 'r', errors='replace') as fp:
+                            with open(os.path.join(subdir, 'occurrences.csv'), 'r', errors='replace') as fp:
                                 df_occurr = pd.read_csv(fp, header=0, error_bad_lines=True)
                         except UnicodeDecodeError:
                             print('\t\tError: Replacement characters insufficient fix. PLEASE SPECIFY RESOLUTION STRATEGY')
@@ -335,6 +335,7 @@ if __name__ == '__main__':
           'Now updating saved version of \'df_collid\' with omitted data...'
           % (num_dl_requested, num_dl_recieved, num_dl_rejected, num_collections_added))
     df_collids.to_pickle(args.STORE + '\collections\df_collids.pkl')
+    # TODO: (ETSU) problem directory; ensure no directory after cleaning has no images.csv file:
     print('STAGE_TWO: Pipeline STAGE_TWO complete. Updated saved df_collids. Removed collections with no real image '
           'data. Created directories and extracted zip files for all relevant collections.')
     print('=' * 100)
