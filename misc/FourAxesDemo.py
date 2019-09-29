@@ -111,7 +111,7 @@ def main():
 
     ax_bot.set_xticks(x_ticks_bot_major, minor=False)
     ax_bot.set_xticks(x_ticks_bot_minor, minor=True)
-    # ax_bot.set_yticks(y_ticks_left_major, minor=False)
+    ax_bot.set_yticks(y_ticks_left_major, minor=False)
     # ax_bot.set_yticks(y_ticks_left_minor, minor=True)
 
     ax_bot.set_xticklabels(x_tick_labels_bot_major, minor=False)
@@ -144,9 +144,8 @@ def main():
     # plt.setp(ax_bot, adjustable='datalim')
     # ax_bot.set_adjustable('box')
     ax_right = ax_top.twinx()
-    # ax_right.set_yticks(y_ticks_right_major, minor=False)
-    # ax_right.set_yticks(y_ticks_right_major, minor=True)
-    # ax_right.set_yticks(y_ticks_right_minor, minor=True)
+    ax_right.set_yticks(y_ticks_right_major, minor=False)
+    ax_right.set_yticks(y_ticks_right_minor, minor=True)
 
     # ax_right.set_yticklabels(y_tick_labels_right_minor, minor=False)
 
@@ -180,9 +179,9 @@ def main():
     # ax_top.set_adjustable('datalim')
 
     # ax_bot.set_adjustable('box')
-    # ax_bot.set_aspect('equal', share=False)
+    ax_bot.set_aspect('equal', share=False)
     # ax_top.set_adjustable()
-    # ax_right.set_aspect('equal', share=False)
+    ax_top.set_aspect('equal', share=False)
 
     ax_bot.imshow(data)
     # ax_bot.autoscale(enable=False)
@@ -192,8 +191,6 @@ def main():
     # ax_top.imshow(data)
 
     plt.show()
-
-    # ON RESUME: USE THIS   ax_top.set_aspect('equal') SEE SCRATCH_3.py
 
 
 if __name__ == '__main__':
