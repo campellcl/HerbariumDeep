@@ -51,12 +51,17 @@ class TensorBoardDataExporter:
             os.path.join(self.root_summaries_dir, 'train'),
             os.path.join(self.root_summaries_dir, 'val'),
             os.path.join(self.root_summaries_dir, 'gs\\train'),
-            os.path.join(self.root_summaries_dir, 'gs\\val')
+            os.path.join(self.root_summaries_dir, 'gs\\val'),
+            os.path.join(self.root_summaries_dir, 'gs_winner'),
+            os.path.join(self.root_summaries_dir, 'gs_winner\\train'),
+            os.path.join(self.root_summaries_dir, 'gs_winner\\val')
         ]
         subdirs = sorted(x[0] for x in tf.gfile.Walk(self.root_summaries_dir))
         subdirs = subdirs[1:]
         # Remove parent directories with no event files for logging:
         self.target_dirs = [subdir for subdir in subdirs if subdir not in excluded_parent_dirs]
+        # Remove subdirectories with no event files for logging:
+        self.target_dirs = [subdir for subdir in self.target_dirs if '\\checkpoints' not in subdir and '\\trained_model' not in subdir]
         # init_notebook_mode(connected=True)
         cf.go_offline()
 
@@ -164,14 +169,16 @@ class TensorBoardDataExporter:
                     # Validation grid search run.
                     gs_hyper_strings['val'].append(dir_name)
                     gs_event_dataframes['val'].append(events_df)
-            elif relative_parent_dir_split[0] == 'train':
-                # Training run of the winning grid search model:
-                winner_hyper_strings['train'] = dir_name
-                winner_event_dataframes['train'] = events_df
-            elif relative_parent_dir_split[0] == 'val':
-                # Validation run of the winning grid search model:
-                winner_hyper_strings['val'] = dir_name
-                winner_event_dataframes['val'] = events_df
+            elif relative_parent_dir_split[0] == 'gs_winner':
+                # Grid search winning model directory:
+                if relative_parent_dir_split[1] == 'train':
+                    # Winning hyperparameter training run:
+                    winner_hyper_strings['train'] = dir_name
+                    winner_event_dataframes['train'] = events_df
+                elif relative_parent_dir_split[1] == 'val':
+                    # Winning hyperparameter validation run:
+                    winner_hyper_strings['val'] = dir_name
+                    winner_event_dataframes['val'] = events_df
             elif relative_parent_dir_split[0] == 'summaries':
                 # root dir
                 pass
@@ -439,7 +446,8 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     # path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\val\\"
     # __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\'
-    __path = 'D:\\data\\GoingDeeperData\\training summaries\\4-22-2019\\summaries'
+    # __path = 'D:\\data\\GoingDeeperData\\training summaries\\4-22-2019\\summaries'
+    __path = 'D:\\data\\BOON\\training summaries\\8-16-2019'
     tb_exporter = TensorBoardDataExporter(root_summaries_dir=__path)
     __gs_hyper_strings, __gs_event_dataframes, __winner_hyper_strings, __winner_event_dataframes = tb_exporter.export_all_summaries_as_csv()
     __gs_train_hyperparams_df, __gs_val_hyperparams_df, __winner_train_hyperparams_df, __winner_val_hyperparams_df = \
@@ -447,7 +455,8 @@ if __name__ == '__main__':
             __gs_hyper_strings, __gs_event_dataframes,
             __winner_hyper_strings, __winner_event_dataframes
         )
-    __export_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests'
+    __export_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations'
+    tf.logging.info('Exported generated hyperparameter dataframes to \'%s\'' % __export_path)
     __gs_train_hyperparams_df.to_pickle(os.path.join(__export_path, 'gs_train_hyperparams.pkl'))
     __gs_val_hyperparams_df.to_pickle(os.path.join(__export_path, 'gs_val_hyperparams.pkl'))
     __winner_train_hyperparams_df.to_pickle(os.path.join(__export_path, 'winner_train_hyperparams.pkl'))
