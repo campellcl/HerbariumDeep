@@ -45,7 +45,7 @@ def main():
 
     heatmap_dims = ((num_activations * num_optimizers), (num_initializers * num_train_batch_sizes))
     data = np.zeros(heatmap_dims)
-    print('HeatMap Dimensions: %s\n' %(data.shape,))
+    print('HeatMap Dimensions: %s\n' % (data.shape,))
 
     x_tick_labels_bot_major = []
     x_tick_labels_bot_minor = []
@@ -149,7 +149,7 @@ def main():
     ax_top.tick_params(axis='x', labelsize=8)
 
     ax_bot.imshow(data)
-    # ax_top.imshow(data)
+    ax_top.imshow(data)
 
     scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
     scalar_mappable._A = []
