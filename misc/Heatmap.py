@@ -15,6 +15,7 @@ def convert_initializer_to_axes_label(initializer):
         print('ERROR: Could not identify initializer: %s' % initializer)
         return None
 
+
 def convert_optimizer_to_axes_label(optimizer):
     if optimizer == 'OPTIM_ADAM':
         return 'ADAM'
@@ -23,6 +24,7 @@ def convert_optimizer_to_axes_label(optimizer):
     else:
         print('ERROR: Could not identify optimizer: %s' % optimizer)
         return None
+
 
 def main():
     __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\tests\\gs_val_hyperparams.pkl'
@@ -60,6 +62,11 @@ def main():
     y_tick_labels_left_major = []
     y_tick_labels_left_minor = []
     y_ticks_left_major = np.arange(0, heatmap_dims[0], 1)
+    y_ticks_left_minor = np.arange(0, heatmap_dims[0], 0.5)
+
+    y_tick_labels_right_major = []
+    y_tick_labels_right_minor = []
+    y_ticks_right_major = np.arange(0, heatmap_dims[0], 1)
     y_ticks_left_minor = np.arange(0, heatmap_dims[0], 0.5)
 
     for i in range(data.shape[0]):
@@ -115,9 +122,11 @@ def main():
     print('y_tick_labels_left_combined: %s' % y_tick_labels_left_combined)
 
     # fig = plt.figure('DEBUG DATASET')
-    fig, ax = plt.subplots(1, 1, sharey='col')
+    fig, ax = plt.subplots(1, 1, sharex='row', sharey='col')
     # ax_bot = fig.gca()
     ax_bot = ax
+    # ax_bot.set_adjustable('box')
+    # ax_bot.set_aspect('equal')
 
     ax_bot.set_xticks(x_ticks_bot_major, minor=False)
     ax_bot.set_xticks(x_ticks_bot_minor, minor=True)
@@ -127,6 +136,9 @@ def main():
     ax_bot.set_yticks(y_ticks_left_major, minor=False)
     ax_bot.set_yticks(y_ticks_left_minor, minor=True)
     ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
+
+    # ax_bot.set_adjustable('box')
+    # ax_right = ax_bot.twinx()
 
     # ax_right = ax_bot.twinx()
     # ax_right.set_aspect('equal')
@@ -138,6 +150,13 @@ def main():
     ax_top.set_xticks(x_ticks_top_minor, minor=True)
     ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
     # ax_top.set_xticklabels('', major=True)
+
+    # ax_bot.set_aspect('equal')
+    # ax_bot.set_adjustable('box', share=True)
+    ax_right = ax_top.twinx()
+    ax_right.set_yticks(y_ticks_left_major, minor=False)
+    ax_right.set_yticks(y_ticks_left_minor, minor=True)
+    ax_right.set_yticklabels(y_tick_labels_right_major)
 
     # ax_right = ax_top.get_shared_y_axes().join(ax_bot, ax_top)
     # ax_right.set_yticks(y_ticks_left_major, minor=False)
