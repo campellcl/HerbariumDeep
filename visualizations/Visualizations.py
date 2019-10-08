@@ -83,16 +83,35 @@ def plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df, data_set, proces
     fit_time_in_min = df['fit_time_sec'].apply(lambda x: x / 60)
     cm = plt.cm.get_cmap('viridis')
     sc = plt.scatter(df['train_batch_size'], fit_time_in_min, c=df['best_epoch_acc'], vmin=0.0, vmax=max(df['best_epoch_acc']), cmap=cm, s=100, alpha=0.5)
+    sc.set_clim([min(df['best_epoch_acc']), max(df['best_epoch_acc'])])
+    # sc.set_clim(0, 100)
+    cax = fig.add_axes([0.8, 0.15, 0.03, 0.72])
     plt.xticks(ticks=[20, 60, 100, 1000], labels=['20', '60', '100', '1000'])
-    clb = plt.colorbar(sc)
+    # clb = plt.colorbar(sc, ticks=np.arange(0.1, 1.1, .1))
+    clb_ticks = np.arange(0.1, 1.1, .1)
+    clb = matplotlib.colorbar.ColorbarBase(cax, cmap=cm, norm=plt.Normalize(clb_ticks[0], clb_ticks[-1]))
+    clb.set_ticks(ticks=clb_ticks)
+    # clb.ax.set_yticklabels(clb_ticks)
+
+    # clb = plt.colorbar(sc, ticks=np.arange(min(df['best_epoch_acc']), max(df['best_epoch_acc']), 10.0))
+    pass
+    # clb = plt.colorbar(sc, shrink=1, aspect=12, ticks=np.arange(0, 110, 10))
+    # clb = plt.colorbar(sc)
+    # clb = plt.colorbar(sc, shrink=1, aspect=12)
     # clb.ax.set_ylim(0, 100)
 
-    clb_title_font_dict = {
-        'fontsize':'small', 'fontweight' : matplotlib.rcParams['axes.titleweight'],
-        'verticalalignment': 'baseline', 'horizontalalignment': 'center'
-    }
-    clb.ax.set_title('Best Epoch Accuracy (Validation Set)', fontdict=clb_title_font_dict)
-    clb.ax.set_yticklabels(np.arange(0, 60, 10.0))
+    # clb_title_font_dict = {
+    #     'fontsize':'small', 'fontweight' : matplotlib.rcParams['axes.titleweight'],
+    #     'verticalalignment': 'baseline', 'horizontalalignment': 'center'
+    # }
+    # clb.ax.set_title('Best Epoch Accuracy (Validation Set)', fontdict=clb_title_font_dict)
+
+    # clb.set_clim(0.0, 100)
+    # clb.set_ticks(np.arange(0, 110, 10.0))
+    # clb.ax.set_yticklabels(np.arange(0, 110, 10.0))
+    # clb.set_clim(0, 100)
+    # sc.set_clim(0, 100)
+
     plt.show()
     return
 
@@ -171,13 +190,13 @@ def main():
     print('Columns: %s\n' % df.columns.values)
 
     # Training Batch Size vs. Best Performing Epoch Acc (2D Histogram)
-    plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=df, data_set=dataset, process=process)
+    # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time (2D Histogram with Colorbar):
     plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time With Spline (2D Histogram with Colorbar and Spline):
-    plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
+    # plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time (Bar Chart)
     # plot_bar_chart_train_batch_size_vs_train_time(df=df)
