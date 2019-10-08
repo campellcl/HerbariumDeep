@@ -94,7 +94,7 @@ def plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df, data_set, proces
     # clb.ax.set_yticklabels(clb_ticks)
 
     # Better looking colorbar without correct ticks:
-    clb = plt.colorbar(sc, ticks=np.arange(0.1, 1.1, .1))
+    clb = plt.colorbar(sc, ticks=np.arange(0.0, 1.1, .1))
     clb.ax.set_yticklabels(np.arange(0, 110, 10.0))
     clb_title_font_dict = {
         'fontsize':'small', 'fontweight' : matplotlib.rcParams['axes.titleweight'],
