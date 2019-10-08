@@ -84,36 +84,36 @@ def plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df, data_set, proces
     cm = plt.cm.get_cmap('viridis')
     sc = plt.scatter(df['train_batch_size'], fit_time_in_min, c=df['best_epoch_acc'], vmin=0.0, vmax=max(df['best_epoch_acc']), cmap=cm, s=100, alpha=0.5)
     sc.set_clim([min(df['best_epoch_acc']), max(df['best_epoch_acc'])])
-    # sc.set_clim(0, 100)
-    cax = fig.add_axes([0.92, 0.125, 0.04, 0.72])   # Dimensions of the nex axis [left, bottom, width, height]
-
     plt.xticks(ticks=[20, 60, 100, 1000], labels=['20', '60', '100', '1000'])
-    # clb = plt.colorbar(sc, ticks=np.arange(0.1, 1.1, .1))
-    clb_ticks = np.arange(0, 110, 10)
-    # clb_ticks = np.arange(0.1, 1.1, .1)
-    clb = matplotlib.colorbar.ColorbarBase(cax, cmap=cm, norm=plt.Normalize(clb_ticks[0], clb_ticks[-1]))
-    clb.set_ticks(ticks=clb_ticks)
-    clb.ax.set_yticklabels(clb_ticks)
 
+    # Custom colorbar axes with correct tick locations:
+    # cax = fig.add_axes([0.92, 0.125, 0.04, 0.72])   # Dimensions of the nex axis [left, bottom, width, height]
+    # clb_ticks = np.arange(0, 110, 10)
+    # clb = matplotlib.colorbar.ColorbarBase(cax, cmap=cm, norm=plt.Normalize(clb_ticks[0], clb_ticks[-1]))
+    # clb.set_ticks(ticks=clb_ticks)
+    # clb.ax.set_yticklabels(clb_ticks)
+
+    # Better looking colorbar without correct ticks:
+    clb = plt.colorbar(sc, ticks=np.arange(0.1, 1.1, .1))
+    clb.ax.set_yticklabels(np.arange(0, 110, 10.0))
+    clb_title_font_dict = {
+        'fontsize':'small', 'fontweight' : matplotlib.rcParams['axes.titleweight'],
+        'verticalalignment': 'baseline', 'horizontalalignment': 'center'
+    }
+    clb.ax.set_title('Best Epoch Accuracy', fontdict=clb_title_font_dict)
+
+    # clb = plt.colorbar(sc, ticks=np.arange(0.1, 1.1, .1))
+    # clb_ticks = np.arange(0.1, 1.1, .1)
     # clb = plt.colorbar(sc, ticks=np.arange(min(df['best_epoch_acc']), max(df['best_epoch_acc']), 10.0))
-    pass
     # clb = plt.colorbar(sc, shrink=1, aspect=12, ticks=np.arange(0, 110, 10))
     # clb = plt.colorbar(sc)
     # clb = plt.colorbar(sc, shrink=1, aspect=12)
     # clb.ax.set_ylim(0, 100)
-
-    # clb_title_font_dict = {
-    #     'fontsize':'small', 'fontweight' : matplotlib.rcParams['axes.titleweight'],
-    #     'verticalalignment': 'baseline', 'horizontalalignment': 'center'
-    # }
-    # clb.ax.set_title('Best Epoch Accuracy (Validation Set)', fontdict=clb_title_font_dict)
-
     # clb.set_clim(0.0, 100)
     # clb.set_ticks(np.arange(0, 110, 10.0))
     # clb.ax.set_yticklabels(np.arange(0, 110, 10.0))
     # clb.set_clim(0, 100)
     # sc.set_clim(0, 100)
-
     plt.show()
     return
 
