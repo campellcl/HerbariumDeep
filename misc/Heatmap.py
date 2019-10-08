@@ -15,6 +15,7 @@ def convert_initializer_to_axes_label(initializer):
         print('ERROR: Could not identify initializer: %s' % initializer)
         return None
 
+
 def convert_optimizer_to_axes_label(optimizer):
     if optimizer == 'OPTIM_ADAM':
         return 'ADAM'
@@ -24,8 +25,9 @@ def convert_optimizer_to_axes_label(optimizer):
         print('ERROR: Could not identify optimizer: %s' % optimizer)
         return None
 
+
 def main():
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\gs_val_hyperparams.pkl'
+    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
     df = pd.read_pickle(__path)
     optimizers = df.optimizer.unique()
     num_optimizers = len(optimizers)
@@ -81,7 +83,12 @@ def main():
             df_subset = df_subset[df_subset.train_batch_size == train_batch_size]
             df_subset = df_subset[df_subset.initializer == initializer]
             assert df_subset.shape[0] == 1
-            data[i][j] = df_subset.iloc[0].best_epoch_loss
+            # For best epoch cross entropy loss:
+            # data[i][j] = df_subset.iloc[0].best_epoch_loss
+            # For best epoch top-1 accuracy:
+            # data[i][j] = df_subset.iloc[0].best_epoch_acc
+            # For best epoch top-5 accuracy:
+            data[i][j] = df_subset.iloc[0].best_epoch_top_five_acc
             # x_tick_labels.append(initializer.split('_')[1:])
             if i == 0:
                 init_repr = convert_initializer_to_axes_label(initializer=initializer)
@@ -155,8 +162,12 @@ def main():
     scalar_mappable._A = []
     plt.colorbar(mappable=scalar_mappable)
 
-    plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
-
+    # For cross entropy loss:
+    # plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
+    # For top-1 accuracy:
+    # plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10)
+    # For top-5 accuracy:
+    plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10)
     plt.show()
 
 
