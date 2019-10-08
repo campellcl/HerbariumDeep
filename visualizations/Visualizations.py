@@ -176,6 +176,9 @@ def main():
     # Training Batch Size vs. Fit Time (2D Histogram with Colorbar):
     plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
 
+    # Training Batch Size vs. Fit Time With Spline (2D Histogram with Colorbar and Spline):
+    plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
+
     # Training Batch Size vs. Fit Time (Bar Chart)
     # plot_bar_chart_train_batch_size_vs_train_time(df=df)
 
