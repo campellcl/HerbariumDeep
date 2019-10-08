@@ -38,8 +38,44 @@ def plot_eval_metrics(df):
     plt.show()
 
 
+def plot_bar_chart_train_batch_size_vs_train_time(df):
+    fig, ax = plt.subplots()
+    plt.title('Training Batch Size vs. Fit Time')
+    plt.xlabel('Training Batch Size')
+    plt.ylabel('Fit Time (minutes)')
+    fit_time_in_min = df['fit_time_sec'].apply(lambda x: x / 60)
+    train_batch_size = df['train_batch_size']
+    labels = ['20', '60', '100', '1000']
+    # Label locations:
+    x = np.arange(len(labels))
+    bar_width = 0.35
+    rects = ax.bar(x + bar_width, fit_time_in_min, bar_width, label='Men')
+    plt.show()
+    pass
+
+def plot_boxplot_train_batch_size_vs_train_time(df, data_set='BOONE', process='Validation'):
+    df['fit_time_min'] = df['fit_time_sec'].apply(lambda x: x / 60)
+    plot = df.boxplot(column='fit_time_min', by='train_batch_size')
+    plt.xlabel('Training Batch Size')
+    plt.ylabel('Fit Time (Minutes)')
+    plt.title('Training Time vs. Training Batch Size')
+    plt.suptitle("%s %s Set" % (data_set, process))
+    plt.show()
+
+def plot_barplot_initializer_vs_best_epoch_acc(df):
+    mean_best_epoch_acc = df['best_epoch_acc'].mean()
+
+def mean_of_each_categorical_initializer(df):
+    df_cat = df[['initializer', 'best_epoch_acc']]
+    df_cat['initializer'] = df_cat['initializer'].astype('category')
+    print(df_cat.groupby(['initializer'], as_index=False).mean())
+    means = df_cat.groupby(['initializer'], as_index=False).mean()
+    means.plot(kind='bar', x=['initializer'], y=['best_epoch_acc'])
+    means_values = means['best_epoch_acc'].values
+
+
 def main():
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\gs_val_hyperparams.pkl'
+    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
     df = pd.read_pickle(__path)
     optimizers = df.optimizer.unique()
     num_optimizers = len(optimizers)
@@ -81,6 +117,12 @@ def main():
 
     # Training Batch Size vs. Fit Time:
     plot_train_batch_size_vs_fit_time(df=df)
+
+    # Training Batch Size vs. Fit Time (Bar Chart)
+    # plot_bar_chart_train_batch_size_vs_train_time(df=df)
+
+    # Training Batch Size vs. Fit Time (Box Plot)
+    plot_boxplot_train_batch_size_vs_train_time(df=df, data_set='BOONE', process='Validation')
 
     # Accuracy Metrics in General:
     plot_eval_metrics(df=df)
