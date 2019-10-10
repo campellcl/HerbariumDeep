@@ -179,6 +179,10 @@ def main(run_config):
     # tfh_classifier.load_model()
     class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
     class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
+    top_1_accs = [value['top_1_acc'] for (key, value) in class_top_1_accuracies.items()]
+    top_5_accs = [value['top_5_acc'] for (key, value) in class_top_5_accuracies.items()]
+    print('Average top-1 Accuracy: %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
+    print('Average top-5 Accuracy: %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))
 
 
 if __name__ == '__main__':
