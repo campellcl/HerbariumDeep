@@ -69,7 +69,7 @@ class TrainedTFHClassifier:
                 pred_prob = class_result[pred_class_index]          # This is the probability of belonging to the predicted class.
                 pred_class_label = class_labels[pred_class_index]   # This is the predicted class label (human readable)
                 ground_truth_class_label = class_label              # This is the ground truth class label.
-                print('\tClass sample [%d/%d] predicted to be class: \'%s\' (%d) with %.2f%% probability. The real class was: %s (%d)' % (j+1, total_num_class_samples, pred_class_label, pred_class_index, pred_prob*100, class_label, i))
+                print('\tClass sample [%d/%d] predicted to be class: \'%s (%d)\' with %.2f%% probability. The real class was: \'%s (%d)\'' % (j+1, total_num_class_samples, pred_class_label, pred_class_index, pred_prob*100, class_label, i))
                 if pred_class_index == i:
                     class_samples_correct += 1
                 else:
