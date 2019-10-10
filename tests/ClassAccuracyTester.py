@@ -87,6 +87,56 @@ class TrainedTFHClassifier:
     def classify_image(self, image_path):
         raise NotImplementedError
 
+    def calculate_class_top_5_accuracies(self, bottlenecks, class_labels):
+        class_top_5_accuracies = {}
+        # Pass all class bottlenecks through at once:
+        with tf.Session(graph=tf.Graph()) as sess:
+            tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], self.model_path)
+            input_raw_image_op = sess.graph.get_operation_by_name('source_model/resized_input')
+            input_bottleneck_op = sess.graph.get_operation_by_name('source_model/pre_trained_hub_module/inception_v3_hub_apply_default/hub_output/feature_vector/SpatialSqueeze')
+            input_bottleneck_tensor = sess.graph.get_tensor_by_name('source_model/pre_trained_hub_module/inception_v3_hub_apply_default/hub_output/feature_vector/SpatialSqueeze:0')
+            output_op = sess.graph.get_operation_by_name('eval_graph/retrain_ops/final_retrain_ops/y_proba')
+
+            for i, class_label in enumerate(class_labels):
+                print('Computing top-5 accuracy for class \'%s (%d)\':' % (class_label, i))
+                # Subset the dataframe by the class label:
+                bottlenecks_class_subset = bottlenecks[bottlenecks['class'] == class_label]
+                total_num_class_samples = bottlenecks_class_subset.shape[0]
+
+                bottleneck_subset_values = bottlenecks_class_subset['bottleneck'].tolist()
+                bottleneck_subset_values = np.array(bottleneck_subset_values)
+                # All class samples have the same ground truth index:
+                bottleneck_subset_ground_truth_indices = np.array([j for j in range(total_num_class_samples)])
+
+                # Run the bottleneck subset through the computational graph:
+                class_results = sess.run(output_op.outputs[0], feed_dict={
+                    input_bottleneck_op.outputs[0]: bottleneck_subset_values
+                })
+
+                class_top_5_samples_correct = 0
+                class_top_5_samples_incorrect = 0
+                # print('class_results pre-squeeze shape: %s' % (class_results.shape,))
+                class_results = np.squeeze(class_results)
+                # print('class_results shape post-squeeze: %s' % (class_results.shape,))
+
+                for j, class_result in enumerate(class_results):
+                    # Obtain the indices corresponding to a sorting of y_proba in ascending order:
+                    top_k = class_result.argsort()[-5:][::-1]           # k = 5
+                    pred_class_indices = top_k
+                    pred_class_probs = [class_results[j][pred_class_index] for pred_class_index in pred_class_indices]
+                    pred_class_labels = [class_labels[pred_class_index] for pred_class_index in pred_class_indices]
+                    ground_truth_class_labels = [class_label for i in range(total_num_class_samples)]
+                    print('\tClass sample [%d/%d] top-5 predicted classes: %s with %s probabilities. The real class was: \'%s (%d)\'' % (j+1, total_num_class_samples, pred_class_labels, pred_class_probs, class_label, i))
+                    if i in pred_class_indices:
+                        class_top_5_samples_correct += 1
+                    else:
+                        class_top_5_samples_incorrect += 1
+                assert class_top_5_samples_correct + class_top_5_samples_incorrect == total_num_class_samples
+                print('Class \'%s (%d)\'\'s top-5 accuracy is: %.2f%%' % (class_label, i, (class_top_5_samples_correct / total_num_class_samples)*100))
+                class_top_5_accuracies[i] = {'class': class_label, 'top_5_acc': (class_top_5_samples_correct / total_num_class_samples)*100}
+        print('class_top_5_accuracies: %s' % class_top_5_accuracies)
+        return class_top_5_accuracies
+
 
 def main(run_config):
     model_path = run_config['saved_model_path']
@@ -127,7 +177,8 @@ def main(run_config):
 
     tfh_classifier = TrainedTFHClassifier(model_path=os.path.join(model_path, 'inference'), model_label_file_path=model_label_file_path)
     # tfh_classifier.load_model()
-    tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
+    class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
+    class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
 
 
 if __name__ == '__main__':
