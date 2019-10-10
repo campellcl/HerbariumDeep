@@ -164,8 +164,9 @@ def main():
     processes = ['Training', 'Validation']
 
     # Change these variables for different dataset visualizations:
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
-    dataset = datasets[0]
+    # __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
+    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl'
+    dataset = datasets[1]
     process = processes[1]
 
     df = pd.read_pickle(__path)

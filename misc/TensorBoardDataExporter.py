@@ -446,8 +446,8 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     # path = "C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\val\\"
     # __path = 'C:\\Users\\ccamp\Documents\\GitHub\\HerbariumDeep\\frameworks\\TensorFlow\\TFHub\\tmp\\summaries\\'
-    # __path = 'D:\\data\\GoingDeeperData\\training summaries\\4-22-2019\\summaries'
-    __path = 'D:\\data\\BOON\\training summaries\\8-16-2019'
+    __path = 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019'
+    # __path = 'D:\\data\\BOON\\training summaries\\8-16-2019'
     tb_exporter = TensorBoardDataExporter(root_summaries_dir=__path)
     __gs_hyper_strings, __gs_event_dataframes, __winner_hyper_strings, __winner_event_dataframes = tb_exporter.export_all_summaries_as_csv()
     __gs_train_hyperparams_df, __gs_val_hyperparams_df, __winner_train_hyperparams_df, __winner_val_hyperparams_df = \
