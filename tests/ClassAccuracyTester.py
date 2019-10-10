@@ -80,6 +80,9 @@ class TrainedTFHClassifier:
                         class_samples_incorrect += 1
                 assert class_samples_correct + class_samples_incorrect == total_num_class_samples
                 print('Class \'%s (%d)\'\'s accuracy is: %.2f%%' % (class_label, i, (class_samples_correct / total_num_class_samples)*100))
+                class_top_1_accuracies[i] = {'class': class_label, 'top_1_acc': (class_samples_correct / total_num_class_samples)*100}
+        print('class_top_1_accuracies: %s' % class_top_1_accuracies)
+        return class_top_1_accuracies
 
     def classify_image(self, image_path):
         raise NotImplementedError
