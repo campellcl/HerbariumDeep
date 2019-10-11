@@ -2,6 +2,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
+import json
 from frameworks.DataAcquisition.ImageExecutor import ImageExecutor
 
 
@@ -181,8 +182,13 @@ def main(run_config):
     class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
     top_1_accs = [value['top_1_acc'] for (key, value) in class_top_1_accuracies.items()]
     top_5_accs = [value['top_5_acc'] for (key, value) in class_top_5_accuracies.items()]
+
     print('Average top-1 Accuracy: %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
     print('Average top-5 Accuracy: %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))
+    with open('top_1_accuracies_by_class.json', 'w') as fp:
+        json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
+    with open('top_5_accuracies_by_class.json', 'w') as fp:
+        json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
 
 
 if __name__ == '__main__':
