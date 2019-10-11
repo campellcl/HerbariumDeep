@@ -284,6 +284,12 @@ def main(run_config):
     # per-class top-1 accuracy (2D Histogram):
     # plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
+    # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
+    # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
+
+    # TODO: Plot each hyperparameter on y-axis and then training time on the left-axis.
+
+
 
 if __name__ == '__main__':
     run_configs = {
