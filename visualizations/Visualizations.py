@@ -159,65 +159,63 @@ def plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df, data
     plt.show()
 
 
-def plot_boxplot_per_class_top_one_acc(dataset='BOONE', process='Validation'):
-    if dataset == 'BOONE':
-        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class.json'
-        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class.json'
-    elif dataset == 'GoingDeeper':
-        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class.json'
-        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class.json'
-    top_1_acc_by_class_df = None
-    with open(top_1_acc_path, 'r') as fp:
-        top_1_acc_by_class_df = pd.read_json(fp, orient='index')
+def plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOONE', process='Validation'):
     print(top_1_acc_by_class_df.columns)
-    sorted_df = top_1_acc_by_class_df.sort_values('top_1_acc', ascending=False)
-    plot = sorted_df.plot(x='class', y='top_1_acc', kind='bar')
+    sorted_df = top_1_acc_by_class_df.sort_values('top_1_acc', ascending=True)
+    plot = sorted_df.plot(x='class', y='top_1_acc', kind='barh', grid=False, fontsize=6)
     # Remove legend:
     plot.get_legend().remove()
-    plt.xlabel('Species/Scientific Name')
-    plt.ylabel('Top-1 Accuracy (Percent)')
-    plt.title('Top-1 Accuracy by Class')
+    plt.ylabel('Species/Scientific Name')
+    plt.xticks(np.arange(0, 110, 10))
+    plt.xlabel('Top-1 Accuracy (Percent)')
+    plt.title('Winning Model: Top-1 Accuracy by Class')
     plt.suptitle('%s %s Set' % (dataset, process))
     plt.show()
     pass
 
 
-def plot_2d_histogram_per_class_top_one_acc(dataset='BOONE', process='Validation'):
-    if dataset == 'BOONE':
-        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class.json'
-        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class.json'
-    elif dataset == 'GoingDeeper':
-        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class.json'
-        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class.json'
-    with open(top_1_acc_path, 'r') as fp:
-        top_1_acc_by_class_df = pd.read_json(fp, orient='index')
+def plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset='BOONE', process='Validation'):
+    top_1_acc_by_class_df_local = top_1_acc_by_class_df[top_1_acc_by_class_df['top_1_acc'] != 100]
+    sorted_df = top_1_acc_by_class_df_local.sort_values('top_1_acc', ascending=True)
+    plot = sorted_df.plot(x='class', y='top_1_acc', kind='barh', grid=False, fontsize=10)
+    # Remove legend:
+    plot.get_legend().remove()
+    plt.ylabel('Species/Scientific Name')
+    plt.xlabel('Top-1 Accuracy (Percent)')
+    plt.xticks(np.arange(0, 110, 10.0))
+    plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
+    plt.suptitle('%s %s Set' % (dataset, process))
+    plt.show()
+    pass
+
+
+def plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOONE', process='Validation'):
     top_1_acc_by_class_df.plot(x='class', y='top_1_acc', kind='hist', bins=np.arange(0, 110, 10.0))
     plt.show()
 
 
-def main():
-    datasets = ['BOONE', 'GoingDeeper']
-    processes = ['Training', 'Validation']
-    # Change these variables for different dataset visualizations:
-    # __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl'
-    dataset = datasets[0]
-    process = processes[1]
+def main(run_config):
 
-    df = pd.read_pickle(__path)
-    optimizers = df.optimizer.unique()
+    with open(run_config['top_1_per_class_acc_json_path'], 'r') as fp:
+        top_1_acc_by_class_df = pd.read_json(fp, orient='index')
+
+    with open(run_config['top_1_per_class_acc_json_path'].replace('1', '5'), 'r') as fp:
+        top_5_acc_by_class_df = pd.read_json(fp, orient='index')
+
+    gs_hyperparams_df = pd.read_pickle(run_config['hyperparam_df_path'])
+    optimizers = gs_hyperparams_df.optimizer.unique()
     num_optimizers = len(optimizers)
     print('Optimizers: %s' % optimizers.categories)
 
-    activations = df.activation.unique()
+    activations = gs_hyperparams_df.activation.unique()
     num_activations = len(activations)
     print('Activations: %s' % activations.categories)
 
-    train_batch_sizes = df.train_batch_size.unique()
+    train_batch_sizes = gs_hyperparams_df.train_batch_size.unique()
     num_train_batch_sizes = len(train_batch_sizes)
     print('Train Batch Sizes: %s' % train_batch_sizes)
 
-    initializers = df.initializer.unique()
+    initializers = gs_hyperparams_df.initializer.unique()
     num_initializers = len(initializers)
     print('Initializers: %s' % initializers.categories)
 
@@ -225,32 +223,84 @@ def main():
     data = np.zeros(heatmap_dims)
     print('HeatMap Dimensions: %s' %(data.shape,))
 
-    print('Columns: %s\n' % df.columns.values)
+    print('Columns: %s\n' % gs_hyperparams_df.columns.values)
 
     # Training Batch Size vs. Best Performing Epoch Acc (2D Histogram)
-    # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=df, data_set=dataset, process=process)
+    # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time (2D Histogram with Colorbar):
-    # plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
+    # plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time With Spline (2D Histogram with Colorbar and Spline):
-    # plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
+    # plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time (Bar Chart)
-    # plot_bar_chart_train_batch_size_vs_train_time(df=df)
+    # plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
 
     # Training Batch Size vs. Fit Time (Box Plot)
-    # plot_boxplot_train_batch_size_vs_train_time(df=df, data_set=dataset, process=process)
+    # plot_boxplot_train_batch_size_vs_train_time(df=gs_hyperparams_df, data_set=dataset, process=process)
 
     # Accuracy Metrics in General:
-    # plot_eval_metrics(df=df)
+    # plot_eval_metrics(df=gs_hyperparams_df)
 
     # per-class top-1 accuracy (Box Plot):
-    plot_boxplot_per_class_top_one_acc(dataset=dataset, process=process)
+    plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+
+    # per-class top-1 accuracy (Box Plot with Aggregation):
+    plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (2D Histogram):
-    plot_2d_histogram_per_class_top_one_acc(dataset=dataset, process=process)
+    plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
 
 if __name__ == '__main__':
-    main()
+    run_configs = {
+        'DEBUG': {
+            'dataset': 'DEBUG',
+            'image_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images',
+            'bottleneck_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\data\\GoingDeeper\\images\\bottlenecks.pkl',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
+        },
+        'BOONE': {
+            'val': {
+                'dataset': 'BOONE',
+                'process': 'Validation',
+                'image_dir': 'D:\\data\\BOON\\images',
+                'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_val_set.json',
+                'saved_model_path': 'D:\\data\\BOON\\training summaries\\8-16-2019\\gs_winner\\train'
+            },
+            'train': {
+                'dataset': 'BOONE',
+                'process': 'Training',
+                'image_dir': 'D:\\data\\BOON\\images',
+                'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_train_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_train_set.json',
+                'saved_model_path': 'D:\\data\\BOON\\training summaries\\8-16-2019\\gs_winner\\train'
+            },
+            'test':
+                {
+                    'dataset': 'BOONE',
+                    'process': 'Testing',
+                    'image_dir': 'D:\\data\\BOON\\images',
+                    'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+                    'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
+                    'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_test_hyperparams.pkl',
+                    'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_test_set.json',
+                    'saved_model_path': 'D:\\data\\BOON\\training summaries\\8-16-2019\\gs_winner\\train'
+                }
+        },
+        'GoingDeeper': {
+            'dataset': 'GoingDeeper',
+            'image_dir': 'D:\\data\\GoingDeeperData\\images',
+            'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+            'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train'
+        },
+        'SERNEC': {}
+    }
+    main(run_config=run_configs['BOONE']['val'])
