@@ -159,14 +159,49 @@ def plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df, data
     plt.show()
 
 
+def plot_boxplot_per_class_top_one_acc(dataset='BOONE', process='Validation'):
+    if dataset == 'BOONE':
+        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class.json'
+        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class.json'
+    elif dataset == 'GoingDeeper':
+        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class.json'
+        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class.json'
+    top_1_acc_by_class_df = None
+    with open(top_1_acc_path, 'r') as fp:
+        top_1_acc_by_class_df = pd.read_json(fp, orient='index')
+    print(top_1_acc_by_class_df.columns)
+    sorted_df = top_1_acc_by_class_df.sort_values('top_1_acc', ascending=False)
+    plot = sorted_df.plot(x='class', y='top_1_acc', kind='bar')
+    # Remove legend:
+    plot.get_legend().remove()
+    plt.xlabel('Species/Scientific Name')
+    plt.ylabel('Top-1 Accuracy (Percent)')
+    plt.title('Top-1 Accuracy by Class')
+    plt.suptitle('%s %s Set' % (dataset, process))
+    plt.show()
+    pass
+
+
+def plot_2d_histogram_per_class_top_one_acc(dataset='BOONE', process='Validation'):
+    if dataset == 'BOONE':
+        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class.json'
+        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class.json'
+    elif dataset == 'GoingDeeper':
+        top_1_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class.json'
+        top_5_acc_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class.json'
+    with open(top_1_acc_path, 'r') as fp:
+        top_1_acc_by_class_df = pd.read_json(fp, orient='index')
+    top_1_acc_by_class_df.plot(x='class', y='top_1_acc', kind='hist', bins=np.arange(0, 110, 10.0))
+    plt.show()
+
+
 def main():
     datasets = ['BOONE', 'GoingDeeper']
     processes = ['Training', 'Validation']
-
     # Change these variables for different dataset visualizations:
     # __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
     __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl'
-    dataset = datasets[1]
+    dataset = datasets[0]
     process = processes[1]
 
     df = pd.read_pickle(__path)
@@ -196,7 +231,7 @@ def main():
     # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time (2D Histogram with Colorbar):
-    plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
+    # plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
 
     # Training Batch Size vs. Fit Time With Spline (2D Histogram with Colorbar and Spline):
     # plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=df, data_set=dataset, process=process)
@@ -205,10 +240,16 @@ def main():
     # plot_bar_chart_train_batch_size_vs_train_time(df=df)
 
     # Training Batch Size vs. Fit Time (Box Plot)
-    plot_boxplot_train_batch_size_vs_train_time(df=df, data_set=dataset, process=process)
+    # plot_boxplot_train_batch_size_vs_train_time(df=df, data_set=dataset, process=process)
 
     # Accuracy Metrics in General:
     # plot_eval_metrics(df=df)
+
+    # per-class top-1 accuracy (Box Plot):
+    plot_boxplot_per_class_top_one_acc(dataset=dataset, process=process)
+
+    # per-class top-1 accuracy (2D Histogram):
+    plot_2d_histogram_per_class_top_one_acc(dataset=dataset, process=process)
 
 
 if __name__ == '__main__':
