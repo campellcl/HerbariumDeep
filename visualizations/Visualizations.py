@@ -171,7 +171,20 @@ def plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOONE', p
     plt.title('Winning Model: Top-1 Accuracy by Class')
     plt.suptitle('%s %s Set' % (dataset, process))
     plt.show()
-    pass
+
+
+def plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset='BOONE', process='Validation'):
+    print(top_5_acc_by_class_df.columns)
+    sorted_df = top_5_acc_by_class_df.sort_values('top_5_acc', ascending=True)
+    plot = sorted_df.plot(x='class', y='top_5_acc', kind='barh', grid=False, fontsize=6)
+    # Remove legend:
+    plot.get_legend().remove()
+    plt.ylabel('Species/Scientific Name')
+    plt.xticks(np.arange(0, 110, 10))
+    plt.xlabel('Top-5 Accuracy (Percent)')
+    plt.title('Winning Model: Top-5 Accuracy by Class')
+    plt.suptitle('%s %s Set' % (dataset, process))
+    plt.show()
 
 
 def plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset='BOONE', process='Validation'):
@@ -186,7 +199,20 @@ def plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset
     plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
     plt.suptitle('%s %s Set' % (dataset, process))
     plt.show()
-    pass
+
+
+def plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset='BOONE', process='Validation'):
+    top_5_acc_by_class_df_local = top_5_acc_by_class_df[top_5_acc_by_class_df['top_5_acc'] != 100]
+    sorted_df = top_5_acc_by_class_df_local.sort_values('top_5_acc', ascending=True)
+    plot = sorted_df.plot(x='class', y='top_5_acc', kind='barh', grid=False, fontsize=10)
+    # Remove legend:
+    plot.get_legend().remove()
+    plt.ylabel('Species/Scientific Name')
+    plt.xlabel('Top-5 Accuracy (Percent)')
+    plt.xticks(np.arange(0, 110, 10.0))
+    plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)')
+    plt.suptitle('%s %s Set' % (dataset, process))
+    plt.show()
 
 
 def plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOONE', process='Validation'):
@@ -246,11 +272,17 @@ def main(run_config):
     # per-class top-1 accuracy (Box Plot):
     plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
+    # per-class top-5 accuracy (Box Plot):
+    plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+
     # per-class top-1 accuracy (Box Plot with Aggregation):
     plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
+    # per-class top-5 accuracy (Box Plot with Aggregation):
+    plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+
     # per-class top-1 accuracy (2D Histogram):
-    plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
 
 if __name__ == '__main__':
