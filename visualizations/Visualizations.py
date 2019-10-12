@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
+from matplotlib.cm import ScalarMappable
 
 
 def plot_eval_metrics(df):
@@ -220,6 +222,47 @@ def plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOON
     plt.show()
 
 
+def plot_per_class_top_one_acc_vs_number_of_samples(top_1_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
+    # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
+    fig, ax = plt.subplots()
+    joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+    num_samples_per_class_df = joined_df['class'].value_counts()
+    num_samples_per_class = num_samples_per_class_df.values
+    print('num_samples_per_class: %s' % num_samples_per_class)
+    data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
+    print('data_colors: %s' % data_color)
+    cmap = plt.cm.get_cmap('GnBu')
+    colors = cmap(data_color)
+    rects = ax.bar(joined_df['class'], joined_df['top_1_acc'], color=colors)
+
+    sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
+    sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
+    # sm.set_array([])
+
+    cbar = plt.colorbar(sm)
+    cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+    plt.xlabel('Class/Species')
+    plt.ylabel('Top-1 Accuracy')
+    plt.title('Winning Model: Top-1 Accuracy by Class')
+    plt.suptitle('%s %s Set' % (dataset, process))
+    plt.show()
+
+    # num_samples_per_class_df = bottlenecks_df['class'].value_counts()
+    # # data_color = [x / max(top_1_acc_by_class_df['top_1_acc'].values()) for x in ]
+    # sorted_top_1_acc_by_class_df = top_1_acc_by_class_df.sort_values('top_1_acc', ascending=True)
+    # data_x = sorted_top_1_acc_by_class_df['class']
+    # data_height = None
+    # fig, ax = plt.subplots()
+    # cmap = plt.cm.get_cmap('GnBu')
+    # # fig.plot(kind='barh', x=sorted_top_1_acc_by_class_df['class'], data=sorted_top_1_acc_by_class_df['top_1_acc'])
+    # scalar_mappable = plt.barh(sorted_top_1_acc_by_class_df['class'], sorted_top_1_acc_by_class_df['top_1_acc'])
+    # clb = plt.colorbar(bottlenecks_df['class'].value_counts())
+    # plt.show()
+
+
+    raise NotImplementedError
+
+
 def main(run_config):
 
     with open(run_config['top_1_per_class_acc_json_path'], 'r') as fp:
@@ -251,6 +294,25 @@ def main(run_config):
 
     print('Columns: %s\n' % gs_hyperparams_df.columns.values)
 
+    bottleneck_executor = BottleneckExecutor(
+        image_dir=run_config['image_dir'],
+        logging_dir=run_config['logging_dir'],
+        tfhub_module_url='https://tfhub.dev/google/imagenet/inception_v3/feature_vector/1',
+        compressed_bottleneck_file_path=run_config['bottleneck_path']
+    )
+    all_bottlenecks = bottleneck_executor.get_bottlenecks()
+    class_labels = list(all_bottlenecks['class'].unique())
+    train_bottlenecks, val_bottlenecks, test_bottlenecks = bottleneck_executor.get_partitioned_bottlenecks()
+
+    if run_config['process'].lower() == 'training':
+        bottlenecks_df = train_bottlenecks
+    elif run_config['process'].lower() == 'validation':
+        bottlenecks_df = val_bottlenecks
+    elif run_config['process'].lower() == 'testing':
+        bottlenecks_df = test_bottlenecks
+    else:
+        raise NotImplementedError
+
     # Training Batch Size vs. Best Performing Epoch Acc (2D Histogram)
     # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=dataset, process=process)
 
@@ -270,21 +332,23 @@ def main(run_config):
     # plot_eval_metrics(df=gs_hyperparams_df)
 
     # per-class top-1 accuracy (Box Plot):
-    plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot):
-    plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (Box Plot with Aggregation):
-    plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot with Aggregation):
-    plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (2D Histogram):
     # plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
+    plot_per_class_top_one_acc_vs_number_of_samples(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
 
     # TODO: Plot each hyperparameter on y-axis and then training time on the left-axis.
