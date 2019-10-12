@@ -222,10 +222,14 @@ def plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOON
     plt.show()
 
 
-def plot_per_class_top_one_acc_vs_number_of_samples(top_1_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
+def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
     # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
     fig, ax = plt.subplots()
     joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+    # Sort ascending:
+    joined_df = joined_df.sort_values('top_1_acc', ascending=True)
+    # Remove 100 percent accuracy:
+    joined_df = joined_df[joined_df['top_1_acc'] != 100]
     num_samples_per_class_df = joined_df['class'].value_counts()
     num_samples_per_class = num_samples_per_class_df.values
     print('num_samples_per_class: %s' % num_samples_per_class)
@@ -233,7 +237,7 @@ def plot_per_class_top_one_acc_vs_number_of_samples(top_1_acc_by_class_df, bottl
     print('data_colors: %s' % data_color)
     cmap = plt.cm.get_cmap('GnBu')
     colors = cmap(data_color)
-    rects = ax.bar(joined_df['class'], joined_df['top_1_acc'], color=colors)
+    rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
 
     sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
     sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
@@ -241,26 +245,11 @@ def plot_per_class_top_one_acc_vs_number_of_samples(top_1_acc_by_class_df, bottl
 
     cbar = plt.colorbar(sm)
     cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
-    plt.xlabel('Class/Species')
-    plt.ylabel('Top-1 Accuracy')
-    plt.title('Winning Model: Top-1 Accuracy by Class')
+    plt.ylabel('Species/Scientific Name')
+    plt.xlabel('Top-1 Accuracy')
+    plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
     plt.suptitle('%s %s Set' % (dataset, process))
     plt.show()
-
-    # num_samples_per_class_df = bottlenecks_df['class'].value_counts()
-    # # data_color = [x / max(top_1_acc_by_class_df['top_1_acc'].values()) for x in ]
-    # sorted_top_1_acc_by_class_df = top_1_acc_by_class_df.sort_values('top_1_acc', ascending=True)
-    # data_x = sorted_top_1_acc_by_class_df['class']
-    # data_height = None
-    # fig, ax = plt.subplots()
-    # cmap = plt.cm.get_cmap('GnBu')
-    # # fig.plot(kind='barh', x=sorted_top_1_acc_by_class_df['class'], data=sorted_top_1_acc_by_class_df['top_1_acc'])
-    # scalar_mappable = plt.barh(sorted_top_1_acc_by_class_df['class'], sorted_top_1_acc_by_class_df['top_1_acc'])
-    # clb = plt.colorbar(bottlenecks_df['class'].value_counts())
-    # plt.show()
-
-
-    raise NotImplementedError
 
 
 def main(run_config):
@@ -347,7 +336,7 @@ def main(run_config):
     # plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
-    plot_per_class_top_one_acc_vs_number_of_samples(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
 
