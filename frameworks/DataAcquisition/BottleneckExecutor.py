@@ -252,23 +252,22 @@ class BottleneckExecutor:
             self._cache_all_bottlenecks()
             exit(0)
         image_lists = self.image_executor.get_image_lists()
-        resume_class_label = None
-        resume_class_label_index = -1
+
+        resume_class_labels = []
+        resume_class_label_indices = []
+
         for i, (clss_label, image_paths) in enumerate(image_lists.items()):
             if clss_label not in self.df_bottlenecks['class'].values:
-                # Resume from this class label
-                resume_class_label = clss_label
-                resume_class_label_index = i
-                break
-        if resume_class_label_index == -1:
+                resume_class_labels.append(clss_label)
+                resume_class_label_indices.append(i)
+        if not resume_class_label_indices:
             tf.logging.info(msg='All bottlenecks have already been computed! BottleneckExecutor will provide access '
                                 'to verbatim loaded bottlenecks\' dataframe.')
-            # self.df_bottlenecks = df_bottlenecks
             self.cached_all_bottlenecks = True
             return
         target_classes = list(self.image_lists.keys())
         num_classes = len(target_classes)
-        tf.logging.info(msg='Resuming previously interrupted bottleneck computation at [%d/%d] class label: \'%s\'' % (resume_class_label_index, num_classes, resume_class_label))
+        # tf.logging.info(msg='Resuming previously interrupted bottleneck computation at [%d/%d] class label: \'%s\'' % (resume_class_label_index, num_classes, resume_class_label))
 
         # Keep track of the amount of bottlenecks created, and the elapsed time taken to create them:
         bottleneck_counts_and_time_stamps = []
@@ -281,9 +280,12 @@ class BottleneckExecutor:
             sess.run(init)
             sess.graph.finalize()
             num_bottlenecks_since_last_save = 0
-            for i, clss in enumerate(target_classes):
-                if i < resume_class_label_index:
-                    continue
+            for i, (clss, clss_index) in enumerate(zip(resume_class_labels, resume_class_label_indices)):
+                tf.logging.info(msg='Resuming previously interrupted bottleneck computation at [%d/%d] class label: \'%s\'' % (clss_index, num_classes, clss))
+
+            # for i, clss in enumerate(target_classes):
+            #     if i < resume_class_label_index:
+            #         continue
                 image_paths = self.image_lists[clss]
                 '''
                 Since the images are high quality for the BOONE dataset, they take a large amount of RAM. Only load in
@@ -291,7 +293,7 @@ class BottleneckExecutor:
                 '''
                 image_path_batches = [image_paths[i:i + MAX_IMAGE_BATCH_SIZE] for i in range(0, len(image_paths), MAX_IMAGE_BATCH_SIZE)]
                 tf.logging.info('[%d/%d] Computing bottleneck values for %d samples in class: \'%s\''
-                                % (i+1, num_classes, len(image_paths), clss))
+                                % (clss_index, num_classes, len(image_paths), clss))
                 # Iterate over the batches of image paths:
                 for j, image_path_batch in enumerate(image_path_batches):
                     image_data_batch = [tf.gfile.GFile(image_path, 'rb').read() for image_path in image_path_batch]
@@ -353,11 +355,15 @@ class BottleneckExecutor:
             test_size=val_percent, shuffle=True,
             random_state=random_state
         )
+        # TODO: This logic sometimes allows for a single sample image in testing that is not in training or validation.
+        #   TODO: Need to remove classes with less than 20 samples.
         return train_bottlenecks, val_bottlenecks, test_bottlenecks
 
     def get_bottlenecks(self):
         if not self.cached_all_bottlenecks:
             self._resume_caching_bottlenecks()
+        # TODO: Remove classes with less than 20 samples:
+
         return self.df_bottlenecks
 
     # def cache_all_bottlenecks(self):
@@ -423,14 +429,14 @@ if __name__ == '__main__':
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
 
     # BOON Configuration:
-    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    image_path = 'D:\\data\\BOON\\images\\'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\BOON\\images\\'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
-    # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    # image_path = 'D:\\data\\GoingDeeperData\\images'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+    bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    image_path = 'D:\\data\\GoingDeeperData\\images'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     # SERNEC Cofiguration:
     # bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
