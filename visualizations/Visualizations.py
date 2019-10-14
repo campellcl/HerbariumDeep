@@ -254,6 +254,38 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_clas
     plt.show()
 
 
+def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
+    # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
+    fig, ax = plt.subplots()
+    joined_df = pd.merge(top_5_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+    # Sort ascending:
+    joined_df = joined_df.sort_values('top_5_acc', ascending=True)
+    # Remove 100 percent accuracy:
+    joined_df = joined_df[joined_df['top_5_acc'] != 100]
+    num_samples_per_class_df = joined_df['class'].value_counts()
+    num_samples_per_class = num_samples_per_class_df.values
+    print('num_samples_per_class: %s' % num_samples_per_class)
+    data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
+    print('data_colors: %s' % data_color)
+    cmap = plt.cm.get_cmap('GnBu')
+    colors = cmap(data_color)
+    rects = ax.barh(joined_df['class'], joined_df['top_5_acc'], color=colors)
+
+    sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
+    sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
+    # sm.set_array([])
+
+    cbar = plt.colorbar(sm, drawedges=False)
+    # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
+    cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+    # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
+    plt.ylabel('Species/Scientific Name')
+    plt.xlabel('Top-5 Accuracy')
+    plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)')
+    plt.suptitle('%s %s Set' % (dataset, process))
+    plt.show()
+
+
 def plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset='BOONE', process='Validation'):
     gs_hyperparams_df['fit_time_min'] = gs_hyperparams_df['fit_time_sec'].apply(lambda x: x / 60)
 
@@ -337,42 +369,43 @@ def main(run_config):
         raise NotImplementedError
 
     # Training Batch Size vs. Best Performing Epoch Acc (2D Histogram)
-    # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=dataset, process=process)
+    plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Training Batch Size vs. Fit Time (2D Histogram with Colorbar):
-    # plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=dataset, process=process)
+    plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Training Batch Size vs. Fit Time With Spline (2D Histogram with Colorbar and Spline):
-    # plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=dataset, process=process)
+    # plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Training Batch Size vs. Fit Time (Bar Chart)
-    # plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
+    plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
 
     # Training Batch Size vs. Fit Time (Box Plot)
-    # plot_boxplot_train_batch_size_vs_train_time(df=gs_hyperparams_df, data_set=dataset, process=process)
+    # plot_boxplot_train_batch_size_vs_train_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Accuracy Metrics in General:
     # plot_eval_metrics(df=gs_hyperparams_df)
 
     # per-class top-1 accuracy (Box Plot):
-    # plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot):
-    # plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (Box Plot with Aggregation):
-    # plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot with Aggregation):
-    # plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (2D Histogram):
     # plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
-    # plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
+    plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot each hyperparameter on y-axis and then training time on the left-axis.
     plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
