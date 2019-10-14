@@ -134,6 +134,8 @@ def main():
     ax_bot.set_yticks(y_ticks_left_major, minor=False)
     ax_bot.set_yticks(y_ticks_left_minor, minor=True)
     ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
+    ax_bot.set_xlabel('Initializer')
+    ax_bot.set_ylabel('Optimizer')
 
     # ax_right = ax_bot.twinx()
     # ax_right.set_aspect('equal')
@@ -144,6 +146,7 @@ def main():
     ax_top.set_xticks(x_ticks_top_major, minor=False)
     ax_top.set_xticks(x_ticks_top_minor, minor=True)
     ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
+    ax_top.set_xlabel('Training Batch Size')
     # ax_top.set_xticklabels('', major=True)
 
     # ax_right = ax_top.get_shared_y_axes().join(ax_bot, ax_top)
@@ -160,14 +163,19 @@ def main():
 
     scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
     scalar_mappable._A = []
-    plt.colorbar(mappable=scalar_mappable)
+    scalar_mappable.set_clim(vmin=0, vmax=100)
+    cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(0, 110, 10.0))
+    # For top-1 accuracy:
+    # cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25)
+    # For top-5 accuracy:
+    cbar.set_label('Top-5 Accuracy (Percentage)', rotation=270, labelpad=25)
 
     # For cross entropy loss:
     # plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
     # For top-1 accuracy:
     # plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10)
     # For top-5 accuracy:
-    plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10)
+    plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10, pad=10)
     plt.show()
 
 
