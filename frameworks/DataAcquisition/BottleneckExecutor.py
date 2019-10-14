@@ -355,15 +355,11 @@ class BottleneckExecutor:
             test_size=val_percent, shuffle=True,
             random_state=random_state
         )
-        # TODO: This logic sometimes allows for a single sample image in testing that is not in training or validation.
-        #   TODO: Need to remove classes with less than 20 samples.
         return train_bottlenecks, val_bottlenecks, test_bottlenecks
 
     def get_bottlenecks(self):
         if not self.cached_all_bottlenecks:
             self._resume_caching_bottlenecks()
-        # TODO: Remove classes with less than 20 samples:
-
         return self.df_bottlenecks
 
     # def cache_all_bottlenecks(self):
