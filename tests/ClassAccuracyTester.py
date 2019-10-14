@@ -154,6 +154,10 @@ def main(run_config):
     all_bottlenecks = bottleneck_executor.get_bottlenecks()
     class_labels = list(all_bottlenecks['class'].unique())
     train_bottlenecks, val_bottlenecks, test_bottlenecks = bottleneck_executor.get_partitioned_bottlenecks()
+    assert len(class_labels) == len(train_bottlenecks['class'].unique())
+    # print('Different class label: %s' % list(set(train_bottlenecks['class'].unique()) ^ set(class_labels)))
+    assert len(class_labels) == len(val_bottlenecks['class'].unique())
+    assert len(class_labels) == len(test_bottlenecks['class'].unique())
 
     train_bottleneck_values = train_bottlenecks['bottleneck'].tolist()
     train_bottleneck_values = np.array(train_bottleneck_values)
@@ -211,16 +215,16 @@ if __name__ == '__main__':
             'dataset': 'BOON',
             'image_dir': 'D:\\data\\BOON\\images',
             'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
             'saved_model_path': 'D:\\data\\BOON\\training summaries\\8-16-2019\\gs_winner\\train'
         },
         'GoingDeeper': {
             'dataset': 'GoingDeeper',
             'image_dir': 'D:\\data\\GoingDeeperData\\images',
             'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
             'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train'
         },
         'SERNEC': {}
     }
-    main(run_config=run_configs['BOONE'])
+    main(run_config=run_configs['GoingDeeper'])
