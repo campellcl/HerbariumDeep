@@ -278,8 +278,12 @@ def plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset='BO
     plt.suptitle("%s %s Set" % (dataset, process))
     plt.show()
 
-    # plot = gs_hyperparams_df.plot(x='fit_time_min', y='train_batch_size', kind='line')
-    # plt.show()
+    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='activation')
+    plt.xlabel('Activation')
+    plt.ylabel('Fit Time (Minutes)')
+    plt.title('Activation vs. Training Time')
+    plt.suptitle("%s %s Set" % (dataset, process))
+    plt.show()
 
 
 def main(run_config):
