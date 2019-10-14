@@ -453,12 +453,37 @@ if __name__ == '__main__':
                 }
         },
         'GoingDeeper': {
-            'dataset': 'GoingDeeper',
-            'image_dir': 'D:\\data\\GoingDeeperData\\images',
-            'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
-            'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train'
+            'train': {
+                'dataset': 'GoingDeeper',
+                'process': 'Training',
+                'image_dir': 'D:\\data\\GoingDeeperData\\images',
+                'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_train_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_train_set.json'
+            },
+            'val': {
+                'dataset': 'GoingDeeper',
+                'process': 'Validation',
+                'image_dir': 'D:\\data\\GoingDeeperData\\images',
+                'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_val_set.json'
+            },
+            'test': {
+                'dataset': 'GoingDeeper',
+                'process': 'Testing',
+                'image_dir': 'D:\\data\\GoingDeeperData\\images',
+                'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_test_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_test_set.json'
+            }
         },
         'SERNEC': {}
     }
-    main(run_config=run_configs['BOONE']['val'])
+    main(run_config=run_configs['GoingDeeper']['val'])
