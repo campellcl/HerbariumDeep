@@ -244,12 +244,42 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_clas
     # sm.set_array([])
 
     cbar = plt.colorbar(sm)
+    # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
     cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+    # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
     plt.ylabel('Species/Scientific Name')
     plt.xlabel('Top-1 Accuracy')
     plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
     plt.suptitle('%s %s Set' % (dataset, process))
     plt.show()
+
+
+def plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset='BOONE', process='Validation'):
+    gs_hyperparams_df['fit_time_min'] = gs_hyperparams_df['fit_time_sec'].apply(lambda x: x / 60)
+
+    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='train_batch_size')
+    plt.xlabel('Training Batch Size')
+    plt.ylabel('Fit Time (Minutes)')
+    plt.title('Training Time vs. Training Batch Size')
+    plt.suptitle("%s %s Set" % (dataset, process))
+    plt.show()
+
+    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='initializer')
+    plt.xlabel('Initializer')
+    plt.ylabel('Fit Time (Minutes)')
+    plt.title('Initializer vs. Training Time')
+    plt.suptitle("%s %s Set" % (dataset, process))
+    plt.show()
+
+    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='optimizer')
+    plt.xlabel('Optimizer')
+    plt.ylabel('Fit Time (Minutes)')
+    plt.title('Optimizer vs. Training Time')
+    plt.suptitle("%s %s Set" % (dataset, process))
+    plt.show()
+
+    # plot = gs_hyperparams_df.plot(x='fit_time_min', y='train_batch_size', kind='line')
+    # plt.show()
 
 
 def main(run_config):
@@ -336,12 +366,12 @@ def main(run_config):
     # plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
-    plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
 
     # TODO: Plot each hyperparameter on y-axis and then training time on the left-axis.
-
+    plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
 
 
 if __name__ == '__main__':
