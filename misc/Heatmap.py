@@ -27,7 +27,8 @@ def convert_optimizer_to_axes_label(optimizer):
 
 
 def main():
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
+    # __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
+    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl'
     df = pd.read_pickle(__path)
     optimizers = df.optimizer.unique()
     num_optimizers = len(optimizers)
@@ -163,8 +164,11 @@ def main():
 
     scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
     scalar_mappable._A = []
-    scalar_mappable.set_clim(vmin=0, vmax=100)
-    cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(0, 110, 10.0))
+    # scalar_mappable.set_clim(vmin=0, vmax=100)
+    # cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(0, 110, 10.0))
+    # For x-entropy loss:
+    cbar = plt.colorbar(mappable=scalar_mappable)
+    # cbar.set_label('Cross Entropy Loss', rotation=270, labelpad=25)
     # For top-1 accuracy:
     # cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25)
     # For top-5 accuracy:
@@ -173,7 +177,7 @@ def main():
     # For cross entropy loss:
     # plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
     # For top-1 accuracy:
-    # plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10)
+    # plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10, pad=10)
     # For top-5 accuracy:
     plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10, pad=10)
     plt.show()
