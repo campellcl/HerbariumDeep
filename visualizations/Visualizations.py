@@ -223,35 +223,67 @@ def plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOON
 
 
 def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
-    # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
-    fig, ax = plt.subplots()
-    joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
-    # Sort ascending:
-    joined_df = joined_df.sort_values('top_1_acc', ascending=True)
-    # Remove 100 percent accuracy:
-    joined_df = joined_df[joined_df['top_1_acc'] != 100]
-    num_samples_per_class_df = joined_df['class'].value_counts()
-    num_samples_per_class = num_samples_per_class_df.values
-    print('num_samples_per_class: %s' % num_samples_per_class)
-    data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
-    print('data_colors: %s' % data_color)
-    cmap = plt.cm.get_cmap('GnBu')
-    colors = cmap(data_color)
-    rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
+    if dataset == 'BOONE':
+        # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
+        fig, ax = plt.subplots()
+        joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+        # Sort ascending:
+        joined_df = joined_df.sort_values('top_1_acc', ascending=True)
+        # Remove 100 percent accuracy:
+        joined_df = joined_df[joined_df['top_1_acc'] != 100]
+        num_samples_per_class_df = joined_df['class'].value_counts()
+        num_samples_per_class = num_samples_per_class_df.values
+        print('num_samples_per_class: %s' % num_samples_per_class)
+        data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
+        print('data_colors: %s' % data_color)
+        cmap = plt.cm.get_cmap('GnBu')
+        colors = cmap(data_color)
+        rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
 
-    sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
-    sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
-    # sm.set_array([])
+        sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
+        sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
+        # sm.set_array([])
 
-    cbar = plt.colorbar(sm)
-    # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
-    cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
-    # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
-    plt.ylabel('Species/Scientific Name')
-    plt.xlabel('Top-1 Accuracy')
-    plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
-    plt.suptitle('%s %s Set' % (dataset, process))
-    plt.show()
+        cbar = plt.colorbar(sm)
+        # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
+        cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+        # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
+        plt.ylabel('Species/Scientific Name')
+        plt.xlabel('Top-1 Accuracy')
+        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
+        plt.suptitle('%s %s Set' % (dataset, process))
+        plt.show()
+    else:
+        # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
+        fig, ax = plt.subplots()
+        joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+        # Sort ascending:
+        joined_df = joined_df.sort_values('top_1_acc', ascending=True)
+        # Remove 100 percent accuracy:
+        joined_df = joined_df[joined_df['top_1_acc'] != 100]
+        num_samples_per_class_df = joined_df['class'].value_counts()
+        num_samples_per_class = num_samples_per_class_df.values
+        print('num_samples_per_class: %s' % num_samples_per_class)
+        data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
+        print('data_colors: %s' % data_color)
+        cmap = plt.cm.get_cmap('GnBu')
+        colors = cmap(data_color)
+        rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
+        ax.set_yticklabels([])
+
+        sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
+        sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
+        # sm.set_array([])
+
+        cbar = plt.colorbar(sm)
+        # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
+        cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+        # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
+        plt.ylabel('Species/Scientific Name')
+        plt.xlabel('Top-1 Accuracy')
+        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
+        plt.suptitle('%s %s Set' % (dataset, process))
+        plt.show()
 
 
 def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
@@ -283,6 +315,10 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_cla
     plt.xlabel('Top-5 Accuracy')
     plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)')
     plt.suptitle('%s %s Set' % (dataset, process))
+
+    if dataset == 'GoingDeeper':
+        ax.set_yticklabels([])
+
     plt.show()
 
 
@@ -315,6 +351,47 @@ def plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset='BO
     plt.ylabel('Fit Time (Minutes)')
     plt.title('Activation vs. Training Time')
     plt.suptitle("%s %s Set" % (dataset, process))
+    plt.show()
+
+
+def plot_bar_chart_class_count_by_top_one_acc(top_1_acc_by_class_df, bottlenecks_df, dataset, process):
+    joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+    joined_df['class'].value_counts().plot(kind='bar')
+    raise NotImplementedError
+
+
+def plot_scatter_per_class_top_one_acc(top_1_acc_by_class_df, top_5_acc_by_class_df, bottlenecks_df, dataset, process):
+    # fig, ax = plt.subplots()
+    # ax.plot('class')
+    joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+    joined_df = pd.merge(joined_df, top_5_acc_by_class_df, how='outer', sort=False)
+    # top_1_acc_by_class.plot(kind='scatter', x='class', y='top_1_acc')
+    threshold = 65.00
+    df_subset = joined_df[joined_df['top_1_acc'] >= threshold]
+    num_initial_classes = len(joined_df['class'].unique())
+    num_initial_samples = joined_df.shape[0]
+    threshold_classes = len(df_subset['class'].unique())
+    num_threshold_samples = df_subset.shape[0]
+    percent_samples_classified_with_threshold = (num_threshold_samples * 100) / num_initial_samples
+    print('Only issuing predictions where the top-1 accuracy is at or above the threshold of %.2f%%, then %.2f%% of samples can be classified automatically.' % (threshold, percent_samples_classified_with_threshold))
+
+    # https://www.idigbio.org/content/simultaneous-transcription-blitzes-success
+    # On-site participants averaged 3.48 minutes per Notes from Nature specimen
+    # Workforce Efficient Consensus in Crowd Sourced Transcription of Biocollections:
+    # Average of 9.18 minutes for transcriptions scoring above 0.7
+
+    print('It is estimated that this will take %s seconds of time. Thereby saving %s seconds of transcription efforts.' % ('Unknown', 'Unknown'))
+    print('The remaining percentage must be delegated to top-5 accuracy.')
+
+    df_subset = joined_df[joined_df['top_1_acc'] < threshold]
+    df_top_5_acc_subset = df_subset[df_subset['top_5_acc'] >= threshold]
+    num_initial_classes = len(df_subset['class'].unique())
+    num_initial_samples = df_subset.shape[0]
+    threshold_classes = len(df_top_5_acc_subset['class'].unique())
+    num_threshold_samples = df_top_5_acc_subset.shape[0]
+    percent_samples_classified_with_threshold = (num_threshold_samples * 100) / num_initial_samples
+    print('Of the remaining samples...')
+    print('Only issuing predictions where the top-5 accuracy is at or above the threshold of %.2f%%, then %.2f%% of samples can be classified semi-automatically.' % (threshold, percent_samples_classified_with_threshold))
     plt.show()
 
 
@@ -367,48 +444,40 @@ def main(run_config):
         bottlenecks_df = test_bottlenecks
     else:
         raise NotImplementedError
+    # bottlenecks_df = None
 
     # Training Batch Size vs. Best Performing Epoch Acc (2D Histogram)
-    plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
+    # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Training Batch Size vs. Fit Time (2D Histogram with Colorbar):
-    plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
-
-    # Training Batch Size vs. Fit Time With Spline (2D Histogram with Colorbar and Spline):
-    # plot_2d_hist_with_colorbar_and_splines_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
+    # plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Training Batch Size vs. Fit Time (Bar Chart)
-    plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
-
-    # Training Batch Size vs. Fit Time (Box Plot)
-    # plot_boxplot_train_batch_size_vs_train_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
-
-    # Accuracy Metrics in General:
-    # plot_eval_metrics(df=gs_hyperparams_df)
+    # plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
 
     # per-class top-1 accuracy (Box Plot):
-    plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot):
-    plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (Box Plot with Aggregation):
-    plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot with Aggregation):
-    plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
-    # per-class top-1 accuracy (2D Histogram):
-    # plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
-
-    # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
+    # Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
     plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
-    # TODO: Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
+    # Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
     plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
-    # TODO: Plot each hyperparameter on y-axis and then training time on the left-axis.
-    plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
+    # Plot each hyperparameter on y-axis and then training time on the left-axis.
+    # plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
+
+    # per-class top-1 accuracy (scatter):
+    # plot_scatter_per_class_top_one_acc(top_1_acc_by_class_df, top_5_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
 
 if __name__ == '__main__':
