@@ -247,11 +247,11 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_clas
         sm.set_clim(vmin=0, vmax=max(num_samples_per_class))
         # sm.set_array([])
 
-        cbar = plt.colorbar(sm)
-        cbar_ticks = cbar.get_ticks()
-        cbar_bounds = cbar.ax.get_ybound()
-        cbar_ticks = np.append(cbar_ticks, cbar_bounds[1])
-        cbar.ax.set_yticklabels(cbar_ticks)
+        cbar = plt.colorbar(sm, drawedges=False)
+        # cbar_ticks = cbar.get_ticks()
+        # cbar_bounds = cbar.ax.get_ybound()
+        # cbar_ticks = np.append(cbar_ticks, cbar_bounds[1])
+        # cbar.ax.set_yticklabels(cbar_ticks)
 
         # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
         cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
