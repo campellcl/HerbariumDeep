@@ -191,6 +191,9 @@ def plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset='BOONE', 
 
 def plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset='BOONE', process='Validation'):
     top_1_acc_by_class_df_local = top_1_acc_by_class_df[top_1_acc_by_class_df['top_1_acc'] != 100]
+    num_classes_with_perfect_acc = top_1_acc_by_class_df[top_1_acc_by_class_df['top_1_acc'] == 100].shape[0]
+    print('Omitting %d classes with perfect top-1 accuracy (100%%)' % num_classes_with_perfect_acc)
+    print('There are %d classes without perfect top-1 accuracy remaining.' % top_1_acc_by_class_df_local.shape[0])
     sorted_df = top_1_acc_by_class_df_local.sort_values('top_1_acc', ascending=True)
     plot = sorted_df.plot(x='class', y='top_1_acc', kind='barh', grid=False, fontsize=10)
     # Remove legend:
@@ -241,13 +244,19 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_clas
         rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
 
         sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
-        sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
+        sm.set_clim(vmin=0, vmax=max(num_samples_per_class))
         # sm.set_array([])
 
         cbar = plt.colorbar(sm)
+        cbar_ticks = cbar.get_ticks()
+        cbar_bounds = cbar.ax.get_ybound()
+        cbar_ticks = np.append(cbar_ticks, cbar_bounds[1])
+        cbar.ax.set_yticklabels(cbar_ticks)
+
         # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
-        cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
         # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
+        # cbar.ax.set_yticklabels(np.arange(0, max(num_samples_per_class)+2.5, 2.5))
         plt.ylabel('Species/Scientific Name')
         plt.xlabel('Top-1 Accuracy')
         plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
@@ -277,7 +286,7 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_clas
 
         cbar = plt.colorbar(sm)
         # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
-        cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
         # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
         plt.ylabel('Species/Scientific Name')
         plt.xlabel('Top-1 Accuracy')
@@ -309,7 +318,7 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_cla
 
     cbar = plt.colorbar(sm, drawedges=False)
     # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
-    cbar.set_label('Number of Class Samples', rotation=270, labelpad=25)
+    cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
     # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
     plt.ylabel('Species/Scientific Name')
     plt.xlabel('Top-5 Accuracy')
@@ -456,16 +465,16 @@ def main(run_config):
     # plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
 
     # per-class top-1 accuracy (Box Plot):
-    # plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot):
     # plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (Box Plot with Aggregation):
-    # plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-5 accuracy (Box Plot with Aggregation):
-    # plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
     plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
@@ -555,4 +564,4 @@ if __name__ == '__main__':
         },
         'SERNEC': {}
     }
-    main(run_config=run_configs['GoingDeeper']['val'])
+    main(run_config=run_configs['BOONE']['val'])
