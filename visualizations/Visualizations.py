@@ -234,7 +234,6 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
         joined_df = joined_df.sort_values('top_1_acc', ascending=True)
         # Remove 100 percent accuracy:
         joined_df = joined_df[joined_df['top_1_acc'] != 100]
-        # TODO: Need to maintain sorted order for data_color generation. The num samples do not mach up with the coloring.
         joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_1_acc'].transform('count')
         joined_df = joined_df.sort_values(by='num_class_samples', ascending=False)
         # Normalize:
@@ -244,18 +243,19 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
         joined_df = joined_df.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
         # Re-sort:
         joined_df = joined_df.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
-        # temp_df = joined_df.drop(['bottleneck', 'path'], axis=1)
-        # temp_df = joined_df.groupby(joined_df['class']).aggregate('sum')
-        # cma
         print('num_samples_per_class: %s' % joined_df['num_class_samples'].values)
         print('data colors: %s' % joined_df['data_color'].values)
+
         cmap = plt.cm.get_cmap('GnBu')
         colors = cmap(joined_df['data_color'].values)
         rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
+
         sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(joined_df['num_class_samples'])))
         sm.set_clim(vmin=0, vmax=max(joined_df['num_class_samples']))
+
         cbar = plt.colorbar(sm, drawedges=False)
         cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
+
         plt.ylabel('Species/Scientific Name')
         plt.xlabel('Top-1 Accuracy')
         plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
@@ -269,31 +269,40 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
             # plt.clf()
             fig, ax = plt.subplots()
             joined_training_df = pd.merge(training_top_1_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
+            # Sort ascending:
             joined_training_df = joined_training_df.sort_values('top_1_acc', ascending=True)
+            # Remove classes which obtained 100% accuracy on the validation set:
             classes_with_perfect_acc_in_preceding_process = joined_df['class'].unique()
             # this pulls out only the classes that remain in the validation dataframe after dropping those with 100% accuracy:
             joined_training_df_same_class_subset_as_preceding_process = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
             # Now we find out the number of training instances belonging to each of those classes:
-            num_training_samples_per_class_df = joined_training_df_same_class_subset_as_preceding_process['class'].value_counts()
-            print(num_training_samples_per_class_df)
-            num_training_samples_per_class = num_training_samples_per_class_df.values
-            print('num_training_samples_per_class: %s' % num_training_samples_per_class)
-            training_data_color = [num_training_samples_for_class / max(num_training_samples_per_class) for num_training_samples_for_class in num_training_samples_per_class]
-            training_cmap = plt.cm.get_cmap('GnBu')
-            training_colors = cmap(training_data_color)
+            joined_training_df_same_class_subset_as_preceding_process['num_class_samples'] = joined_training_df_same_class_subset_as_preceding_process.groupby(['class'])['top_1_acc'].transform('count')
+            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(by='num_class_samples', ascending=False)
+            # Normalize:
+            joined_training_df_same_class_subset_as_preceding_process['data_color'] = joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].apply(lambda x: x / max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
+            # Remove extraneous rows:
+            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop(['bottleneck', 'path'], axis=1)
+            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
+            # Re-sort:
+            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
+            print('num_training_samples_per_class: %s' % joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].values)
+            print('training data colors: %s' % joined_training_df_same_class_subset_as_preceding_process['data_color'].values)
+
+            training_cmap = plt.get_cmap('GnBu')
+            training_colors = cmap(joined_training_df_same_class_subset_as_preceding_process['data_color'].values)
             training_rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=training_colors)
+            sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples'])))
+            sm.set_clim(vmin=0, vmax=max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
 
-            training_sm = ScalarMappable(cmap=training_cmap, norm=plt.Normalize(0, max(num_training_samples_per_class)))
-            training_sm.set_clim(vmin=0, vmax=max(num_training_samples_per_class))
-
-            training_cbar = plt.colorbar(training_sm, drawedges=False)
-            training_cbar.set_label('Number of Class Samples (%s Set)' % preceding_process)
+            cbar = plt.colorbar(sm, drawedges=False)
+            cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25)
             plt.ylabel('Species/Scientific Name')
-            plt.xlabel('Top-1 Accuracy (%s Set)' % process)
+            plt.xlabel('Top-1 Accuracy')
             plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
             plt.suptitle('%s %s Set' % (dataset, process))
+            # Invert the y-axis
+            ax.invert_yaxis()
             plt.show()
-
     else:
         # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
         fig, ax = plt.subplots()
