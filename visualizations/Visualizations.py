@@ -172,6 +172,8 @@ def plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOONE', p
     plt.xlabel('Top-1 Accuracy (Percent)')
     plt.title('Winning Model: Top-1 Accuracy by Class')
     plt.suptitle('%s %s Set' % (dataset, process))
+    if dataset == 'GoingDeeper':
+        plt.yticks([])
     plt.show()
 
 
@@ -203,6 +205,8 @@ def plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset
     plt.xticks(np.arange(0, 110, 10.0))
     plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
     plt.suptitle('%s %s Set' % (dataset, process))
+    if dataset == 'GoingDeeper':
+        plt.yticks([])
     plt.show()
 
 
@@ -217,6 +221,8 @@ def plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, datase
     plt.xticks(np.arange(0, 110, 10.0))
     plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)')
     plt.suptitle('%s %s Set' % (dataset, process))
+    if dataset == 'GoingDeeper':
+        plt.yticks([])
     plt.show()
 
 
@@ -229,113 +235,95 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
                                                                training_top_1_acc_by_class_df=None,
                                                                training_bottlenecks_df=None, dataset='BOONE',
                                                                process='Validation', preceding_process='Training'):
-    if dataset == 'BOONE':
-        # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
-        fig, ax = plt.subplots()
-        joined_df = pd.merge(process_top_1_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
-        # Sort ascending:
-        joined_df = joined_df.sort_values('top_1_acc', ascending=True)
-        # Remove 100 percent accuracy:
-        joined_df = joined_df[joined_df['top_1_acc'] != 100]
-        joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_1_acc'].transform('count')
-        joined_df = joined_df.sort_values(by='num_class_samples', ascending=False)
-        # Normalize:
-        joined_df['data_color'] = joined_df['num_class_samples'].apply(lambda x: x / max(joined_df['num_class_samples'].values))
-        # Remove the now extraneous rows:
-        joined_df = joined_df.drop(['bottleneck', 'path'], axis=1)
-        joined_df = joined_df.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
-        # Re-sort:
-        joined_df = joined_df.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
-        print('num_samples_per_class: %s' % joined_df['num_class_samples'].values)
-        print('data colors: %s' % joined_df['data_color'].values)
+    # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
+    fig, ax = plt.subplots()
+    print('Merging source data frames...')
+    joined_df = pd.merge(process_top_1_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
+    # Sort ascending:
+    # joined_df = joined_df.sort_values('top_1_acc', ascending=True)
+    # Remove 100 percent accuracy:
+    print('Subsetting dataframe by removing entries with perfect accuracy...')
+    joined_df = joined_df[joined_df['top_1_acc'] != 100]
+    print('Appending class sample counts...')
+    joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_1_acc'].transform('count')
+    # joined_df = joined_df.sort_values(by='num_class_samples', ascending=False)
+    # Remove the now extraneous rows:
+    print('Removing extraneous columns...')
+    joined_df = joined_df.drop(['bottleneck', 'path'], axis=1)
+    print('Dropping duplicate rows...')
+    joined_df = joined_df.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
+    # Normalize:
+    print('Normalizing class sample counts as color data...')
+    joined_df['data_color'] = joined_df['num_class_samples'].apply(lambda x: x / max(joined_df['num_class_samples'].values))
+    # Re-sort:
+    print('Sorting result by top-1-accuracy and number of class samples in descending order...')
+    joined_df = joined_df.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
+    print('num_samples_per_class: %s' % joined_df['num_class_samples'].values)
+    print('data colors: %s' % joined_df['data_color'].values)
 
-        cmap = plt.cm.get_cmap('GnBu')
-        colors = cmap(joined_df['data_color'].values)
-        rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
+    cmap = plt.cm.get_cmap('GnBu')
+    colors = cmap(joined_df['data_color'].values)
+    rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
 
-        sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(joined_df['num_class_samples'])))
-        sm.set_clim(vmin=0, vmax=max(joined_df['num_class_samples']))
+    sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(joined_df['num_class_samples'])))
+    sm.set_clim(vmin=0, vmax=max(joined_df['num_class_samples']))
 
-        cbar = plt.colorbar(sm, drawedges=False)
-        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
+    cbar = plt.colorbar(sm, drawedges=False)
+    cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
 
-        plt.ylabel('Species/Scientific Name')
-        plt.xlabel('Top-1 Accuracy')
-        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
-        plt.suptitle('%s %s Set' % (dataset, process))
-        # Invert the y axis:
-        ax.invert_yaxis()
-        plt.show()
+    plt.ylabel('Species/Scientific Name')
+    plt.xlabel('Top-1 Accuracy')
+    plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
+    plt.suptitle('%s %s Set' % (dataset, process))
+    # Invert the y axis:
+    ax.invert_yaxis()
 
-        if training_top_1_acc_by_class_df is not None:
-            # Plot again with the colors done by number of training samples instead of validation samples:
-            # plt.clf()
-            fig, ax = plt.subplots()
-            joined_training_df = pd.merge(training_top_1_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
-            # Sort ascending:
-            joined_training_df = joined_training_df.sort_values('top_1_acc', ascending=True)
-            # Remove classes which obtained 100% accuracy on the validation set:
-            classes_with_perfect_acc_in_preceding_process = joined_df['class'].unique()
-            # this pulls out only the classes that remain in the validation dataframe after dropping those with 100% accuracy:
-            joined_training_df_same_class_subset_as_preceding_process = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
-            # Now we find out the number of training instances belonging to each of those classes:
-            joined_training_df_same_class_subset_as_preceding_process['num_class_samples'] = joined_training_df_same_class_subset_as_preceding_process.groupby(['class'])['top_1_acc'].transform('count')
-            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(by='num_class_samples', ascending=False)
-            # Normalize:
-            joined_training_df_same_class_subset_as_preceding_process['data_color'] = joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].apply(lambda x: x / max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
-            # Remove extraneous rows:
-            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop(['bottleneck', 'path'], axis=1)
-            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
-            # Re-sort:
-            joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
-            print('num_training_samples_per_class: %s' % joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].values)
-            print('training data colors: %s' % joined_training_df_same_class_subset_as_preceding_process['data_color'].values)
-
-            training_cmap = plt.get_cmap('GnBu')
-            training_colors = cmap(joined_training_df_same_class_subset_as_preceding_process['data_color'].values)
-            training_rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=training_colors)
-            sm = ScalarMappable(cmap=training_cmap, norm=plt.Normalize(0, max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples'])))
-            sm.set_clim(vmin=0, vmax=max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
-
-            cbar = plt.colorbar(sm, drawedges=False)
-            cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25)
-            plt.ylabel('Species/Scientific Name')
-            plt.xlabel('Top-1 Accuracy')
-            plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
-            plt.suptitle('%s %s Set' % (dataset, process))
-            # Invert the y-axis
-            ax.invert_yaxis()
-            plt.show()
-    else:
-        # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
-        fig, ax = plt.subplots()
-        joined_df = pd.merge(process_top_1_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
-        # Sort ascending:
-        joined_df = joined_df.sort_values('top_1_acc', ascending=True)
-        # Remove 100 percent accuracy:
-        joined_df = joined_df[joined_df['top_1_acc'] != 100]
-        num_samples_per_class_df = joined_df['class'].value_counts()
-        num_samples_per_class = num_samples_per_class_df.values
-        print('num_samples_per_class: %s' % num_samples_per_class)
-        data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
-        print('data_colors: %s' % data_color)
-        cmap = plt.cm.get_cmap('GnBu')
-        colors = cmap(data_color)
-        rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
+    if dataset == 'GoingDeeper':
         ax.set_yticklabels([])
 
-        sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
-        sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
-        # sm.set_array([])
+    plt.show()
 
-        cbar = plt.colorbar(sm)
-        # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
-        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
-        # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
+    if training_top_1_acc_by_class_df is not None:
+        # Plot again with the colors done by number of training samples instead of validation samples:
+        # plt.clf()
+        fig, ax = plt.subplots()
+        joined_training_df = pd.merge(training_top_1_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
+        # Sort ascending:
+        joined_training_df = joined_training_df.sort_values('top_1_acc', ascending=True)
+        # Remove classes which obtained 100% accuracy on the validation set:
+        classes_with_perfect_acc_in_preceding_process = joined_df['class'].unique()
+        # this pulls out only the classes that remain in the validation dataframe after dropping those with 100% accuracy:
+        joined_training_df_same_class_subset_as_preceding_process = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
+        # Now we find out the number of training instances belonging to each of those classes:
+        joined_training_df_same_class_subset_as_preceding_process['num_class_samples'] = joined_training_df_same_class_subset_as_preceding_process.groupby(['class'])['top_1_acc'].transform('count')
+        joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(by='num_class_samples', ascending=False)
+        # Normalize:
+        joined_training_df_same_class_subset_as_preceding_process['data_color'] = joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].apply(lambda x: x / max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
+        # Remove extraneous rows:
+        joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop(['bottleneck', 'path'], axis=1)
+        joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
+        # Re-sort:
+        joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
+        print('num_training_samples_per_class: %s' % joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].values)
+        print('training data colors: %s' % joined_training_df_same_class_subset_as_preceding_process['data_color'].values)
+
+        training_cmap = plt.get_cmap('GnBu')
+        training_colors = cmap(joined_training_df_same_class_subset_as_preceding_process['data_color'].values)
+        training_rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=training_colors)
+        sm = ScalarMappable(cmap=training_cmap, norm=plt.Normalize(0, max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples'])))
+        sm.set_clim(vmin=0, vmax=max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
+
+        cbar = plt.colorbar(sm, drawedges=False)
+        cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25)
         plt.ylabel('Species/Scientific Name')
         plt.xlabel('Top-1 Accuracy')
         plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
         plt.suptitle('%s %s Set' % (dataset, process))
+        # Invert the y-axis
+        ax.invert_yaxis()
+
+        if dataset == 'GoingDeeper':
+            ax.set_yticklabels([])
         plt.show()
 
 
@@ -414,6 +402,9 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_ac
         plt.suptitle('%s %s Set' % (dataset, process))
         # Invert the y-axis so it maches the order of the source dataframe:
         ax.invert_yaxis()
+
+        if dataset == 'GoingDeeper':
+            ax.set_yticklabels([])
         plt.show()
 
 
@@ -588,7 +579,7 @@ def main(run_config):
     elif run_config['process'].lower() == 'validation':
         plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, training_top_5_acc_by_class_df=training_top_5_acc_by_class_df, training_bottlenecks_df=training_bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
     else:
-        raise NotImplementedError
+        raise NotImplementedError("Need to distinguish testing process.")
     # Plot each hyperparameter on y-axis and then training time on the left-axis.
     # plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
 
@@ -649,7 +640,8 @@ if __name__ == '__main__':
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
                 'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_train_hyperparams.pkl',
-                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_train_set.json'
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_train_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_train_set.json'
             },
             'val': {
                 'dataset': 'GoingDeeper',
@@ -659,7 +651,8 @@ if __name__ == '__main__':
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
                 'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl',
-                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_val_set.json'
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_val_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_val_set.json'
             },
             'test': {
                 'dataset': 'GoingDeeper',
@@ -669,7 +662,8 @@ if __name__ == '__main__':
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
                 'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_test_hyperparams.pkl',
-                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_test_set.json'
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_test_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_test_set.json'
             }
         },
         'SERNEC': {}
