@@ -225,47 +225,79 @@ def plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOON
     plt.show()
 
 
-def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
+def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc_by_class_df, process_bottlenecks_df, training_top_1_acc_by_class_df=None, training_bottlenecks_df=None, dataset='BOONE', process='Validation', preceding_process='Training'):
     if dataset == 'BOONE':
         # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
         fig, ax = plt.subplots()
-        joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+        joined_df = pd.merge(process_top_1_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
         # Sort ascending:
         joined_df = joined_df.sort_values('top_1_acc', ascending=True)
         # Remove 100 percent accuracy:
         joined_df = joined_df[joined_df['top_1_acc'] != 100]
-        num_samples_per_class_df = joined_df['class'].value_counts()
-        num_samples_per_class = num_samples_per_class_df.values
-        print('num_samples_per_class: %s' % num_samples_per_class)
-        data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
-        print('data_colors: %s' % data_color)
+        # TODO: Need to maintain sorted order for data_color generation. The num samples do not mach up with the coloring.
+        joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_1_acc'].transform('count')
+        joined_df = joined_df.sort_values(by='num_class_samples', ascending=False)
+        # Normalize:
+        joined_df['data_color'] = joined_df['num_class_samples'].apply(lambda x: x / max(joined_df['num_class_samples'].values))
+        # Remove the now extraneous rows:
+        joined_df = joined_df.drop(['bottleneck', 'path'], axis=1)
+        joined_df = joined_df.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
+        # Re-sort:
+        joined_df = joined_df.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
+        # temp_df = joined_df.drop(['bottleneck', 'path'], axis=1)
+        # temp_df = joined_df.groupby(joined_df['class']).aggregate('sum')
+        # cma
+        print('num_samples_per_class: %s' % joined_df['num_class_samples'].values)
+        print('data colors: %s' % joined_df['data_color'].values)
         cmap = plt.cm.get_cmap('GnBu')
-        colors = cmap(data_color)
+        colors = cmap(joined_df['data_color'].values)
         rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=colors)
-
-        sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
-        sm.set_clim(vmin=0, vmax=max(num_samples_per_class))
-        # sm.set_array([])
-
+        sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(joined_df['num_class_samples'])))
+        sm.set_clim(vmin=0, vmax=max(joined_df['num_class_samples']))
         cbar = plt.colorbar(sm, drawedges=False)
-        # cbar_ticks = cbar.get_ticks()
-        # cbar_bounds = cbar.ax.get_ybound()
-        # cbar_ticks = np.append(cbar_ticks, cbar_bounds[1])
-        # cbar.ax.set_yticklabels(cbar_ticks)
-
-        # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
         cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
-        # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
-        # cbar.ax.set_yticklabels(np.arange(0, max(num_samples_per_class)+2.5, 2.5))
         plt.ylabel('Species/Scientific Name')
         plt.xlabel('Top-1 Accuracy')
         plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
         plt.suptitle('%s %s Set' % (dataset, process))
+        # Invert the y axis:
+        ax.invert_yaxis()
         plt.show()
+
+        if training_top_1_acc_by_class_df is not None:
+            # Plot again with the colors done by number of training samples instead of validation samples:
+            # plt.clf()
+            fig, ax = plt.subplots()
+            joined_training_df = pd.merge(training_top_1_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
+            joined_training_df = joined_training_df.sort_values('top_1_acc', ascending=True)
+            classes_with_perfect_acc_in_preceding_process = joined_df['class'].unique()
+            # this pulls out only the classes that remain in the validation dataframe after dropping those with 100% accuracy:
+            joined_training_df_same_class_subset_as_preceding_process = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
+            # Now we find out the number of training instances belonging to each of those classes:
+            num_training_samples_per_class_df = joined_training_df_same_class_subset_as_preceding_process['class'].value_counts()
+            print(num_training_samples_per_class_df)
+            num_training_samples_per_class = num_training_samples_per_class_df.values
+            print('num_training_samples_per_class: %s' % num_training_samples_per_class)
+            training_data_color = [num_training_samples_for_class / max(num_training_samples_per_class) for num_training_samples_for_class in num_training_samples_per_class]
+            training_cmap = plt.cm.get_cmap('GnBu')
+            training_colors = cmap(training_data_color)
+            training_rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=training_colors)
+
+            training_sm = ScalarMappable(cmap=training_cmap, norm=plt.Normalize(0, max(num_training_samples_per_class)))
+            training_sm.set_clim(vmin=0, vmax=max(num_training_samples_per_class))
+
+            training_cbar = plt.colorbar(training_sm, drawedges=False)
+            training_cbar.set_label('Number of Class Samples (%s Set)' % preceding_process)
+            plt.ylabel('Species/Scientific Name')
+            plt.xlabel('Top-1 Accuracy (%s Set)' % process)
+            plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)')
+            plt.suptitle('%s %s Set' % (dataset, process))
+            plt.show()
+
     else:
         # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
         fig, ax = plt.subplots()
-        joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+        joined_df = pd.merge(process_top_1_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
         # Sort ascending:
         joined_df = joined_df.sort_values('top_1_acc', ascending=True)
         # Remove 100 percent accuracy:
@@ -444,12 +476,19 @@ def main(run_config):
     all_bottlenecks = bottleneck_executor.get_bottlenecks()
     class_labels = list(all_bottlenecks['class'].unique())
     train_bottlenecks, val_bottlenecks, test_bottlenecks = bottleneck_executor.get_partitioned_bottlenecks()
-
     if run_config['process'].lower() == 'training':
+        training_bottlenecks_df = None
+        training_top_1_acc_by_class_df = None
         bottlenecks_df = train_bottlenecks
     elif run_config['process'].lower() == 'validation':
+        training_bottlenecks_df = train_bottlenecks
+        training_top_1_acc_by_class_df = None
+        proceeding_run_config = run_configs[run_config['dataset']]['train']
+        with open(proceeding_run_config['top_1_per_class_acc_json_path'], 'r') as fp:
+            training_top_1_acc_by_class_df = pd.read_json(fp, orient='index')
         bottlenecks_df = val_bottlenecks
     elif run_config['process'].lower() == 'testing':
+        raise NotImplementedError("training_bottlenecks_df = train_bottlenecks.join(val_bottlenecks)")
         bottlenecks_df = test_bottlenecks
     else:
         raise NotImplementedError
@@ -477,7 +516,12 @@ def main(run_config):
     plot_boxplot_per_class_top_five_acc_aggregated(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # Plot number of samples per-class (colorbar on existing) vs class's top-1 acc
-    plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+    if run_config['process'].lower() == 'training':
+        plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, training_top_1_acc_by_class_df=None, training_bottlenecks_df=None, dataset=run_config['dataset'], process=run_config['process'])
+    elif run_config['process'].lower() == 'validation':
+        plot_per_class_top_one_acc_vs_number_of_samples_aggregated(top_1_acc_by_class_df, bottlenecks_df, training_top_1_acc_by_class_df=training_top_1_acc_by_class_df, training_bottlenecks_df=training_bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+    else:
+        raise NotImplementedError("Need to distinguish testing process.")
 
     # Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
     plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
