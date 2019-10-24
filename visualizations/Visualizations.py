@@ -279,7 +279,7 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
     ax.invert_yaxis()
 
     if dataset == 'GoingDeeper':
-        ax.set_yticklabels([])
+        ax.set_yticks([])
 
     plt.show()
 
@@ -288,20 +288,17 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
         # plt.clf()
         fig, ax = plt.subplots()
         joined_training_df = pd.merge(training_top_1_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
-        # Sort ascending:
-        joined_training_df = joined_training_df.sort_values('top_1_acc', ascending=True)
         # Remove classes which obtained 100% accuracy on the validation set:
-        classes_with_perfect_acc_in_preceding_process = joined_df['class'].unique()
         # this pulls out only the classes that remain in the validation dataframe after dropping those with 100% accuracy:
         joined_training_df_same_class_subset_as_preceding_process = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
         # Now we find out the number of training instances belonging to each of those classes:
         joined_training_df_same_class_subset_as_preceding_process['num_class_samples'] = joined_training_df_same_class_subset_as_preceding_process.groupby(['class'])['top_1_acc'].transform('count')
         joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(by='num_class_samples', ascending=False)
-        # Normalize:
-        joined_training_df_same_class_subset_as_preceding_process['data_color'] = joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].apply(lambda x: x / max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
-        # Remove extraneous rows:
+         # Remove extraneous rows:
         joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop(['bottleneck', 'path'], axis=1)
         joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.drop_duplicates(subset=['class', 'top_1_acc', 'num_class_samples'])
+        # Normalize:
+        joined_training_df_same_class_subset_as_preceding_process['data_color'] = joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].apply(lambda x: x / max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
         # Re-sort:
         joined_training_df_same_class_subset_as_preceding_process = joined_training_df_same_class_subset_as_preceding_process.sort_values(['top_1_acc', 'num_class_samples'], ascending=False)
         print('num_training_samples_per_class: %s' % joined_training_df_same_class_subset_as_preceding_process['num_class_samples'].values)
@@ -323,7 +320,7 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
         ax.invert_yaxis()
 
         if dataset == 'GoingDeeper':
-            ax.set_yticklabels([])
+            ax.set_yticks([])
         plt.show()
 
 
@@ -331,17 +328,14 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_ac
     # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
     fig, ax = plt.subplots()
     joined_df = pd.merge(process_top_5_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
-    # Sort ascending:
-    joined_df = joined_df.sort_values('top_5_acc', ascending=True)
     # Remove 100 percent accuracy:
     joined_df = joined_df[joined_df['top_5_acc'] != 100]
     joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_5_acc'].transform('count')
-    joined_df = joined_df.sort_values(by='num_class_samples', ascending=False)
-    # Normalize for colors:
-    joined_df['data_color'] = joined_df['num_class_samples'].apply(lambda x: x / max(joined_df['num_class_samples']))
     # Remove extra rows:
     joined_df = joined_df.drop(['bottleneck', 'path'], axis=1)
     joined_df = joined_df.drop_duplicates(subset=['top_5_acc', 'num_class_samples'])
+    # Normalize for colors:
+    joined_df['data_color'] = joined_df['num_class_samples'].apply(lambda x: x / max(joined_df['num_class_samples']))
     # Re-sort
     joined_df = joined_df.sort_values(['top_5_acc', 'num_class_samples'], ascending=False)
     print('num_samples_per_class: %s' % joined_df['num_class_samples'].values)
@@ -366,22 +360,22 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_ac
     ax.invert_yaxis()
 
     if dataset == 'GoingDeeper':
-        ax.set_yticklabels([])
+        ax.set_yticks([])
 
     plt.show()
 
     if training_top_5_acc_by_class_df is not None:
         fig, ax = plt.subplots()
         joined_training_df = pd.merge(training_top_5_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
-        # REmove classes which obtained 100% accuracy on the validation set:
+        # Remove classes which obtained 100% accuracy on the validation set:
         joined_training_df_subset = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
         # Calculate the number of training instances belonging to each of the classes:
         joined_training_df_subset['num_class_samples'] = joined_training_df_subset.groupby(['class'])['top_5_acc'].transform('count')
-        # Normalize:
-        joined_training_df_subset['data_color'] = joined_training_df_subset['num_class_samples'].apply(lambda x: x / max(joined_training_df_subset['num_class_samples']))
         # Drop extraneous rows:
         joined_training_df_subset = joined_training_df_subset.drop(['bottleneck', 'path'], axis=1)
         joined_training_df_subset = joined_training_df_subset.drop_duplicates(subset=['class', 'top_5_acc', 'num_class_samples'])
+        # Normalize:
+        joined_training_df_subset['data_color'] = joined_training_df_subset['num_class_samples'].apply(lambda x: x / max(joined_training_df_subset['num_class_samples']))
         # Re sort:
         joined_training_df_subset = joined_training_df_subset.sort_values(['top_5_acc', 'num_class_samples'], ascending=False)
         print('num_training_samples_per_class: %s' % joined_training_df_subset['num_class_samples'].values)
@@ -404,9 +398,8 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_ac
         ax.invert_yaxis()
 
         if dataset == 'GoingDeeper':
-            ax.set_yticklabels([])
+            ax.set_yticks([])
         plt.show()
-
 
 
 def plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset='BOONE', process='Validation'):
@@ -668,4 +661,4 @@ if __name__ == '__main__':
         },
         'SERNEC': {}
     }
-    main(run_config=run_configs['BOONE']['val'])
+    main(run_config=run_configs['GoingDeeper']['val'])
