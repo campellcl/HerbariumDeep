@@ -344,27 +344,35 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_cla
     joined_df = joined_df.sort_values('top_5_acc', ascending=True)
     # Remove 100 percent accuracy:
     joined_df = joined_df[joined_df['top_5_acc'] != 100]
-    num_samples_per_class_df = joined_df['class'].value_counts()
-    num_samples_per_class = num_samples_per_class_df.values
-    print('num_samples_per_class: %s' % num_samples_per_class)
-    data_color = [num_sample_for_class / max(num_samples_per_class) for num_sample_for_class in num_samples_per_class]
-    print('data_colors: %s' % data_color)
+    joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_5_acc'].transform('count')
+    joined_df = joined_df.sort_values(by='num_class_samples', ascending=False)
+    # Normalize for colors:
+    joined_df['data_color'] = joined_df['num_class_samples'].apply(lambda x: x / max(joined_df['num_class_samples']))
+    # Remove extra rows:
+    joined_df = joined_df.drop(['bottleneck', 'path'], axis=1)
+    joined_df = joined_df.drop_duplicates(subset=['top_5_acc', 'num_class_samples'])
+    # Re-sort
+    joined_df = joined_df.sort_values(['top_5_acc', 'num_class_samples'], ascending=False)
+    print('num_samples_per_class: %s' % joined_df['num_class_samples'].values)
+    print('data colors: %s' % joined_df['data_color'].values)
+
     cmap = plt.cm.get_cmap('GnBu')
-    colors = cmap(data_color)
+    colors = cmap(joined_df['data_color'].values)
     rects = ax.barh(joined_df['class'], joined_df['top_5_acc'], color=colors)
 
-    sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(num_samples_per_class)))
-    sm.set_clim(vmin=min(num_samples_per_class), vmax=max(num_samples_per_class))
-    # sm.set_array([])
+    sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(joined_df['num_class_samples'])))
+    sm.set_clim(vmin=min(joined_df['num_class_samples']), vmax=max(joined_df['num_class_samples']))
 
     cbar = plt.colorbar(sm, drawedges=False)
-    # cbar = plt.colorbar(sm, ticks=np.arange(0.0, 12.5, 2.5))
     cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25)
-    # cbar.ax.set_yticklabels(np.arange(0, 110, 10.0))
+
     plt.ylabel('Species/Scientific Name')
     plt.xlabel('Top-5 Accuracy')
     plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)')
     plt.suptitle('%s %s Set' % (dataset, process))
+
+    # Invert y-axis
+    ax.invert_yaxis()
 
     if dataset == 'GoingDeeper':
         ax.set_yticklabels([])
