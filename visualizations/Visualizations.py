@@ -225,7 +225,10 @@ def plot_2d_histogram_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOON
     plt.show()
 
 
-def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc_by_class_df, process_bottlenecks_df, training_top_1_acc_by_class_df=None, training_bottlenecks_df=None, dataset='BOONE', process='Validation', preceding_process='Training'):
+def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc_by_class_df, process_bottlenecks_df,
+                                                               training_top_1_acc_by_class_df=None,
+                                                               training_bottlenecks_df=None, dataset='BOONE',
+                                                               process='Validation', preceding_process='Training'):
     if dataset == 'BOONE':
         # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
         fig, ax = plt.subplots()
@@ -291,7 +294,7 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
             training_cmap = plt.get_cmap('GnBu')
             training_colors = cmap(joined_training_df_same_class_subset_as_preceding_process['data_color'].values)
             training_rects = ax.barh(joined_df['class'], joined_df['top_1_acc'], color=training_colors)
-            sm = ScalarMappable(cmap=cmap, norm=plt.Normalize(0, max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples'])))
+            sm = ScalarMappable(cmap=training_cmap, norm=plt.Normalize(0, max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples'])))
             sm.set_clim(vmin=0, vmax=max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
 
             cbar = plt.colorbar(sm, drawedges=False)
@@ -336,10 +339,10 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
         plt.show()
 
 
-def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, dataset='BOONE', process='Validation'):
+def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_acc_by_class_df, process_bottlenecks_df, training_top_5_acc_by_class_df=None, training_bottlenecks_df=None, dataset='BOONE', process='Validation', preceding_process='Training'):
     # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
     fig, ax = plt.subplots()
-    joined_df = pd.merge(top_5_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
+    joined_df = pd.merge(process_top_5_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
     # Sort ascending:
     joined_df = joined_df.sort_values('top_5_acc', ascending=True)
     # Remove 100 percent accuracy:
@@ -378,6 +381,41 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_cla
         ax.set_yticklabels([])
 
     plt.show()
+
+    if training_top_5_acc_by_class_df is not None:
+        fig, ax = plt.subplots()
+        joined_training_df = pd.merge(training_top_5_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
+        # REmove classes which obtained 100% accuracy on the validation set:
+        joined_training_df_subset = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
+        # Calculate the number of training instances belonging to each of the classes:
+        joined_training_df_subset['num_class_samples'] = joined_training_df_subset.groupby(['class'])['top_5_acc'].transform('count')
+        # Normalize:
+        joined_training_df_subset['data_color'] = joined_training_df_subset['num_class_samples'].apply(lambda x: x / max(joined_training_df_subset['num_class_samples']))
+        # Drop extraneous rows:
+        joined_training_df_subset = joined_training_df_subset.drop(['bottleneck', 'path'], axis=1)
+        joined_training_df_subset = joined_training_df_subset.drop_duplicates(subset=['class', 'top_5_acc', 'num_class_samples'])
+        # Re sort:
+        joined_training_df_subset = joined_training_df_subset.sort_values(['top_5_acc', 'num_class_samples'], ascending=False)
+        print('num_training_samples_per_class: %s' % joined_training_df_subset['num_class_samples'].values)
+        print('training data colors: %s' % joined_training_df_subset['data_color'].values)
+
+        training_cmap = plt.get_cmap('GnBu')
+        training_colors = cmap(joined_training_df_subset['data_color'].values)
+        rects = ax.barh(joined_df['class'], joined_df['top_5_acc'], color=training_colors)
+
+        sm = ScalarMappable(cmap=training_cmap, norm=plt.Normalize(0, max(joined_training_df_subset['num_class_samples'])))
+        sm.set_clim(vmin=0, vmax=max(joined_training_df_subset['num_class_samples']))
+
+        cbar = plt.colorbar(sm, drawedges=False)
+        cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25)
+        plt.ylabel('Species/Scientific Name')
+        plt.xlabel('Top-5 Accuracy')
+        plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)')
+        plt.suptitle('%s %s Set' % (dataset, process))
+        # Invert the y-axis so it maches the order of the source dataframe:
+        ax.invert_yaxis()
+        plt.show()
+
 
 
 def plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset='BOONE', process='Validation'):
@@ -496,13 +534,17 @@ def main(run_config):
     if run_config['process'].lower() == 'training':
         training_bottlenecks_df = None
         training_top_1_acc_by_class_df = None
+        training_top_5_acc_by_class_df = None
         bottlenecks_df = train_bottlenecks
     elif run_config['process'].lower() == 'validation':
         training_bottlenecks_df = train_bottlenecks
         training_top_1_acc_by_class_df = None
+        training_top_5_acc_by_class_df = None
         proceeding_run_config = run_configs[run_config['dataset']]['train']
         with open(proceeding_run_config['top_1_per_class_acc_json_path'], 'r') as fp:
             training_top_1_acc_by_class_df = pd.read_json(fp, orient='index')
+        with open(proceeding_run_config['top_5_per_class_acc_json_path'], 'r') as fp:
+            training_top_5_acc_by_class_df = pd.read_json(fp, orient='index')
         bottlenecks_df = val_bottlenecks
     elif run_config['process'].lower() == 'testing':
         raise NotImplementedError("training_bottlenecks_df = train_bottlenecks.join(val_bottlenecks)")
@@ -541,8 +583,12 @@ def main(run_config):
         raise NotImplementedError("Need to distinguish testing process.")
 
     # Plot number of samples per-class (colorbar on existing) vs class's top-5 acc
-    plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
-
+    if run_config['process'].lower() == 'training':
+        plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, training_top_5_acc_by_class_df=None, training_bottlenecks_df=None, dataset=run_config['dataset'], process=run_config['process'])
+    elif run_config['process'].lower() == 'validation':
+        plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, training_top_5_acc_by_class_df=training_top_5_acc_by_class_df, training_bottlenecks_df=training_bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+    else:
+        raise NotImplementedError
     # Plot each hyperparameter on y-axis and then training time on the left-axis.
     # plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
 
@@ -567,6 +613,7 @@ if __name__ == '__main__':
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl',
                 'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_val_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class_val_set.json',
                 'saved_model_path': 'D:\\data\\BOON\\training summaries\\8-16-2019\\gs_winner\\train'
             },
             'train': {
@@ -577,6 +624,7 @@ if __name__ == '__main__':
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_train_hyperparams.pkl',
                 'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_train_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class_train_set.json',
                 'saved_model_path': 'D:\\data\\BOON\\training summaries\\8-16-2019\\gs_winner\\train'
             },
             'test':
@@ -588,6 +636,7 @@ if __name__ == '__main__':
                     'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
                     'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_test_hyperparams.pkl',
                     'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_test_set.json',
+                    'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class_test_set.json',
                     'saved_model_path': 'D:\\data\\BOON\\training summaries\\8-16-2019\\gs_winner\\train'
                 }
         },
