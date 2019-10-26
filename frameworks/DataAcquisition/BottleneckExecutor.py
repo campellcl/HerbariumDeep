@@ -214,10 +214,18 @@ class BottleneckExecutor:
                 if i % 10 == 0:
                     tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
                     df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+                    tf.logging.info(msg='\tWriting uncompressed csv files to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.csv'))
+                    df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
+                    tf.logging.info(msg='\tWriting raw uncompressed bottleneck vectors to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.npy'))
+                    np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(df_bottlenecks['bottleneck']), allow_pickle=False)
             self.df_bottlenecks = df_bottlenecks
             self.cached_all_bottlenecks = True
             tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
             df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            tf.logging.info(msg='\tWriting uncompressed csv files to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.csv'))
+            self.df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
+            tf.logging.info(msg='\tWriting raw uncompressed bottleneck vectors to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.npy'))
+            np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(self.df_bottlenecks['bottleneck']), allow_pickle=False)
 
     def _load_bottlenecks(self):
         bottlenecks = None
@@ -425,14 +433,14 @@ if __name__ == '__main__':
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
 
     # BOON Configuration:
-    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    # image_path = 'D:\\data\\BOON\\images\\'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    image_path = 'D:\\data\\BOON\\images\\'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
-    bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    image_path = 'D:\\data\\GoingDeeperData\\images'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+    # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\GoingDeeperData\\images'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     # SERNEC Cofiguration:
     # bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
