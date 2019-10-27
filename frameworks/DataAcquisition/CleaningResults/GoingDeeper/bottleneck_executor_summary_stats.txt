@@ -1,0 +1,14 @@
+Number of Training Bottlenecks: 260734
+Number of Validation Bottlenecks: 65184
+Number of Testing Bottlenecks: 81480
+
+Number of Unique Bottleneck Class Labels: 997
+Total Number of Bottleneck Vectors: 407398
+Enforced Minimum Number of Bottleneck Vectors per Class: 20
+Actual Minimum Number of Bottleneck Vectors per Class: 27
+Enforced Maximum Number of Bottleneck Vectors per Class: 2^{27} - 1 ~= 134 M
+Actual Maximum Number of Bottleneck Vectors per Class: 3845
+Mean Number of Bottleneck Vectors per Class: 408.62
+Median Number of Bottleneck Vectors per Class: 352.00
+Mode_1 Number of Bottleneck Vectors per Class: 352 (8 counts)
+Mode_2 Number of Bottleneck Vectors per Class: 313 (8 counts)

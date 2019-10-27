@@ -1,0 +1,9 @@
+Number of Unique Cleaned Class Labels: 851
+Total Number of Present (not necessarily readable) Sample Images: 352938
+Enforced Minimum Number of Samples-per-Class: 20
+Actual Minimum Number of Samples-per-Class: 27
+Enforced Maximum Number of Samples-per-Class: 1^{27} - 1 ~= 134M
+Actual Maximum Number of Samples-per-Class: 3845
+Mean Number of Samples-per-Class: 414.73
+Median Number of Samples-per-Class: 361
+Mode Number of Samples-per-Class: 313 (7 counts)
