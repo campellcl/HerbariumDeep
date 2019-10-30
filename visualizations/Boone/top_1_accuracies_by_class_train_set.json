@@ -1,0 +1,354 @@
+{
+    "0": {
+        "class": "adiantum pedatum",
+        "top_1_acc": 100.0
+    },
+    "1": {
+        "class": "agrostis perennans",
+        "top_1_acc": 100.0
+    },
+    "2": {
+        "class": "alnus serrulata",
+        "top_1_acc": 100.0
+    },
+    "3": {
+        "class": "arisaema triphyllum",
+        "top_1_acc": 100.0
+    },
+    "4": {
+        "class": "asarum canadense",
+        "top_1_acc": 100.0
+    },
+    "5": {
+        "class": "asclepias tuberosa",
+        "top_1_acc": 100.0
+    },
+    "6": {
+        "class": "asplenium montanum",
+        "top_1_acc": 100.0
+    },
+    "7": {
+        "class": "asplenium platyneuron",
+        "top_1_acc": 100.0
+    },
+    "8": {
+        "class": "asplenium rhizophyllum",
+        "top_1_acc": 100.0
+    },
+    "9": {
+        "class": "asplenium trichomanes",
+        "top_1_acc": 100.0
+    },
+    "10": {
+        "class": "athyrium asplenioides",
+        "top_1_acc": 100.0
+    },
+    "11": {
+        "class": "barbarea vulgaris",
+        "top_1_acc": 100.0
+    },
+    "12": {
+        "class": "betula lenta",
+        "top_1_acc": 100.0
+    },
+    "13": {
+        "class": "botrychium dissectum",
+        "top_1_acc": 100.0
+    },
+    "14": {
+        "class": "botrychium virginianum",
+        "top_1_acc": 100.0
+    },
+    "15": {
+        "class": "campsis radicans",
+        "top_1_acc": 100.0
+    },
+    "16": {
+        "class": "cardamine concatenata",
+        "top_1_acc": 100.0
+    },
+    "17": {
+        "class": "cardamine hirsuta",
+        "top_1_acc": 100.0
+    },
+    "18": {
+        "class": "carex intumescens",
+        "top_1_acc": 100.0
+    },
+    "19": {
+        "class": "carex lurida",
+        "top_1_acc": 100.0
+    },
+    "20": {
+        "class": "carpinus caroliniana",
+        "top_1_acc": 100.0
+    },
+    "21": {
+        "class": "caulophyllum thalictroides",
+        "top_1_acc": 100.0
+    },
+    "22": {
+        "class": "clintonia umbellulata",
+        "top_1_acc": 100.0
+    },
+    "23": {
+        "class": "coreopsis major",
+        "top_1_acc": 100.0
+    },
+    "24": {
+        "class": "cyathea fulva",
+        "top_1_acc": 100.0
+    },
+    "25": {
+        "class": "dactylis glomerata",
+        "top_1_acc": 100.0
+    },
+    "26": {
+        "class": "daucus carota",
+        "top_1_acc": 100.0
+    },
+    "27": {
+        "class": "dennstaedtia punctilobula",
+        "top_1_acc": 100.0
+    },
+    "28": {
+        "class": "deparia acrostichoides",
+        "top_1_acc": 100.0
+    },
+    "29": {
+        "class": "diphasiastrum digitatum",
+        "top_1_acc": 100.0
+    },
+    "30": {
+        "class": "dryopteris intermedia",
+        "top_1_acc": 100.0
+    },
+    "31": {
+        "class": "dryopteris marginalis",
+        "top_1_acc": 100.0
+    },
+    "32": {
+        "class": "equisetum arvense",
+        "top_1_acc": 100.0
+    },
+    "33": {
+        "class": "erigeron annuus",
+        "top_1_acc": 100.0
+    },
+    "34": {
+        "class": "erigeron pulchellus",
+        "top_1_acc": 100.0
+    },
+    "35": {
+        "class": "erigeron strigosus",
+        "top_1_acc": 100.0
+    },
+    "36": {
+        "class": "erythronium americanum",
+        "top_1_acc": 100.0
+    },
+    "37": {
+        "class": "eurybia divaricata",
+        "top_1_acc": 100.0
+    },
+    "38": {
+        "class": "eurybia macrophylla",
+        "top_1_acc": 100.0
+    },
+    "39": {
+        "class": "hexastylis arifolia",
+        "top_1_acc": 100.0
+    },
+    "40": {
+        "class": "hexastylis heterophylla",
+        "top_1_acc": 100.0
+    },
+    "41": {
+        "class": "huperzia lucidula",
+        "top_1_acc": 100.0
+    },
+    "42": {
+        "class": "hypoxis hirsuta",
+        "top_1_acc": 100.0
+    },
+    "43": {
+        "class": "ilex montana",
+        "top_1_acc": 100.0
+    },
+    "44": {
+        "class": "ilex opaca",
+        "top_1_acc": 100.0
+    },
+    "45": {
+        "class": "impatiens capensis",
+        "top_1_acc": 100.0
+    },
+    "46": {
+        "class": "iris cristata",
+        "top_1_acc": 100.0
+    },
+    "47": {
+        "class": "juncus effusus",
+        "top_1_acc": 100.0
+    },
+    "48": {
+        "class": "lophosoria quadripinnata",
+        "top_1_acc": 100.0
+    },
+    "49": {
+        "class": "lycopodium obscurum",
+        "top_1_acc": 100.0
+    },
+    "50": {
+        "class": "maianthemum canadense",
+        "top_1_acc": 100.0
+    },
+    "51": {
+        "class": "medeola virginiana",
+        "top_1_acc": 100.0
+    },
+    "52": {
+        "class": "muhlenbergia tenuiflora",
+        "top_1_acc": 100.0
+    },
+    "53": {
+        "class": "nephelea erinacea",
+        "top_1_acc": 100.0
+    },
+    "54": {
+        "class": "onoclea sensibilis",
+        "top_1_acc": 100.0
+    },
+    "55": {
+        "class": "osmunda cinnamomea",
+        "top_1_acc": 100.0
+    },
+    "56": {
+        "class": "osmunda regalis",
+        "top_1_acc": 100.0
+    },
+    "57": {
+        "class": "ostrya virginiana",
+        "top_1_acc": 100.0
+    },
+    "58": {
+        "class": "phacelia bipinnatifida",
+        "top_1_acc": 100.0
+    },
+    "59": {
+        "class": "phacelia fimbriata",
+        "top_1_acc": 100.0
+    },
+    "60": {
+        "class": "phegopteris hexagonoptera",
+        "top_1_acc": 100.0
+    },
+    "61": {
+        "class": "poa pratensis",
+        "top_1_acc": 100.0
+    },
+    "62": {
+        "class": "podophyllum peltatum",
+        "top_1_acc": 100.0
+    },
+    "63": {
+        "class": "polygonatum biflorum",
+        "top_1_acc": 100.0
+    },
+    "64": {
+        "class": "polypodium virginianum",
+        "top_1_acc": 100.0
+    },
+    "65": {
+        "class": "polystichum acrostichoides",
+        "top_1_acc": 100.0
+    },
+    "66": {
+        "class": "prosartes lanuginosa",
+        "top_1_acc": 100.0
+    },
+    "67": {
+        "class": "pteridium aquilinum",
+        "top_1_acc": 100.0
+    },
+    "68": {
+        "class": "sisyrinchium angustifolium",
+        "top_1_acc": 100.0
+    },
+    "69": {
+        "class": "solidago arguta",
+        "top_1_acc": 100.0
+    },
+    "70": {
+        "class": "solidago bicolor",
+        "top_1_acc": 100.0
+    },
+    "71": {
+        "class": "solidago curtisii",
+        "top_1_acc": 100.0
+    },
+    "72": {
+        "class": "solidago roanensis",
+        "top_1_acc": 100.0
+    },
+    "73": {
+        "class": "symplocarpus foetidus",
+        "top_1_acc": 100.0
+    },
+    "74": {
+        "class": "taraxacum officinale",
+        "top_1_acc": 100.0
+    },
+    "75": {
+        "class": "thaspium barbinode",
+        "top_1_acc": 100.0
+    },
+    "76": {
+        "class": "thelypteris noveboracensis",
+        "top_1_acc": 100.0
+    },
+    "77": {
+        "class": "trichipteris stipularis",
+        "top_1_acc": 100.0
+    },
+    "78": {
+        "class": "trillium sulcatum",
+        "top_1_acc": 100.0
+    },
+    "79": {
+        "class": "trillium undulatum",
+        "top_1_acc": 100.0
+    },
+    "80": {
+        "class": "uvularia grandiflora",
+        "top_1_acc": 100.0
+    },
+    "81": {
+        "class": "woodwardia areolata",
+        "top_1_acc": 100.0
+    },
+    "82": {
+        "class": "solidago nemoralis",
+        "top_1_acc": 100.0
+    },
+    "83": {
+        "class": "cnemidaria horrida",
+        "top_1_acc": 100.0
+    },
+    "84": {
+        "class": "cyathea divergens",
+        "top_1_acc": 100.0
+    },
+    "85": {
+        "class": "nephelea mexicana",
+        "top_1_acc": 100.0
+    },
+    "86": {
+        "class": "nephelea polystichoides",
+        "top_1_acc": 100.0
+    },
+    "87": {
+        "class": "sphaeropteris brunei",
+        "top_1_acc": 100.0
+    }
+}
