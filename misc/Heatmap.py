@@ -159,19 +159,35 @@ def main():
     ax_bot.tick_params(axis='x', labelsize=8)
     ax_top.tick_params(axis='x', labelsize=8)
 
+    # Uncomment this for plotting colors relative to data:
     ax_bot.imshow(data)
     ax_top.imshow(data)
+    cmap = plt.cm.get_cmap('viridis')
+    scalar_mappable = cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(0, data.max()))
+    scalar_mappable.set_clim(vmin=0, vmax=data.max()*100 + 10)
+    cbar = plt.colorbar(scalar_mappable, ticks=np.arange(0.0, data.max() * 100 + 10, 10.0))
+    print('data.max: %s' % data.max())
+    print('cbar ticks: %s' % cbar.get_ticks())
+    # cbar.set_ticks(np.arange(0, data.max()*10, 10))
+    # print('cbar ticks: %s' % cbar.get_ticks())
 
+    # Uncomment this for plotting colors relative to 100% accuracy:
     # cmap = plt.cm.get_cmap('viridis')
     # colors = cmap(data)
-
-    scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
-    # scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=100))
-    scalar_mappable._A = []
+    # ax_bot.imshow(colors)
+    # ax_top.imshow(colors)
+    # scalar_mappable = cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=0, vmax=100))
     # scalar_mappable.set_clim(vmin=0, vmax=100)
-    scalar_mappable.set_clim(vmin=data.min(), vmax=data.max())
+    # cbar = plt.colorbar(scalar_mappable, ticks=np.arange(0, 110, 10))
+
+    # Legacy code:
+    # scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
+    # scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=100))
+    # scalar_mappable._A = []
+    # scalar_mappable.set_clim(vmin=0, vmax=100)
+    # scalar_mappable.set_clim(vmin=data.min(), vmax=data.max())
     # cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(0, 110, 10.0))
-    cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(data.min(), data.max() + 10.0, 10.0))
+    # cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(data.min(), data.max() + 10.0, 10.0))
 
     # For x-entropy loss:
     # cbar = plt.colorbar(mappable=scalar_mappable)
