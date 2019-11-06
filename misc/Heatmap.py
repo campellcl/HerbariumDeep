@@ -27,8 +27,18 @@ def convert_optimizer_to_axes_label(optimizer):
 
 
 def main():
-    # __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl'
+    visualization_types = {'cross_entropy_loss': 'cross_entropy_loss', 'top_one_acc': 'top_one_acc', 'top_five_acc': 'top_five_acc'}
+    colorization_types = {'relative_to_data': 'relative_to_data', 'relative_to_acc': 'relative_to_acc'}
+    datasets = {'BOONE': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl', 'GoingDeeper': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl'}
+
+    # Choose Visualization Settings:
+    __path = datasets['GoingDeeper']
+    # visual_type = visualization_types['cross_entropy_loss']
+    # colorization_type = colorization_types['relative_to_data']
+    visual_type = visualization_types['top_one_acc']
+    colorization_type = colorization_types['relative_to_data']
+
+
     df = pd.read_pickle(__path)
     optimizers = df.optimizer.unique()
     num_optimizers = len(optimizers)
@@ -84,13 +94,18 @@ def main():
             df_subset = df_subset[df_subset.train_batch_size == train_batch_size]
             df_subset = df_subset[df_subset.initializer == initializer]
             assert df_subset.shape[0] == 1
-            # For best epoch cross entropy loss:
-            # data[i][j] = df_subset.iloc[0].best_epoch_loss
-            # For best epoch top-1 accuracy:
-            data[i][j] = df_subset.iloc[0].best_epoch_acc
-            # For best epoch top-5 accuracy:
-            # data[i][j] = df_subset.iloc[0].best_epoch_top_five_acc
-            # x_tick_labels.append(initializer.split('_')[1:])
+            if visual_type == 'cross_entropy_loss':
+                # For best epoch cross entropy loss:
+                data[i][j] = df_subset.iloc[0].best_epoch_loss
+            elif visual_type == 'top_one_acc':
+                # For best epoch top-1 accuracy:
+                data[i][j] = df_subset.iloc[0].best_epoch_acc
+            elif visual_type == 'top_five_acc':
+                # For best epoch top-5 accuracy:
+                data[i][j] = df_subset.iloc[0].best_epoch_top_five_acc
+                # x_tick_labels.append(initializer.split('_')[1:])
+            else:
+                raise NotImplementedError('Failed to recognize type of visual: \'%s\'' % visual_type)
             if i == 0:
                 init_repr = convert_initializer_to_axes_label(initializer=initializer)
                 x_tick_labels_bot_major.append(init_repr)
@@ -159,22 +174,23 @@ def main():
     ax_bot.tick_params(axis='x', labelsize=8)
     ax_top.tick_params(axis='x', labelsize=8)
 
-    # Uncomment this for plotting colors relative to data:
-    ax_bot.imshow(data)
-    ax_top.imshow(data)
-    cmap = plt.cm.get_cmap('viridis')
-    scalar_mappable = cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(0, data.max()))
-    scalar_mappable.set_clim(vmin=0, vmax=data.max())
-    cbar = plt.colorbar(scalar_mappable)
-
-    # Uncomment this for plotting colors relative to 100% accuracy:
-    # cmap = plt.cm.get_cmap('viridis')
-    # colors = cmap(data)
-    # ax_bot.imshow(colors)
-    # ax_top.imshow(colors)
-    # scalar_mappable = cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=0, vmax=100))
-    # scalar_mappable.set_clim(vmin=0, vmax=100)
-    # cbar = plt.colorbar(scalar_mappable, ticks=np.arange(0, 110, 10))
+    if colorization_type == 'relative_to_data':
+        # Uncomment this for plotting colors relative to data:
+        ax_bot.imshow(data)
+        ax_top.imshow(data)
+        cmap = plt.cm.get_cmap('viridis')
+        scalar_mappable = cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(0, data.max()))
+        scalar_mappable.set_clim(vmin=0, vmax=data.max())
+        cbar = plt.colorbar(scalar_mappable)
+    elif colorization_type == 'relative_to_acc':
+        # Uncomment this for plotting colors relative to 100% accuracy:
+        cmap = plt.cm.get_cmap('viridis')
+        colors = cmap(data)
+        ax_bot.imshow(colors)
+        ax_top.imshow(colors)
+        scalar_mappable = cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=0, vmax=100))
+        scalar_mappable.set_clim(vmin=0, vmax=100)
+        cbar = plt.colorbar(scalar_mappable, ticks=np.arange(0, 110, 10))
 
     # Legacy code:
     # scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
@@ -185,22 +201,25 @@ def main():
     # cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(0, 110, 10.0))
     # cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(data.min(), data.max() + 10.0, 10.0))
 
-    # For x-entropy loss:
-    # cbar = plt.colorbar(mappable=scalar_mappable)
-    # cbar.set_label('Cross Entropy Loss', rotation=270, labelpad=25)
-
-    # For top-1 accuracy:
-    cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25)
-
-    # For top-5 accuracy:
-    # cbar.set_label('Top-5 Accuracy (Percentage)', rotation=270, labelpad=25)
-
-    # For cross entropy loss:
-    # plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
-    # For top-1 accuracy:
-    plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10, pad=10)
-    # For top-5 accuracy:
-    # plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10, pad=10)
+    if visual_type == 'cross_entropy_loss':
+        # For x-entropy loss:
+        # cbar = plt.colorbar(mappable=scalar_mappable)
+        cbar.set_label('Cross Entropy Loss', rotation=270, labelpad=25)
+        plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
+    elif visual_type == 'top_one_acc':
+        # For top-1 accuracy:
+        if colorization_type == 'relative_to_data':
+            cbar.set_label('Top-1 Accuracy', rotation=270, labelpad=25)
+        else:
+            cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25)
+        plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10, pad=10)
+    elif visual_type == 'top_five_acc':
+        # For top-5 accuracy:
+        if colorization_type == 'relative_to_data':
+            cbar.set_label('Top-5 Accuracy', rotation=270, labelpad=25)
+        else:
+            cbar.set_label('Top-5 Accuracy (Percentage)', rotation=270, labelpad=25)
+        plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10, pad=10)
     plt.show()
 
 
