@@ -164,12 +164,8 @@ def main():
     ax_top.imshow(data)
     cmap = plt.cm.get_cmap('viridis')
     scalar_mappable = cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(0, data.max()))
-    scalar_mappable.set_clim(vmin=0, vmax=data.max()*100 + 10)
-    cbar = plt.colorbar(scalar_mappable, ticks=np.arange(0.0, data.max() * 100 + 10, 10.0))
-    print('data.max: %s' % data.max())
-    print('cbar ticks: %s' % cbar.get_ticks())
-    # cbar.set_ticks(np.arange(0, data.max()*10, 10))
-    # print('cbar ticks: %s' % cbar.get_ticks())
+    scalar_mappable.set_clim(vmin=0, vmax=data.max())
+    cbar = plt.colorbar(scalar_mappable)
 
     # Uncomment this for plotting colors relative to 100% accuracy:
     # cmap = plt.cm.get_cmap('viridis')
