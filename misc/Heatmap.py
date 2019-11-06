@@ -87,9 +87,9 @@ def main():
             # For best epoch cross entropy loss:
             # data[i][j] = df_subset.iloc[0].best_epoch_loss
             # For best epoch top-1 accuracy:
-            # data[i][j] = df_subset.iloc[0].best_epoch_acc
+            data[i][j] = df_subset.iloc[0].best_epoch_acc
             # For best epoch top-5 accuracy:
-            data[i][j] = df_subset.iloc[0].best_epoch_top_five_acc
+            # data[i][j] = df_subset.iloc[0].best_epoch_top_five_acc
             # x_tick_labels.append(initializer.split('_')[1:])
             if i == 0:
                 init_repr = convert_initializer_to_axes_label(initializer=initializer)
@@ -162,24 +162,33 @@ def main():
     ax_bot.imshow(data)
     ax_top.imshow(data)
 
+    # cmap = plt.cm.get_cmap('viridis')
+    # colors = cmap(data)
+
     scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=data.max()))
+    # scalar_mappable = cm.ScalarMappable(cmap=plt.get_cmap(name='viridis'), norm=plt.Normalize(vmin=0, vmax=100))
     scalar_mappable._A = []
     # scalar_mappable.set_clim(vmin=0, vmax=100)
+    scalar_mappable.set_clim(vmin=data.min(), vmax=data.max())
     # cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(0, 110, 10.0))
+    cbar = plt.colorbar(mappable=scalar_mappable, ticks=np.arange(data.min(), data.max() + 10.0, 10.0))
+
     # For x-entropy loss:
-    cbar = plt.colorbar(mappable=scalar_mappable)
+    # cbar = plt.colorbar(mappable=scalar_mappable)
     # cbar.set_label('Cross Entropy Loss', rotation=270, labelpad=25)
+
     # For top-1 accuracy:
-    # cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25)
+    cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25)
+
     # For top-5 accuracy:
-    cbar.set_label('Top-5 Accuracy (Percentage)', rotation=270, labelpad=25)
+    # cbar.set_label('Top-5 Accuracy (Percentage)', rotation=270, labelpad=25)
 
     # For cross entropy loss:
     # plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
     # For top-1 accuracy:
-    # plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10, pad=10)
+    plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10, pad=10)
     # For top-5 accuracy:
-    plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10, pad=10)
+    # plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10, pad=10)
     plt.show()
 
 
