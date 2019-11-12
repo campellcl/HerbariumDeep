@@ -188,6 +188,8 @@ def plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset='BOONE', 
     plt.xlabel('Top-5 Accuracy (Percent)')
     plt.title('Winning Model: Top-5 Accuracy by Class')
     plt.suptitle('%s %s Set' % (dataset, process))
+    if dataset == 'GoingDeeper':
+        plt.yticks([])
     plt.show()
 
 
@@ -237,13 +239,14 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
                                                                process='Validation', preceding_process='Training'):
     # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
     fig, ax = plt.subplots()
+    print('Subsetting top-1 acc dataframe by removing entries with perfect accuracy...')
+    process_top_1_acc_by_class_df = process_top_1_acc_by_class_df[process_top_1_acc_by_class_df['top_1_acc'] != 100]
     print('Merging source data frames...')
-    joined_df = pd.merge(process_top_1_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
+    joined_df = pd.merge(process_top_1_acc_by_class_df, process_bottlenecks_df, how='inner', sort=False)
     # Sort ascending:
     # joined_df = joined_df.sort_values('top_1_acc', ascending=True)
     # Remove 100 percent accuracy:
-    print('Subsetting dataframe by removing entries with perfect accuracy...')
-    joined_df = joined_df[joined_df['top_1_acc'] != 100]
+
     print('Appending class sample counts...')
     joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_1_acc'].transform('count')
     # joined_df = joined_df.sort_values(by='num_class_samples', ascending=False)
@@ -287,7 +290,7 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
         # Plot again with the colors done by number of training samples instead of validation samples:
         # plt.clf()
         fig, ax = plt.subplots()
-        joined_training_df = pd.merge(training_top_1_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
+        joined_training_df = pd.merge(training_top_1_acc_by_class_df, training_bottlenecks_df, how='inner', sort=False)
         # Remove classes which obtained 100% accuracy on the validation set:
         # this pulls out only the classes that remain in the validation dataframe after dropping those with 100% accuracy:
         joined_training_df_same_class_subset_as_preceding_process = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
@@ -327,9 +330,9 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
 def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_acc_by_class_df, process_bottlenecks_df, training_top_5_acc_by_class_df=None, training_bottlenecks_df=None, dataset='BOONE', process='Validation', preceding_process='Training'):
     # https://stackoverflow.com/questions/51204505/python-barplot-with-colorbar
     fig, ax = plt.subplots()
-    joined_df = pd.merge(process_top_5_acc_by_class_df, process_bottlenecks_df, how='outer', sort=False)
     # Remove 100 percent accuracy:
-    joined_df = joined_df[joined_df['top_5_acc'] != 100]
+    process_top_5_acc_by_class_df = process_top_5_acc_by_class_df[process_top_5_acc_by_class_df['top_5_acc'] != 100]
+    joined_df = pd.merge(process_top_5_acc_by_class_df, process_bottlenecks_df, how='inner', sort=False)
     joined_df['num_class_samples'] = joined_df.groupby(['class'])['top_5_acc'].transform('count')
     # Remove extra rows:
     joined_df = joined_df.drop(['bottleneck', 'path'], axis=1)
@@ -366,7 +369,7 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_ac
 
     if training_top_5_acc_by_class_df is not None:
         fig, ax = plt.subplots()
-        joined_training_df = pd.merge(training_top_5_acc_by_class_df, training_bottlenecks_df, how='outer', sort=False)
+        joined_training_df = pd.merge(training_top_5_acc_by_class_df, training_bottlenecks_df, how='inner', sort=False)
         # Remove classes which obtained 100% accuracy on the validation set:
         joined_training_df_subset = joined_training_df[joined_training_df['class'].isin(joined_df['class'])].dropna()
         # Calculate the number of training instances belonging to each of the classes:
@@ -446,7 +449,7 @@ def plot_scatter_per_class_top_one_acc(top_1_acc_by_class_df, top_5_acc_by_class
     joined_df = pd.merge(top_1_acc_by_class_df, bottlenecks_df, how='outer', sort=False)
     joined_df = pd.merge(joined_df, top_5_acc_by_class_df, how='outer', sort=False)
     # top_1_acc_by_class.plot(kind='scatter', x='class', y='top_1_acc')
-    threshold = 65.00
+    threshold = 95.00
     df_subset = joined_df[joined_df['top_1_acc'] >= threshold]
     num_initial_classes = len(joined_df['class'].unique())
     num_initial_samples = joined_df.shape[0]
@@ -538,19 +541,19 @@ def main(run_config):
     # bottlenecks_df = None
 
     # Training Batch Size vs. Best Performing Epoch Acc (2D Histogram)
-    # plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
+    plot_2d_hist_training_batch_size_vs_best_performing_epoch_acc(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Training Batch Size vs. Fit Time (2D Histogram with Colorbar):
-    # plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
+    plot_2d_hist_with_colorbar_train_batch_size_vs_fit_time(df=gs_hyperparams_df, data_set=run_config['dataset'], process=run_config['process'])
 
     # Training Batch Size vs. Fit Time (Bar Chart)
-    # plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
+    plot_bar_chart_train_batch_size_vs_train_time(df=gs_hyperparams_df)
 
     # per-class top-1 accuracy (Box Plot):
     plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df=top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
-    # per-class top-5 accuracy (Box Plot):
-    # plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
+    # per-class top-5 accuracy (Horizontal Bar Plot):
+    plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (Box Plot with Aggregation):
     plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset=run_config['dataset'], process=run_config['process'])
@@ -573,11 +576,12 @@ def main(run_config):
         plot_per_class_top_five_acc_vs_number_of_samples_aggregated(top_5_acc_by_class_df, bottlenecks_df, training_top_5_acc_by_class_df=training_top_5_acc_by_class_df, training_bottlenecks_df=training_bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
     else:
         raise NotImplementedError("Need to distinguish testing process.")
+
     # Plot each hyperparameter on y-axis and then training time on the left-axis.
-    # plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset=run_config['dataset'], process=run_config['process'])
 
     # per-class top-1 accuracy (scatter):
-    # plot_scatter_per_class_top_one_acc(top_1_acc_by_class_df, top_5_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
+    plot_scatter_per_class_top_one_acc(top_1_acc_by_class_df, top_5_acc_by_class_df, bottlenecks_df, dataset=run_config['dataset'], process=run_config['process'])
 
 
 if __name__ == '__main__':
@@ -631,7 +635,7 @@ if __name__ == '__main__':
                 'image_dir': 'D:\\data\\GoingDeeperData\\images',
                 'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
-                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_train_hyperparams.pkl',
                 'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_train_set.json',
                 'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_train_set.json'
@@ -642,7 +646,7 @@ if __name__ == '__main__':
                 'image_dir': 'D:\\data\\GoingDeeperData\\images',
                 'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
-                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl',
                 'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_val_set.json',
                 'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_val_set.json'
@@ -653,7 +657,7 @@ if __name__ == '__main__':
                 'image_dir': 'D:\\data\\GoingDeeperData\\images',
                 'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
                 'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
-                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train',
                 'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_test_hyperparams.pkl',
                 'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_test_set.json',
                 'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_test_set.json'
@@ -661,4 +665,4 @@ if __name__ == '__main__':
         },
         'SERNEC': {}
     }
-    main(run_config=run_configs['GoingDeeper']['val'])
+    main(run_config=run_configs['BOONE']['val'])
