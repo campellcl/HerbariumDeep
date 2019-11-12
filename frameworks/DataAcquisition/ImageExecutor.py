@@ -34,28 +34,28 @@ class ImageExecutor:
         self._clean_images()
 
 
-    def _get_raw_image_lists_df(self):
-        col_names = {'class', 'path', 'bottleneck'}
-        df_images = pd.DataFrame(columns=col_names)
-        sub_dirs = sorted(x[0] for x in tf.gfile.Walk(self.img_root_dir))
-        for i, sub_dir in enumerate(sub_dirs):
-            file_list = []
-            dir_name = os.path.basename(sub_dir)
-            if i == 0:
-                # skip root dir
-                continue
-            tf.logging.info('Locating images in: \'%s\'' % dir_name)
-            for extension in self.accepted_extensions:
-                file_glob = os.path.join(self.img_root_dir, dir_name, '*.' + extension)
-                file_list.extend(tf.gfile.Glob(file_glob))
-            if not file_list:
-                tf.logging.info(msg='\tNo files found in \'%s\'. Class label omitted from data sets.' % dir_name)
-            label_name = dir_name.lower()
-            for file in file_list:
-                series = pd.Series({'class': label_name, 'path': file, 'bottleneck': None})
-                df_images = df_images.append(series, ignore_index=True)
-        df_images['class'] = df_images['class'].astype('category')
-        return df_images
+    # def _get_raw_image_lists_df(self):
+    #     col_names = {'class', 'path', 'bottleneck'}
+    #     df_images = pd.DataFrame(columns=col_names)
+    #     sub_dirs = sorted(x[0] for x in tf.gfile.Walk(self.img_root_dir))
+    #     for i, sub_dir in enumerate(sub_dirs):
+    #         file_list = []
+    #         dir_name = os.path.basename(sub_dir)
+    #         if i == 0:
+    #             # skip root dir
+    #             continue
+    #         tf.logging.info('Locating images in: \'%s\'' % dir_name)
+    #         for extension in self.accepted_extensions:
+    #             file_glob = os.path.join(self.img_root_dir, dir_name, '*.' + extension)
+    #             file_list.extend(tf.gfile.Glob(file_glob))
+    #         if not file_list:
+    #             tf.logging.info(msg='\tNo files found in \'%s\'. Class label omitted from data sets.' % dir_name)
+    #         label_name = dir_name.lower()
+    #         for file in file_list:
+    #             series = pd.Series({'class': label_name, 'path': file, 'bottleneck': None})
+    #             df_images = df_images.append(series, ignore_index=True)
+    #     df_images['class'] = df_images['class'].astype('category')
+    #     return df_images
 
     def _get_raw_image_lists(self):
         image_lists = OrderedDict()
