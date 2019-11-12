@@ -2,8 +2,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def main():
-    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\gs_val_hyperparams.pkl'
+    __path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl'
     df = pd.read_pickle(__path)
     optimizers = df.optimizer.unique()
     num_optimizers = len(optimizers)
@@ -77,6 +78,7 @@ def main():
     ax_bot.set_yticklabels(df['optimizer'].apply(lambda opt: opt.split('_')[-1]))
 
     plt.show()
+
 
 if __name__ == '__main__':
     main()
