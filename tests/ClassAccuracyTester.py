@@ -183,23 +183,23 @@ def main(run_config):
 
     tfh_classifier = TrainedTFHClassifier(model_path=os.path.join(model_path, 'inference'), model_label_file_path=model_label_file_path)
     # tfh_classifier.load_model()
-    class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=train_bottlenecks, class_labels=class_labels)
-    class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=train_bottlenecks, class_labels=class_labels)
+    class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
+    class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
     top_1_accs = [value['top_1_acc'] for (key, value) in class_top_1_accuracies.items()]
     top_5_accs = [value['top_5_acc'] for (key, value) in class_top_5_accuracies.items()]
 
     print('Average top-1 Accuracy: %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
     print('Average top-5 Accuracy: %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))
 
-    with open('top_1_accuracies_by_class_train_set.json', 'w') as fp:
-        json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
-    with open('top_5_accuracies_by_class_train_set.json', 'w') as fp:
-        json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
-
-    # with open('top_1_accuracies_by_class_test_set.json', 'w') as fp:
+    # with open('top_1_accuracies_by_class_train_set.json', 'w') as fp:
     #     json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
-    # with open('top_5_accuracies_by_class_test_set.json', 'w') as fp:
+    # with open('top_5_accuracies_by_class_train_set.json', 'w') as fp:
     #     json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
+
+    with open('top_1_accuracies_by_class_test_set.json', 'w') as fp:
+        json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
+    with open('top_5_accuracies_by_class_test_set.json', 'w') as fp:
+        json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
 
     # with open('top_1_accuracies_by_class_val_set.json', 'w') as fp:
     #     json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
@@ -230,8 +230,8 @@ if __name__ == '__main__':
             'image_dir': 'D:\\data\\GoingDeeperData\\images',
             'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
-            'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\8-17-2019\\gs_winner\\train'
+            'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train'
         },
         'SERNEC': {}
     }
-    main(run_config=run_configs['BOONE'])
+    main(run_config=run_configs['GoingDeeper'])
