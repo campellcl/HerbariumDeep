@@ -212,16 +212,18 @@ class BottleneckExecutor:
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
                 if i % 10 == 0:
-                    tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
-                    df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+                    # tf.logging.info(msg='\tBacking up dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+                    # df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+                    tf.logging.info(msg='\tBacking up bottleneck .csv and .npy to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '{.csv|.npy}'))
                     tf.logging.info(msg='\tWriting uncompressed csv files to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.csv'))
                     df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
                     tf.logging.info(msg='\tWriting raw uncompressed bottleneck vectors to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.npy'))
                     np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(df_bottlenecks['bottleneck']), allow_pickle=False)
             self.df_bottlenecks = df_bottlenecks
             self.cached_all_bottlenecks = True
-            tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
-            df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            # tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+            # df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
+            tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final csv and numpy array to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '{.csv|.npy}'))
             tf.logging.info(msg='\tWriting uncompressed csv files to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.csv'))
             self.df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
             tf.logging.info(msg='\tWriting raw uncompressed bottleneck vectors to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '.npy'))
@@ -230,9 +232,9 @@ class BottleneckExecutor:
     def _load_bottlenecks(self):
         bottlenecks = None
         bottleneck_path = self.compressed_bottleneck_file_path
-        if os.path.isfile(bottleneck_path):
+        if os.path.isfile(bottleneck_path.replace('.pkl', '.csv')) and os.path.isfile(bottleneck_path.replace('.pkl', '.npy')):
             # Bottlenecks .pkl file exists, read from disk:
-            tf.logging.info(msg='Bottleneck file successfully located at the provided path: \'%s\'' % bottleneck_path)
+            tf.logging.info(msg='Bottleneck files successfully located at the provided path: \'%s\'' % bottleneck_path.replace('.pkl', '{.csv|.npy}'))
             try:
                 # bottlenecks = pd.read_pickle(bottleneck_path)
                 bottlenecks = pd.read_csv(bottleneck_path.replace('.pkl', '.csv'))
@@ -253,7 +255,7 @@ class BottleneckExecutor:
     def _resume_caching_bottlenecks(self):
         bottleneck_save_frequency = MAX_IMAGE_BATCH_SIZE * 2
 
-        if os.path.exists(self.compressed_bottleneck_file_path):
+        if os.path.exists(self.compressed_bottleneck_file_path.replace('.pkl', '.csv')) and os.path.exists(self.compressed_bottleneck_file_path.replace('.pkl', '.npy')):
             self.df_bottlenecks = self._load_bottlenecks()
             # df_bottlenecks = existing_bottlenecks.copy(deep=True)
         else:
@@ -335,9 +337,10 @@ class BottleneckExecutor:
                                 this is not done, then the backup may be performed with more image data than is capable of fitting into memory. 
                             '''
                             if num_bottlenecks_since_last_save % bottleneck_save_frequency == 0:
-                                tf.logging.info(msg='\tBacking up bottleneck files to: \'%s\'' % self.compressed_bottleneck_file_path)
+                                tf.logging.info(msg='\tBacking up bottleneck files to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '{.csv|.npy}'))
                                 self.df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
                                 np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(self.df_bottlenecks['bottleneck']), allow_pickle=False)
+                                # self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
                                 num_bottlenecks_since_last_save = 0
                                 # dfb = pd.read_csv('bottlenecks_partial.csv')
                                 # dfb['bottleneck'] = list(np.load('bottlenecks_partial.npy'))
@@ -346,7 +349,8 @@ class BottleneckExecutor:
                 average_bottleneck_computation_rate = sum([num_bottlenecks / elapsed_time for num_bottlenecks, elapsed_time in bottleneck_counts_and_time_stamps])/len(bottleneck_counts_and_time_stamps)
                 tf.logging.info(msg='\tFinished computing class bottlenecks. Average bottleneck generation rate: %.2f bottlenecks per second.' % average_bottleneck_computation_rate)
             self.cached_all_bottlenecks = True
-            tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+            # tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final dataframe to: \'%s\'' % self.compressed_bottleneck_file_path)
+            tf.logging.info(msg='Finished computing ALL bottlenecks. Saving final bottleneck files to: \'%s\'' % self.compressed_bottleneck_file_path.replace('.pkl', '{.csv|.npy}'))
             self.df_bottlenecks[['class', 'path']].to_csv(self.compressed_bottleneck_file_path.replace('.pkl', '.csv'), index=False)
             np.save(self.compressed_bottleneck_file_path.replace('.pkl', '.npy'), np.vstack(self.df_bottlenecks['bottleneck']), allow_pickle=False)
             # self.df_bottlenecks.to_pickle(self.compressed_bottleneck_file_path)
@@ -433,14 +437,14 @@ if __name__ == '__main__':
     # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
 
     # BOON Configuration:
-    bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
-    image_path = 'D:\\data\\BOON\\images\\'
-    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
+    # bottleneck_path = 'D:\\data\\BOON\\bottlenecks.pkl'
+    # image_path = 'D:\\data\\BOON\\images\\'
+    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON'
 
     # GoingDeeper Configuration:
-    # bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
-    # image_path = 'D:\\data\\GoingDeeperData\\images'
-    # logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
+    bottleneck_path = 'D:\\data\\GoingDeeperData\\bottlenecks.pkl'
+    image_path = 'D:\\data\\GoingDeeperData\\images'
+    logging_path = 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper'
 
     # SERNEC Cofiguration:
     # bottleneck_path = 'D:\\data\\SERNEC\\bottlenecks.pkl'
@@ -457,4 +461,7 @@ if __name__ == '__main__':
     # bottleneck_executor._cache_all_bottlenecks()
     # bottleneck_executor._resume_caching_bottlenecks()
     bottlenecks_df = bottleneck_executor.get_bottlenecks()
+    # del bottleneck_executor
+    # tmp = bottlenecks_df[~bottlenecks_df['bottleneck'].apply(tuple).duplicated()]
+    # print('tmp.shape: %s' % (tmp.shape,))
     train_bottlenecks, val_bottlenecks, test_bottlenecks = bottleneck_executor.get_partitioned_bottlenecks()
