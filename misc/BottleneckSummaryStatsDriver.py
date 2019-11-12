@@ -2,6 +2,7 @@ import numpy as np
 import os
 from frameworks.DataAcquisition.BottleneckExecutor import BottleneckExecutor
 import statistics
+from collections import Counter
 
 
 def main(run_config):
@@ -53,9 +54,16 @@ def main(run_config):
         fp.write('Actual Maximum Number of Bottleneck Vectors per Class: %d\n' % max(class_labels_and_bottleneck_vector_counts.values()))
         fp.write('Mean Number of Bottleneck Vectors per Class: %.2f\n' % np.mean(list(class_labels_and_bottleneck_vector_counts.values())))
         fp.write('Median Number of Bottleneck Vectors per Class: %.2f\n' % np.median(list(class_labels_and_bottleneck_vector_counts.values())))
-        mode_bottleneck_vectors_per_class = statistics.mode(list(class_labels_and_bottleneck_vector_counts.values()))
-        mode_count = len([bottleneck_count for clss_label, bottleneck_count in class_labels_and_bottleneck_vector_counts.items() if bottleneck_count == mode_bottleneck_vectors_per_class])
-        fp.write('Mode Number of Bottleneck Vectors per Class: %d (%d counts)\n' % (statistics.mode(list(class_labels_and_bottleneck_vector_counts.values())), mode_count))
+        try:
+            mode_bottleneck_vectors_per_class = statistics.mode(list(class_labels_and_bottleneck_vector_counts.values()))
+            mode_count = len([bottleneck_count for clss_label, bottleneck_count in class_labels_and_bottleneck_vector_counts.items() if bottleneck_count == mode_bottleneck_vectors_per_class])
+            fp.write('Mode Number of Bottleneck Vectors per Class: %d (%d counts)\n' % (statistics.mode(list(class_labels_and_bottleneck_vector_counts.values())), mode_count))
+        except statistics.StatisticsError as err:
+            data = Counter(list(class_labels_and_bottleneck_vector_counts.values()))
+            print('Note: Two most equally common values: %s' % data.most_common(2))
+            fp.write('Mode_1 Number of Bottleneck Vectors per Class: %d (%d counts)\n' % (data.most_common(2)[0][0], data.most_common(2)[0][1]))
+            fp.write('Mode_2 Number of Bottleneck Vectors per Class: %d (%d counts)\n' % (data.most_common(2)[1][0], data.most_common(2)[1][1]))
+
     print('Wrote Bottleneck Executor summary statistics to \'%s\'' % os.path.join(run_config['logging_dir'], 'bottleneck_executor_summary_stats.txt'))
 
     # First we need to calculate the prior probabilities using the distribution in the training dataset:
