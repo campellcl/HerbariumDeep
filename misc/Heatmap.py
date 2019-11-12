@@ -35,8 +35,8 @@ def main():
     __path = datasets['GoingDeeper']
     # visual_type = visualization_types['cross_entropy_loss']
     # colorization_type = colorization_types['relative_to_data']
-    visual_type = visualization_types['top_one_acc']
-    colorization_type = colorization_types['relative_to_data']
+    visual_type = visualization_types['top_five_acc']
+    colorization_type = colorization_types['relative_to_acc']
 
 
     df = pd.read_pickle(__path)
