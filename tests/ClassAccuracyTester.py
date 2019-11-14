@@ -57,6 +57,12 @@ class TrainedTFHClassifier:
                 # All class samples have the same ground truth index:
                 bottleneck_subset_ground_truth_indices = np.array([j for j in range(total_num_class_samples)])
 
+                if total_num_class_samples == 0:
+                    # There are no class samples in the chosen dataset's partition of (train, test, val):
+                    print('\tWARNING: There are no samples for class \'%s\' in the chosen dataset partition of (train/val/test)' % class_label)
+                    print('Class \'%s\' (%d)\'s accuracy is UNDEFINED' % (class_label, i))
+                    class_top_1_accuracies[i] = {'class': class_label, 'top_1_acc': np.NaN}
+                    continue
                 # Run the bottleneck subset through the computational graph:
                 class_results = sess.run(output_op.outputs[0], feed_dict={
                     input_bottleneck_op.outputs[0]: bottleneck_subset_values
@@ -68,10 +74,10 @@ class TrainedTFHClassifier:
                 class_results = np.squeeze(class_results)
                 # print('class_results shape post-squeeze: %s' % (class_results.shape,))
 
-                for j, class_result in enumerate(class_results):
-                    # Obtain the indices corresponding to a sorting of y_proba in ascending order:
-                    pred_class_index = class_result.argsort()[-1]       # The predicted class index is the most probable prediction for this sample (last in argsort() array).
-                    pred_prob = class_result[pred_class_index]          # This is the probability of belonging to the predicted class.
+                # This is for single samples only in the validation set:
+                if class_results.ndim == 1:
+                    pred_class_index = class_results.argsort()[-1]      # The predicted class index is the most probable prediction for this sample (last in argsort() array).
+                    pred_prob = class_results[pred_class_index]         # This is the probability of belonging to the predicted class.
                     pred_class_label = class_labels[pred_class_index]   # This is the predicted class label (human readable)
                     ground_truth_class_label = class_label              # This is the ground truth class label.
                     print('\tClass sample [%d/%d] predicted to be class: \'%s (%d)\' with %.2f%% probability. The real class was: \'%s (%d)\'' % (j+1, total_num_class_samples, pred_class_label, pred_class_index, pred_prob*100, class_label, i))
@@ -79,9 +85,24 @@ class TrainedTFHClassifier:
                         class_samples_correct += 1
                     else:
                         class_samples_incorrect += 1
-                assert class_samples_correct + class_samples_incorrect == total_num_class_samples
-                print('Class \'%s (%d)\'\'s accuracy is: %.2f%%' % (class_label, i, (class_samples_correct / total_num_class_samples)*100))
-                class_top_1_accuracies[i] = {'class': class_label, 'top_1_acc': (class_samples_correct / total_num_class_samples)*100}
+                    print('Class \'%s (%d)\'\'s accuracy is: %.2f%%' % (class_label, i, (class_samples_correct / total_num_class_samples)*100))
+                    class_top_1_accuracies[i] = {'class': class_label, 'top_1_acc': (class_samples_correct / total_num_class_samples)*100}
+                else:
+                    # This is for multiple class samples in the validation dataset:
+                    for j, class_result in enumerate(class_results):
+                        # Obtain the indices corresponding to a sorting of y_proba in ascending order:
+                        pred_class_index = class_result.argsort()[-1]       # The predicted class index is the most probable prediction for this sample (last in argsort() array).
+                        pred_prob = class_result[pred_class_index]          # This is the probability of belonging to the predicted class.
+                        pred_class_label = class_labels[pred_class_index]   # This is the predicted class label (human readable)
+                        ground_truth_class_label = class_label              # This is the ground truth class label.
+                        print('\tClass sample [%d/%d] predicted to be class: \'%s (%d)\' with %.2f%% probability. The real class was: \'%s (%d)\'' % (j+1, total_num_class_samples, pred_class_label, pred_class_index, pred_prob*100, class_label, i))
+                        if pred_class_index == i:
+                            class_samples_correct += 1
+                        else:
+                            class_samples_incorrect += 1
+                    assert class_samples_correct + class_samples_incorrect == total_num_class_samples
+                    print('Class \'%s (%d)\'\'s accuracy is: %.2f%%' % (class_label, i, (class_samples_correct / total_num_class_samples)*100))
+                    class_top_1_accuracies[i] = {'class': class_label, 'top_1_acc': (class_samples_correct / total_num_class_samples)*100}
         print('class_top_1_accuracies: %s' % class_top_1_accuracies)
         return class_top_1_accuracies
 
@@ -215,6 +236,8 @@ def main(run_config):
             json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
         with open('top_5_accuracies_by_class_test_set.json', 'w') as fp:
             json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
+    else:
+        print('ERROR: Could not identify process designation')
 
 
 if __name__ == '__main__':
