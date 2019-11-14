@@ -160,51 +160,61 @@ def main(run_config):
     # assert len(class_labels) == len(val_bottlenecks['class'].unique())
     # assert len(class_labels) == len(test_bottlenecks['class'].unique())
 
-    train_bottleneck_values = train_bottlenecks['bottleneck'].tolist()
-    train_bottleneck_values = np.array(train_bottleneck_values)
-    train_bottleneck_ground_truth_labels = train_bottlenecks['class'].values
-    # Convert the labels into indices (one hot encoding by index):
-    train_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
-                                                      for ground_truth_label in train_bottleneck_ground_truth_labels])
-
-    val_bottleneck_values = val_bottlenecks['bottleneck'].tolist()
-    val_bottleneck_values = np.array(val_bottleneck_values)
-    val_bottleneck_ground_truth_labels = val_bottlenecks['class'].values
-    # Convert the labels into indices (one hot encoding by index):
-    val_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
-                                                    for ground_truth_label in val_bottleneck_ground_truth_labels])
-
-    test_bottleneck_values = test_bottlenecks['bottleneck'].tolist()
-    test_bottleneck_values = np.array(test_bottleneck_values)
-    test_bottleneck_ground_truth_labels = test_bottlenecks['class'].values
-    # Convert the labels into indices (one hot encoding by index):
-    test_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
-                                                    for ground_truth_label in test_bottleneck_ground_truth_labels])
-
+    # Load trained classifier:
     tfh_classifier = TrainedTFHClassifier(model_path=os.path.join(model_path, 'inference'), model_label_file_path=model_label_file_path)
     # tfh_classifier.load_model()
-    class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
-    class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
-    top_1_accs = [value['top_1_acc'] for (key, value) in class_top_1_accuracies.items()]
-    top_5_accs = [value['top_5_acc'] for (key, value) in class_top_5_accuracies.items()]
 
-    print('Average top-1 Accuracy: %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
-    print('Average top-5 Accuracy: %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))
-
-    # with open('top_1_accuracies_by_class_train_set.json', 'w') as fp:
-    #     json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
-    # with open('top_5_accuracies_by_class_train_set.json', 'w') as fp:
-    #     json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
-
-    with open('top_1_accuracies_by_class_test_set.json', 'w') as fp:
-        json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
-    with open('top_5_accuracies_by_class_test_set.json', 'w') as fp:
-        json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
-
-    # with open('top_1_accuracies_by_class_val_set.json', 'w') as fp:
-    #     json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
-    # with open('top_5_accuracies_by_class_val_set.json', 'w') as fp:
-    #     json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
+    if run_config['process'] == 'Training':
+        train_bottleneck_values = train_bottlenecks['bottleneck'].tolist()
+        train_bottleneck_values = np.array(train_bottleneck_values)
+        train_bottleneck_ground_truth_labels = train_bottlenecks['class'].values
+        # Convert the labels into indices (one hot encoding by index):
+        train_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                                          for ground_truth_label in train_bottleneck_ground_truth_labels])
+        class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=train_bottlenecks, class_labels=class_labels)
+        class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=train_bottlenecks, class_labels=class_labels)
+        top_1_accs = [value['top_1_acc'] for (key, value) in class_top_1_accuracies.items()]
+        top_5_accs = [value['top_5_acc'] for (key, value) in class_top_5_accuracies.items()]
+        print('Average top-1 Accuracy (training set): %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
+        print('Average top-5 Accuracy (training set): %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))
+        with open('top_1_accuracies_by_class_train_set.json', 'w') as fp:
+            json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
+        with open('top_5_accuracies_by_class_train_set.json', 'w') as fp:
+            json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
+    elif run_config['process'] == 'Validation':
+        val_bottleneck_values = val_bottlenecks['bottleneck'].tolist()
+        val_bottleneck_values = np.array(val_bottleneck_values)
+        val_bottleneck_ground_truth_labels = val_bottlenecks['class'].values
+        # Convert the labels into indices (one hot encoding by index):
+        val_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                                        for ground_truth_label in val_bottleneck_ground_truth_labels])
+        class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=val_bottlenecks, class_labels=class_labels)
+        class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=val_bottlenecks, class_labels=class_labels)
+        top_1_accs = [value['top_1_acc'] for (key, value) in class_top_1_accuracies.items()]
+        top_5_accs = [value['top_5_acc'] for (key, value) in class_top_5_accuracies.items()]
+        print('Average top-1 Accuracy (validation set): %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
+        print('Average top-5 Accuracy (validation set): %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))
+        with open('top_1_accuracies_by_class_val_set.json', 'w') as fp:
+            json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
+        with open('top_5_accuracies_by_class_val_set.json', 'w') as fp:
+            json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
+    elif run_config['process'] == 'Testing':
+        test_bottleneck_values = test_bottlenecks['bottleneck'].tolist()
+        test_bottleneck_values = np.array(test_bottleneck_values)
+        test_bottleneck_ground_truth_labels = test_bottlenecks['class'].values
+        # Convert the labels into indices (one hot encoding by index):
+        test_bottleneck_ground_truth_indices = np.array([class_labels.index(ground_truth_label)
+                                                        for ground_truth_label in test_bottleneck_ground_truth_labels])
+        class_top_1_accuracies = tfh_classifier.calculate_class_top_1_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
+        class_top_5_accuracies = tfh_classifier.calculate_class_top_5_accuracies(bottlenecks=test_bottlenecks, class_labels=class_labels)
+        top_1_accs = [value['top_1_acc'] for (key, value) in class_top_1_accuracies.items()]
+        top_5_accs = [value['top_5_acc'] for (key, value) in class_top_5_accuracies.items()]
+        print('Average top-1 Accuracy (testing set): %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
+        print('Average top-5 Accuracy (testing set): %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))
+        with open('top_1_accuracies_by_class_test_set.json', 'w') as fp:
+            json.dump(class_top_1_accuracies, fp, indent=4, separators=(',', ': '))
+        with open('top_5_accuracies_by_class_test_set.json', 'w') as fp:
+            json.dump(class_top_5_accuracies, fp, indent=4, separators=(',', ': '))
 
 
 if __name__ == '__main__':
@@ -219,19 +229,74 @@ if __name__ == '__main__':
             'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\DEBUG'
         },
         'BOONE': {
-            'dataset': 'BOON',
-            'image_dir': 'D:\\data\\BOON\\images',
-            'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
-            'saved_model_path': 'D:\\data\\BOON\\training summaries\\10-25-2019\\gs_winner\\train'
+            'val': {
+                'dataset': 'BOONE',
+                'process': 'Validation',
+                'image_dir': 'D:\\data\\BOON\\images',
+                'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_val_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class_val_set.json',
+                'saved_model_path': 'D:\\data\\BOON\\training summaries\\10-25-2019\\gs_winner\\train'
+            },
+            'train': {
+                'dataset': 'BOONE',
+                'process': 'Training',
+                'image_dir': 'D:\\data\\BOON\\images',
+                'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_train_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_train_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class_train_set.json',
+                'saved_model_path': 'D:\\data\\BOON\\training summaries\\10-25-2019\\gs_winner\\train'
+            },
+            'test': {
+                    'dataset': 'BOONE',
+                    'process': 'Testing',
+                    'image_dir': 'D:\\data\\BOON\\images',
+                    'bottleneck_path': 'D:\\data\\BOON\\bottlenecks.pkl',
+                    'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\BOON',
+                    'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_test_hyperparams.pkl',
+                    'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_1_accuracies_by_class_test_set.json',
+                    'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\top_5_accuracies_by_class_test_set.json',
+                    'saved_model_path': 'D:\\data\\BOON\\training summaries\\10-25-2019\\gs_winner\\train'
+            }
         },
         'GoingDeeper': {
-            'dataset': 'GoingDeeper',
-            'image_dir': 'D:\\data\\GoingDeeperData\\images',
-            'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
-            'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
-            'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train'
-        },
+            'train': {
+                'dataset': 'GoingDeeper',
+                'process': 'Training',
+                'image_dir': 'D:\\data\\GoingDeeperData\\images',
+                'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_train_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_train_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_train_set.json'
+            },
+            'val': {
+                'dataset': 'GoingDeeper',
+                'process': 'Validation',
+                'image_dir': 'D:\\data\\GoingDeeperData\\images',
+                'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_val_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_val_set.json'
+            },
+            'test': {
+                'dataset': 'GoingDeeper',
+                'process': 'Testing',
+                'image_dir': 'D:\\data\\GoingDeeperData\\images',
+                'bottleneck_path': 'D:\\data\\GoingDeeperData\\bottlenecks.pkl',
+                'logging_dir': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeepKeras\\frameworks\\DataAcquisition\\CleaningResults\\GoingDeeper',
+                'saved_model_path': 'D:\\data\\GoingDeeperData\\training summaries\\10-28-2019\\gs_winner\\train',
+                'hyperparam_df_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_test_hyperparams.pkl',
+                'top_1_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_1_accuracies_by_class_test_set.json',
+                'top_5_per_class_acc_json_path': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\top_5_accuracies_by_class_test_set.json'
+            }},
         'SERNEC': {}
     }
-    main(run_config=run_configs['GoingDeeper'])
+    main(run_config=run_configs['BOONE']['val'])
