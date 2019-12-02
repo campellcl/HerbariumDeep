@@ -32,10 +32,14 @@ def main():
     datasets = {'BOONE': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\Boone\\gs_val_hyperparams.pkl', 'GoingDeeper': 'C:\\Users\\ccamp\\Documents\\GitHub\\HerbariumDeep\\visualizations\\GoingDeeper\\gs_val_hyperparams.pkl'}
 
     # Choose Visualization Settings:
-    __path = datasets['GoingDeeper']
+    # __path = datasets['GoingDeeper']
+    __path = datasets['BOONE']
+
     # visual_type = visualization_types['cross_entropy_loss']
     # colorization_type = colorization_types['relative_to_data']
+
     visual_type = visualization_types['top_five_acc']
+    # visual_type = visualization_types['top_one_acc']
     colorization_type = colorization_types['relative_to_acc']
 
 
@@ -149,9 +153,9 @@ def main():
 
     ax_bot.set_yticks(y_ticks_left_major, minor=False)
     ax_bot.set_yticks(y_ticks_left_minor, minor=True)
-    ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False)
-    ax_bot.set_xlabel('Initializer')
-    ax_bot.set_ylabel('Optimizer')
+    ax_bot.set_yticklabels(y_tick_labels_left_major, minor=False, fontsize=16)
+    ax_bot.set_xlabel('Initializer', fontsize=20)
+    ax_bot.set_ylabel('Optimizer', fontsize=20)
 
     # ax_right = ax_bot.twinx()
     # ax_right.set_aspect('equal')
@@ -162,7 +166,7 @@ def main():
     ax_top.set_xticks(x_ticks_top_major, minor=False)
     ax_top.set_xticks(x_ticks_top_minor, minor=True)
     ax_top.set_xticklabels(x_tick_labels_top_major, minor=False)
-    ax_top.set_xlabel('Training Batch Size')
+    ax_top.set_xlabel('Training Batch Size', fontsize=20, labelpad=15)
     # ax_top.set_xticklabels('', major=True)
 
     # ax_right = ax_top.get_shared_y_axes().join(ax_bot, ax_top)
@@ -171,8 +175,9 @@ def main():
     # fig.text()
 
     # Modify font sizes of x-axes:
-    ax_bot.tick_params(axis='x', labelsize=8)
-    ax_top.tick_params(axis='x', labelsize=8)
+    ax_bot.tick_params(axis='x', labelsize=16)
+    ax_top.tick_params(axis='x', labelsize=16)
+
 
     if colorization_type == 'relative_to_data':
         # Uncomment this for plotting colors relative to data:
@@ -204,22 +209,23 @@ def main():
     if visual_type == 'cross_entropy_loss':
         # For x-entropy loss:
         # cbar = plt.colorbar(mappable=scalar_mappable)
-        cbar.set_label('Cross Entropy Loss', rotation=270, labelpad=25)
-        plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=10)
+        cbar.set_label('Cross Entropy Loss', rotation=270, labelpad=25, fontsize=24)
+        plt.title('Grid Search Hyperparameter Settings and Validation Set X-Entropy Loss', fontsize=24, pad=15)
     elif visual_type == 'top_one_acc':
         # For top-1 accuracy:
         if colorization_type == 'relative_to_data':
             cbar.set_label('Top-1 Accuracy', rotation=270, labelpad=25)
         else:
-            cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25)
-        plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=10, pad=10)
+            cbar.set_label('Top-1 Accuracy (Percentage)', rotation=270, labelpad=25, fontsize=24)
+        plt.title('Grid Search Hyperparameter Settings and Validation Set Top-1 Accuracy', fontsize=24, pad=15)
     elif visual_type == 'top_five_acc':
         # For top-5 accuracy:
         if colorization_type == 'relative_to_data':
             cbar.set_label('Top-5 Accuracy', rotation=270, labelpad=25)
         else:
-            cbar.set_label('Top-5 Accuracy (Percentage)', rotation=270, labelpad=25)
-        plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=10, pad=10)
+            cbar.set_label('Top-5 Accuracy (Percentage)', rotation=270, labelpad=25, fontsize=24)
+        plt.title('Grid Search Hyperparameter Settings and Validation Set Top-5 Accuracy', fontsize=24, pad=15)
+    cbar.ax.tick_params(labelsize=16)
     plt.show()
 
 
