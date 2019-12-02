@@ -1,0 +1,3406 @@
+{
+    "0": {
+        "class": "abies alba mill",
+        "top_5_acc": 86.95652173913044
+    },
+    "1": {
+        "class": "acacia dealbata link",
+        "top_5_acc": 77.21518987341773
+    },
+    "2": {
+        "class": "acanthus mollis l",
+        "top_5_acc": 91.05691056910568
+    },
+    "3": {
+        "class": "acer campestre l",
+        "top_5_acc": 87.29729729729729
+    },
+    "4": {
+        "class": "acer monspessulanum l",
+        "top_5_acc": 89.03654485049833
+    },
+    "5": {
+        "class": "acer negundo l",
+        "top_5_acc": 73.62204724409449
+    },
+    "6": {
+        "class": "acer opalus mill",
+        "top_5_acc": 85.91549295774648
+    },
+    "7": {
+        "class": "acer platanoides l",
+        "top_5_acc": 86.66666666666667
+    },
+    "8": {
+        "class": "acer pseudoplatanus l",
+        "top_5_acc": 85.94377510040161
+    },
+    "9": {
+        "class": "acer saccharinum l",
+        "top_5_acc": 84.070796460177
+    },
+    "10": {
+        "class": "achillea filipendulina lam",
+        "top_5_acc": 83.72093023255815
+    },
+    "11": {
+        "class": "achillea millefolium l",
+        "top_5_acc": 88.61154446177846
+    },
+    "12": {
+        "class": "achillea ptarmica l",
+        "top_5_acc": 80.22922636103151
+    },
+    "13": {
+        "class": "aconitum lycoctonum l",
+        "top_5_acc": 91.06628242074927
+    },
+    "14": {
+        "class": "aconitum napellus l",
+        "top_5_acc": 88.44221105527639
+    },
+    "15": {
+        "class": "adonis annua l",
+        "top_5_acc": 86.41304347826086
+    },
+    "16": {
+        "class": "aegopodium podagraria l",
+        "top_5_acc": 85.65573770491804
+    },
+    "17": {
+        "class": "aesculus hippocastanum l",
+        "top_5_acc": 89.52380952380953
+    },
+    "18": {
+        "class": "agave americana l",
+        "top_5_acc": 81.08108108108108
+    },
+    "19": {
+        "class": "agrimonia eupatoria l",
+        "top_5_acc": 89.23512747875354
+    },
+    "20": {
+        "class": "agrostemma githago l",
+        "top_5_acc": 83.87096774193549
+    },
+    "21": {
+        "class": "ajuga genevensis l",
+        "top_5_acc": 85.47297297297297
+    },
+    "22": {
+        "class": "ajuga reptans l",
+        "top_5_acc": 81.88405797101449
+    },
+    "23": {
+        "class": "albizia julibrissin durazz",
+        "top_5_acc": 89.2156862745098
+    },
+    "24": {
+        "class": "allium narcissiflorum vill",
+        "top_5_acc": 89.7196261682243
+    },
+    "25": {
+        "class": "allium nigrum l",
+        "top_5_acc": 93.18181818181817
+    },
+    "26": {
+        "class": "allium schoenoprasum l",
+        "top_5_acc": 93.73219373219374
+    },
+    "27": {
+        "class": "allium sphaerocephalon l",
+        "top_5_acc": 94.66292134831461
+    },
+    "28": {
+        "class": "allium triquetrum l",
+        "top_5_acc": 90.94827586206897
+    },
+    "29": {
+        "class": "allium ursinum l",
+        "top_5_acc": 93.33333333333333
+    },
+    "30": {
+        "class": "althaea cannabina l",
+        "top_5_acc": 81.42857142857143
+    },
+    "31": {
+        "class": "althaea officinalis l",
+        "top_5_acc": 88.715953307393
+    },
+    "32": {
+        "class": "amaranthus deflexus l",
+        "top_5_acc": 75.15337423312883
+    },
+    "33": {
+        "class": "ambrosia artemisiifolia l",
+        "top_5_acc": 77.35042735042735
+    },
+    "34": {
+        "class": "amelanchier ovalis medik",
+        "top_5_acc": 80.85106382978722
+    },
+    "35": {
+        "class": "amorpha fruticosa l",
+        "top_5_acc": 89.937106918239
+    },
+    "36": {
+        "class": "anchusa italica retz",
+        "top_5_acc": 82.8169014084507
+    },
+    "37": {
+        "class": "androsace villosa l",
+        "top_5_acc": 90.36697247706422
+    },
+    "38": {
+        "class": "andryala integrifolia l",
+        "top_5_acc": 83.41346153846155
+    },
+    "39": {
+        "class": "anemone alpina l",
+        "top_5_acc": 90.84745762711864
+    },
+    "40": {
+        "class": "anemone coronaria l",
+        "top_5_acc": 89.13649025069638
+    },
+    "41": {
+        "class": "anemone hepatica l",
+        "top_5_acc": 87.12871287128714
+    },
+    "42": {
+        "class": "anemone nemorosa l",
+        "top_5_acc": 88.10810810810811
+    },
+    "43": {
+        "class": "anemone pulsatilla l",
+        "top_5_acc": 89.06882591093117
+    },
+    "44": {
+        "class": "anemone ranunculoides l",
+        "top_5_acc": 90.66666666666666
+    },
+    "45": {
+        "class": "anemone vernalis l",
+        "top_5_acc": 82.63888888888889
+    },
+    "46": {
+        "class": "angelica sylvestris l",
+        "top_5_acc": 83.33333333333334
+    },
+    "47": {
+        "class": "anthemis maritima l",
+        "top_5_acc": 74.3421052631579
+    },
+    "48": {
+        "class": "anthericum liliago l",
+        "top_5_acc": 92.63803680981594
+    },
+    "49": {
+        "class": "anthoxanthum odoratum l",
+        "top_5_acc": 92.13250517598344
+    },
+    "50": {
+        "class": "anthyllis hermanniae l",
+        "top_5_acc": 82.53968253968253
+    },
+    "51": {
+        "class": "anthyllis montana l",
+        "top_5_acc": 79.62264150943396
+    },
+    "52": {
+        "class": "anthyllis vulneraria l",
+        "top_5_acc": 84.61538461538461
+    },
+    "53": {
+        "class": "antirrhinum majus l",
+        "top_5_acc": 72.8643216080402
+    },
+    "54": {
+        "class": "aphyllanthes monspeliensis l",
+        "top_5_acc": 95.29411764705881
+    },
+    "55": {
+        "class": "aquilegia vulgaris l",
+        "top_5_acc": 87.90983606557377
+    },
+    "56": {
+        "class": "arbutus unedo l",
+        "top_5_acc": 81.22605363984674
+    },
+    "57": {
+        "class": "arctium lappa l",
+        "top_5_acc": 93.48837209302326
+    },
+    "58": {
+        "class": "aristolochia clematitis l",
+        "top_5_acc": 90.625
+    },
+    "59": {
+        "class": "aristolochia pistolochia l",
+        "top_5_acc": 89.5104895104895
+    },
+    "60": {
+        "class": "aristolochia rotunda l",
+        "top_5_acc": 92.85714285714286
+    },
+    "61": {
+        "class": "armeria alpina willd",
+        "top_5_acc": 95.96774193548387
+    },
+    "62": {
+        "class": "arnica montana l",
+        "top_5_acc": 92.99191374663073
+    },
+    "63": {
+        "class": "artemisia vulgaris l",
+        "top_5_acc": 81.91489361702128
+    },
+    "64": {
+        "class": "arum italicum mill",
+        "top_5_acc": 89.72972972972974
+    },
+    "65": {
+        "class": "arum maculatum l",
+        "top_5_acc": 89.43661971830986
+    },
+    "66": {
+        "class": "arundo donax l",
+        "top_5_acc": 98.71794871794873
+    },
+    "67": {
+        "class": "asparagus officinalis l",
+        "top_5_acc": 86.34538152610442
+    },
+    "68": {
+        "class": "asphodelus albus mill",
+        "top_5_acc": 92.56198347107438
+    },
+    "69": {
+        "class": "asphodelus ramosus l",
+        "top_5_acc": 85.71428571428571
+    },
+    "70": {
+        "class": "asplenium adiantum-nigrum l",
+        "top_5_acc": 96.39261744966443
+    },
+    "71": {
+        "class": "asplenium ceterach l",
+        "top_5_acc": 77.55102040816327
+    },
+    "72": {
+        "class": "asplenium ruta-muraria l",
+        "top_5_acc": 96.07056936647955
+    },
+    "73": {
+        "class": "asplenium scolopendrium l",
+        "top_5_acc": 96.80715197956577
+    },
+    "74": {
+        "class": "asplenium trichomanes l",
+        "top_5_acc": 95.43610547667343
+    },
+    "75": {
+        "class": "aster alpinus l",
+        "top_5_acc": 85.62091503267973
+    },
+    "76": {
+        "class": "astragalus glycyphyllos l",
+        "top_5_acc": 77.87610619469027
+    },
+    "77": {
+        "class": "astragalus hamosus l",
+        "top_5_acc": 77.87878787878788
+    },
+    "78": {
+        "class": "astragalus monspessulanus l",
+        "top_5_acc": 87.05357142857143
+    },
+    "79": {
+        "class": "astrantia major l",
+        "top_5_acc": 87.03703703703704
+    },
+    "80": {
+        "class": "astrantia minor l",
+        "top_5_acc": 88.93617021276596
+    },
+    "81": {
+        "class": "atriplex prostrata boucher ex dc",
+        "top_5_acc": 63.44086021505376
+    },
+    "82": {
+        "class": "atropa belladonna l",
+        "top_5_acc": 84.84848484848484
+    },
+    "83": {
+        "class": "aucuba japonica thunb",
+        "top_5_acc": 88.67924528301887
+    },
+    "84": {
+        "class": "ballota nigra l",
+        "top_5_acc": 84.06593406593407
+    },
+    "85": {
+        "class": "bartsia alpina l",
+        "top_5_acc": 92.82868525896414
+    },
+    "86": {
+        "class": "bartsia trixago l",
+        "top_5_acc": 91.30434782608695
+    },
+    "87": {
+        "class": "bellis perennis l",
+        "top_5_acc": 86.34686346863468
+    },
+    "88": {
+        "class": "berberis vulgaris l",
+        "top_5_acc": 91.17647058823529
+    },
+    "89": {
+        "class": "beta vulgaris l",
+        "top_5_acc": 78.92857142857143
+    },
+    "90": {
+        "class": "betula pendula roth",
+        "top_5_acc": 68.86792452830188
+    },
+    "91": {
+        "class": "betula pubescens ehrh",
+        "top_5_acc": 74.71264367816092
+    },
+    "92": {
+        "class": "bidens pilosa l",
+        "top_5_acc": 80.72445019404915
+    },
+    "93": {
+        "class": "borago officinalis l",
+        "top_5_acc": 77.6536312849162
+    },
+    "94": {
+        "class": "brassica napus l",
+        "top_5_acc": 66.66666666666666
+    },
+    "95": {
+        "class": "bryonia cretica l",
+        "top_5_acc": 75.75757575757575
+    },
+    "96": {
+        "class": "buddleja davidii franch",
+        "top_5_acc": 80.0
+    },
+    "97": {
+        "class": "bupleurum fruticosum l",
+        "top_5_acc": 87.61467889908256
+    },
+    "98": {
+        "class": "bupleurum ranunculoides l",
+        "top_5_acc": 85.88235294117646
+    },
+    "99": {
+        "class": "buxus sempervirens l",
+        "top_5_acc": 88.46153846153845
+    },
+    "100": {
+        "class": "cakile maritima scop",
+        "top_5_acc": 87.74193548387098
+    },
+    "101": {
+        "class": "calendula arvensis l",
+        "top_5_acc": 81.5242494226328
+    },
+    "102": {
+        "class": "calendula officinalis l",
+        "top_5_acc": 62.0
+    },
+    "103": {
+        "class": "caltha palustris l",
+        "top_5_acc": 90.49360146252286
+    },
+    "104": {
+        "class": "campanula glomerata l",
+        "top_5_acc": 39.285714285714285
+    },
+    "105": {
+        "class": "campanula latifolia l",
+        "top_5_acc": 78.94736842105263
+    },
+    "106": {
+        "class": "campanula medium l",
+        "top_5_acc": 69.89247311827957
+    },
+    "107": {
+        "class": "campanula patula l",
+        "top_5_acc": 80.51282051282051
+    },
+    "108": {
+        "class": "campanula persicifolia l",
+        "top_5_acc": 81.08108108108108
+    },
+    "109": {
+        "class": "campanula rapunculus l",
+        "top_5_acc": 73.4375
+    },
+    "110": {
+        "class": "campanula rhomboidalis l",
+        "top_5_acc": 80.0
+    },
+    "111": {
+        "class": "campanula rotundifolia l",
+        "top_5_acc": 80.17094017094017
+    },
+    "112": {
+        "class": "campanula scheuchzeri vill",
+        "top_5_acc": 81.95488721804512
+    },
+    "113": {
+        "class": "campanula trachelium l",
+        "top_5_acc": 75.0
+    },
+    "114": {
+        "class": "canna indica l",
+        "top_5_acc": 96.42857142857143
+    },
+    "115": {
+        "class": "capparis spinosa l",
+        "top_5_acc": 90.57239057239057
+    },
+    "116": {
+        "class": "cardamine amara l",
+        "top_5_acc": 79.72972972972973
+    },
+    "117": {
+        "class": "cardamine pratensis l",
+        "top_5_acc": 79.51219512195122
+    },
+    "118": {
+        "class": "carduus acanthoides l",
+        "top_5_acc": 90.78014184397163
+    },
+    "119": {
+        "class": "carduus carlinoides gouan",
+        "top_5_acc": 90.47619047619048
+    },
+    "120": {
+        "class": "carduus defloratus l",
+        "top_5_acc": 89.1156462585034
+    },
+    "121": {
+        "class": "carduus nigrescens vill",
+        "top_5_acc": 87.1559633027523
+    },
+    "122": {
+        "class": "carduus nutans l",
+        "top_5_acc": 90.70904645476773
+    },
+    "123": {
+        "class": "carduus pycnocephalus l",
+        "top_5_acc": 92.02453987730061
+    },
+    "124": {
+        "class": "carex flacca schreb",
+        "top_5_acc": 91.46341463414635
+    },
+    "125": {
+        "class": "carex riparia curtis",
+        "top_5_acc": 91.62011173184358
+    },
+    "126": {
+        "class": "carica papaya l",
+        "top_5_acc": 90.37037037037037
+    },
+    "127": {
+        "class": "carlina acanthifolia all",
+        "top_5_acc": 83.9506172839506
+    },
+    "128": {
+        "class": "carlina acaulis l",
+        "top_5_acc": 89.47368421052632
+    },
+    "129": {
+        "class": "carlina corymbosa l",
+        "top_5_acc": 87.5
+    },
+    "130": {
+        "class": "carpinus betulus l",
+        "top_5_acc": 75.60975609756098
+    },
+    "131": {
+        "class": "carthamus lanatus l",
+        "top_5_acc": 91.03641456582633
+    },
+    "132": {
+        "class": "castanea sativa mill",
+        "top_5_acc": 91.83673469387756
+    },
+    "133": {
+        "class": "casuarina cunninghamiana miq",
+        "top_5_acc": 96.96969696969697
+    },
+    "134": {
+        "class": "catalpa bignonioides walter",
+        "top_5_acc": 90.0
+    },
+    "135": {
+        "class": "catananche caerulea l",
+        "top_5_acc": 88.09523809523809
+    },
+    "136": {
+        "class": "celtis australis l",
+        "top_5_acc": 86.99551569506725
+    },
+    "137": {
+        "class": "centaurea aspera l",
+        "top_5_acc": 82.17821782178217
+    },
+    "138": {
+        "class": "centaurea calcitrapa l",
+        "top_5_acc": 78.03468208092485
+    },
+    "139": {
+        "class": "centaurea corymbosa pourr",
+        "top_5_acc": 46.15384615384615
+    },
+    "140": {
+        "class": "centaurea decipiens thuill",
+        "top_5_acc": 73.5632183908046
+    },
+    "141": {
+        "class": "centaurea jacea l",
+        "top_5_acc": 85.37074148296593
+    },
+    "142": {
+        "class": "centaurea nigra l",
+        "top_5_acc": 86.49732620320856
+    },
+    "143": {
+        "class": "centaurea paniculata l",
+        "top_5_acc": 85.83916083916084
+    },
+    "144": {
+        "class": "centaurea pectinata l",
+        "top_5_acc": 76.27118644067797
+    },
+    "145": {
+        "class": "centaurea scabiosa l",
+        "top_5_acc": 82.64150943396227
+    },
+    "146": {
+        "class": "centaurium erythraea rafn",
+        "top_5_acc": 79.03930131004367
+    },
+    "147": {
+        "class": "cerastium glomeratum thuill",
+        "top_5_acc": 85.13800424628451
+    },
+    "148": {
+        "class": "ceratonia siliqua l",
+        "top_5_acc": 93.39622641509435
+    },
+    "149": {
+        "class": "cercis siliquastrum l",
+        "top_5_acc": 82.88288288288288
+    },
+    "150": {
+        "class": "chamaerops humilis l",
+        "top_5_acc": 96.5909090909091
+    },
+    "151": {
+        "class": "chelidonium majus l",
+        "top_5_acc": 85.03184713375796
+    },
+    "152": {
+        "class": "chenopodium album l",
+        "top_5_acc": 77.05167173252279
+    },
+    "153": {
+        "class": "chondrilla juncea l",
+        "top_5_acc": 81.27490039840637
+    },
+    "154": {
+        "class": "cichorium intybus l",
+        "top_5_acc": 83.0827067669173
+    },
+    "155": {
+        "class": "circaea lutetiana l",
+        "top_5_acc": 91.95402298850574
+    },
+    "156": {
+        "class": "cistus albidus l",
+        "top_5_acc": 87.90697674418605
+    },
+    "157": {
+        "class": "cistus monspeliensis l",
+        "top_5_acc": 87.5
+    },
+    "158": {
+        "class": "cistus salviifolius l",
+        "top_5_acc": 86.1271676300578
+    },
+    "159": {
+        "class": "clematis flammula l",
+        "top_5_acc": 78.81944444444444
+    },
+    "160": {
+        "class": "clematis vitalba l",
+        "top_5_acc": 83.26693227091634
+    },
+    "161": {
+        "class": "clinopodium vulgare l",
+        "top_5_acc": 62.698412698412696
+    },
+    "162": {
+        "class": "cneorum tricoccon l",
+        "top_5_acc": 85.03937007874016
+    },
+    "163": {
+        "class": "cochlearia danica l",
+        "top_5_acc": 73.36448598130842
+    },
+    "164": {
+        "class": "colchicum autumnale l",
+        "top_5_acc": 95.58011049723757
+    },
+    "165": {
+        "class": "colutea arborescens l",
+        "top_5_acc": 86.69354838709677
+    },
+    "166": {
+        "class": "convallaria majalis l",
+        "top_5_acc": 92.25092250922509
+    },
+    "167": {
+        "class": "convolvulus althaeoides l",
+        "top_5_acc": 83.66762177650429
+    },
+    "168": {
+        "class": "convolvulus arvensis l",
+        "top_5_acc": 83.4625322997416
+    },
+    "169": {
+        "class": "convolvulus cantabrica l",
+        "top_5_acc": 85.20900321543408
+    },
+    "170": {
+        "class": "convolvulus sepium l",
+        "top_5_acc": 66.66666666666666
+    },
+    "171": {
+        "class": "convolvulus soldanella l",
+        "top_5_acc": 71.42857142857143
+    },
+    "172": {
+        "class": "coriaria myrtifolia l",
+        "top_5_acc": 78.72340425531915
+    },
+    "173": {
+        "class": "cornus mas l",
+        "top_5_acc": 81.19266055045871
+    },
+    "174": {
+        "class": "cornus sanguinea l",
+        "top_5_acc": 79.79274611398964
+    },
+    "175": {
+        "class": "coronilla glauca l",
+        "top_5_acc": 60.86956521739131
+    },
+    "176": {
+        "class": "coronilla juncea l",
+        "top_5_acc": 79.79274611398964
+    },
+    "177": {
+        "class": "coronilla valentina l",
+        "top_5_acc": 66.35514018691589
+    },
+    "178": {
+        "class": "coronilla varia l",
+        "top_5_acc": 75.1937984496124
+    },
+    "179": {
+        "class": "corylus avellana l",
+        "top_5_acc": 88.63636363636364
+    },
+    "180": {
+        "class": "cotinus coggygria scop",
+        "top_5_acc": 85.22727272727273
+    },
+    "181": {
+        "class": "crataegus azarolus l",
+        "top_5_acc": 82.08955223880598
+    },
+    "182": {
+        "class": "crataegus monogyna jacq",
+        "top_5_acc": 82.93838862559242
+    },
+    "183": {
+        "class": "crepis bursifolia l",
+        "top_5_acc": 66.23376623376623
+    },
+    "184": {
+        "class": "crepis foetida l",
+        "top_5_acc": 76.64835164835165
+    },
+    "185": {
+        "class": "crepis setosa haller f",
+        "top_5_acc": 77.66990291262135
+    },
+    "186": {
+        "class": "crithmum maritimum l",
+        "top_5_acc": 78.23529411764706
+    },
+    "187": {
+        "class": "crocus nudiflorus sm",
+        "top_5_acc": 100.0
+    },
+    "188": {
+        "class": "cruciata laevipes opiz",
+        "top_5_acc": 87.09677419354838
+    },
+    "189": {
+        "class": "cucumis sativus l",
+        "top_5_acc": 77.96610169491525
+    },
+    "190": {
+        "class": "cupressus sempervirens l",
+        "top_5_acc": 90.9090909090909
+    },
+    "191": {
+        "class": "cyclamen hederifolium aiton",
+        "top_5_acc": 73.91304347826086
+    },
+    "192": {
+        "class": "cydonia oblonga mill",
+        "top_5_acc": 93.93939393939394
+    },
+    "193": {
+        "class": "cynoglossum creticum mill",
+        "top_5_acc": 85.59322033898306
+    },
+    "194": {
+        "class": "cypripedium calceolus l",
+        "top_5_acc": 91.62561576354679
+    },
+    "195": {
+        "class": "dactylis glomerata l",
+        "top_5_acc": 92.63622974963181
+    },
+    "196": {
+        "class": "daphne cneorum l",
+        "top_5_acc": 84.24908424908425
+    },
+    "197": {
+        "class": "daphne gnidium l",
+        "top_5_acc": 89.58333333333334
+    },
+    "198": {
+        "class": "daphne laureola l",
+        "top_5_acc": 92.64705882352942
+    },
+    "199": {
+        "class": "daphne mezereum l",
+        "top_5_acc": 84.0
+    },
+    "200": {
+        "class": "datura stramonium l",
+        "top_5_acc": 77.52161383285303
+    },
+    "201": {
+        "class": "daucus carota l",
+        "top_5_acc": 88.73403019744484
+    },
+    "202": {
+        "class": "dianthus armeria l",
+        "top_5_acc": 85.06493506493507
+    },
+    "203": {
+        "class": "dianthus carthusianorum l",
+        "top_5_acc": 90.21739130434783
+    },
+    "204": {
+        "class": "dianthus gallicus pers",
+        "top_5_acc": 90.2439024390244
+    },
+    "205": {
+        "class": "digitalis grandiflora mill",
+        "top_5_acc": 90.95477386934674
+    },
+    "206": {
+        "class": "digitalis lutea l",
+        "top_5_acc": 92.45283018867924
+    },
+    "207": {
+        "class": "digitalis purpurea l",
+        "top_5_acc": 85.25641025641025
+    },
+    "208": {
+        "class": "dipsacus fullonum l",
+        "top_5_acc": 76.0
+    },
+    "209": {
+        "class": "doronicum grandiflorum lam",
+        "top_5_acc": 88.54961832061069
+    },
+    "210": {
+        "class": "dorycnium pentaphyllum scop",
+        "top_5_acc": 68.0
+    },
+    "211": {
+        "class": "draba verna l",
+        "top_5_acc": 84.07960199004975
+    },
+    "212": {
+        "class": "dracunculus vulgaris schott",
+        "top_5_acc": 90.9090909090909
+    },
+    "213": {
+        "class": "drosera rotundifolia l",
+        "top_5_acc": 94.12844036697248
+    },
+    "214": {
+        "class": "dryas octopetala l",
+        "top_5_acc": 88.88888888888889
+    },
+    "215": {
+        "class": "echinophora spinosa l",
+        "top_5_acc": 89.36170212765957
+    },
+    "216": {
+        "class": "echinops ritro l",
+        "top_5_acc": 92.77777777777779
+    },
+    "217": {
+        "class": "echium vulgare l",
+        "top_5_acc": 82.12290502793296
+    },
+    "218": {
+        "class": "elaeagnus angustifolia l",
+        "top_5_acc": 86.82634730538922
+    },
+    "219": {
+        "class": "ephedra distachya l",
+        "top_5_acc": 91.07142857142857
+    },
+    "220": {
+        "class": "epilobium angustifolium l",
+        "top_5_acc": 75.96899224806202
+    },
+    "221": {
+        "class": "epilobium dodonaei vill",
+        "top_5_acc": 82.01438848920863
+    },
+    "222": {
+        "class": "epilobium hirsutum l",
+        "top_5_acc": 81.58995815899581
+    },
+    "223": {
+        "class": "epilobium tetragonum l",
+        "top_5_acc": 80.33707865168539
+    },
+    "224": {
+        "class": "equisetum telmateia ehrh",
+        "top_5_acc": 98.63597612958228
+    },
+    "225": {
+        "class": "erica arborea l",
+        "top_5_acc": 77.47747747747748
+    },
+    "226": {
+        "class": "erica cinerea l",
+        "top_5_acc": 74.60815047021944
+    },
+    "227": {
+        "class": "erica tetralix l",
+        "top_5_acc": 78.20823244552058
+    },
+    "228": {
+        "class": "erica vagans l",
+        "top_5_acc": 77.53846153846153
+    },
+    "229": {
+        "class": "erigeron canadensis l",
+        "top_5_acc": 61.78343949044586
+    },
+    "230": {
+        "class": "erigeron karvinskianus dc",
+        "top_5_acc": 71.32867132867133
+    },
+    "231": {
+        "class": "erinus alpinus l",
+        "top_5_acc": 85.7707509881423
+    },
+    "232": {
+        "class": "eriophorum angustifolium honck",
+        "top_5_acc": 95.92760180995475
+    },
+    "233": {
+        "class": "eryngium bourgatii gouan",
+        "top_5_acc": 93.82022471910112
+    },
+    "234": {
+        "class": "eryngium campestre l",
+        "top_5_acc": 88.58695652173914
+    },
+    "235": {
+        "class": "eryngium maritimum l",
+        "top_5_acc": 93.77990430622009
+    },
+    "236": {
+        "class": "eryngium spinalba vill",
+        "top_5_acc": 87.87878787878788
+    },
+    "237": {
+        "class": "erythronium dens-canis l",
+        "top_5_acc": 94.3127962085308
+    },
+    "238": {
+        "class": "eschscholzia californica cham",
+        "top_5_acc": 89.36170212765957
+    },
+    "239": {
+        "class": "euonymus europaeus l",
+        "top_5_acc": 75.98039215686273
+    },
+    "240": {
+        "class": "eupatorium cannabinum l",
+        "top_5_acc": 81.57894736842105
+    },
+    "241": {
+        "class": "euphorbia amygdaloides l",
+        "top_5_acc": 81.33333333333333
+    },
+    "242": {
+        "class": "euphorbia characias l",
+        "top_5_acc": 80.2919708029197
+    },
+    "243": {
+        "class": "euphorbia cyparissias l",
+        "top_5_acc": 79.3103448275862
+    },
+    "244": {
+        "class": "euphorbia dendroides l",
+        "top_5_acc": 80.68181818181817
+    },
+    "245": {
+        "class": "euphorbia flavicoma dc",
+        "top_5_acc": 59.57446808510638
+    },
+    "246": {
+        "class": "euphorbia helioscopia l",
+        "top_5_acc": 77.6923076923077
+    },
+    "247": {
+        "class": "euphorbia lathyris l",
+        "top_5_acc": 82.73381294964028
+    },
+    "248": {
+        "class": "euphorbia nicaeensis all",
+        "top_5_acc": 78.34645669291339
+    },
+    "249": {
+        "class": "euphorbia paralias l",
+        "top_5_acc": 83.13953488372093
+    },
+    "250": {
+        "class": "euphorbia peplis l",
+        "top_5_acc": 78.77551020408163
+    },
+    "251": {
+        "class": "euphorbia peplus l",
+        "top_5_acc": 79.60339943342775
+    },
+    "252": {
+        "class": "euphorbia segetalis l",
+        "top_5_acc": 79.33884297520662
+    },
+    "253": {
+        "class": "euphorbia seguieriana neck",
+        "top_5_acc": 62.16216216216216
+    },
+    "254": {
+        "class": "euphorbia serrata l",
+        "top_5_acc": 68.77828054298642
+    },
+    "255": {
+        "class": "euphorbia spinosa l",
+        "top_5_acc": 75.87939698492463
+    },
+    "256": {
+        "class": "fagus sylvatica l",
+        "top_5_acc": 80.58252427184466
+    },
+    "257": {
+        "class": "ferula communis l",
+        "top_5_acc": 91.98113207547169
+    },
+    "258": {
+        "class": "ficus carica l",
+        "top_5_acc": 85.29411764705883
+    },
+    "259": {
+        "class": "filipendula vulgaris moench",
+        "top_5_acc": 59.375
+    },
+    "260": {
+        "class": "foeniculum vulgare mill",
+        "top_5_acc": 90.69767441860465
+    },
+    "261": {
+        "class": "fragaria vesca l",
+        "top_5_acc": 90.3409090909091
+    },
+    "262": {
+        "class": "fraxinus angustifolia vahl",
+        "top_5_acc": 76.92307692307693
+    },
+    "263": {
+        "class": "fraxinus excelsior l",
+        "top_5_acc": 78.57142857142857
+    },
+    "264": {
+        "class": "fraxinus ornus l",
+        "top_5_acc": 84.65608465608466
+    },
+    "265": {
+        "class": "fritillaria meleagris l",
+        "top_5_acc": 94.85294117647058
+    },
+    "266": {
+        "class": "fritillaria pyrenaica l",
+        "top_5_acc": 92.0
+    },
+    "267": {
+        "class": "fumaria capreolata l",
+        "top_5_acc": 85.24590163934425
+    },
+    "268": {
+        "class": "fumaria officinalis l",
+        "top_5_acc": 89.50617283950618
+    },
+    "269": {
+        "class": "galanthus nivalis l",
+        "top_5_acc": 92.14285714285714
+    },
+    "270": {
+        "class": "galeopsis tetrahit l",
+        "top_5_acc": 81.40845070422536
+    },
+    "271": {
+        "class": "galinsoga quadriradiata ruiz & pav",
+        "top_5_acc": 66.0
+    },
+    "272": {
+        "class": "galium aparine l",
+        "top_5_acc": 81.81818181818183
+    },
+    "273": {
+        "class": "galium verum l",
+        "top_5_acc": 87.59541984732824
+    },
+    "274": {
+        "class": "genista hispanica l",
+        "top_5_acc": 85.16746411483254
+    },
+    "275": {
+        "class": "genista pilosa l",
+        "top_5_acc": 81.04265402843602
+    },
+    "276": {
+        "class": "genista sagittalis l",
+        "top_5_acc": 76.2987012987013
+    },
+    "277": {
+        "class": "genista tinctoria l",
+        "top_5_acc": 79.80535279805353
+    },
+    "278": {
+        "class": "gentiana acaulis l",
+        "top_5_acc": 93.22033898305084
+    },
+    "279": {
+        "class": "gentiana alpina vill",
+        "top_5_acc": 88.27160493827161
+    },
+    "280": {
+        "class": "gentiana burseri lapeyr",
+        "top_5_acc": 92.6829268292683
+    },
+    "281": {
+        "class": "gentiana cruciata l",
+        "top_5_acc": 92.24806201550388
+    },
+    "282": {
+        "class": "gentiana lutea l",
+        "top_5_acc": 90.79754601226993
+    },
+    "283": {
+        "class": "gentiana nivalis l",
+        "top_5_acc": 89.27038626609442
+    },
+    "284": {
+        "class": "gentiana pneumonanthe l",
+        "top_5_acc": 87.64044943820225
+    },
+    "285": {
+        "class": "gentiana purpurea l",
+        "top_5_acc": 89.80891719745223
+    },
+    "286": {
+        "class": "gentiana pyrenaica l",
+        "top_5_acc": 84.78260869565217
+    },
+    "287": {
+        "class": "gentiana verna l",
+        "top_5_acc": 91.40969162995594
+    },
+    "288": {
+        "class": "geranium columbinum l",
+        "top_5_acc": 76.61691542288557
+    },
+    "289": {
+        "class": "geranium dissectum l",
+        "top_5_acc": 74.6938775510204
+    },
+    "290": {
+        "class": "geranium lucidum l",
+        "top_5_acc": 85.39325842696628
+    },
+    "291": {
+        "class": "geranium molle l",
+        "top_5_acc": 71.42857142857143
+    },
+    "292": {
+        "class": "geranium nodosum l",
+        "top_5_acc": 88.69565217391305
+    },
+    "293": {
+        "class": "geranium phaeum l",
+        "top_5_acc": 88.79668049792531
+    },
+    "294": {
+        "class": "geranium pratense l",
+        "top_5_acc": 84.9514563106796
+    },
+    "295": {
+        "class": "geranium pusillum l",
+        "top_5_acc": 72.95918367346938
+    },
+    "296": {
+        "class": "geranium robertianum l",
+        "top_5_acc": 85.49450549450549
+    },
+    "297": {
+        "class": "geranium rotundifolium l",
+        "top_5_acc": 75.22123893805309
+    },
+    "298": {
+        "class": "geranium sanguineum l",
+        "top_5_acc": 88.32807570977917
+    },
+    "299": {
+        "class": "geranium sylvaticum l",
+        "top_5_acc": 83.78378378378379
+    },
+    "300": {
+        "class": "geum montanum l",
+        "top_5_acc": 92.09486166007905
+    },
+    "301": {
+        "class": "geum reptans l",
+        "top_5_acc": 85.71428571428571
+    },
+    "302": {
+        "class": "geum rivale l",
+        "top_5_acc": 90.0
+    },
+    "303": {
+        "class": "geum urbanum l",
+        "top_5_acc": 83.1275720164609
+    },
+    "304": {
+        "class": "ginkgo biloba l",
+        "top_5_acc": 81.25
+    },
+    "305": {
+        "class": "gladiolus italicus mill",
+        "top_5_acc": 97.84946236559139
+    },
+    "306": {
+        "class": "glaucium flavum crantz",
+        "top_5_acc": 87.73006134969326
+    },
+    "307": {
+        "class": "glechoma hederacea l",
+        "top_5_acc": 80.98591549295774
+    },
+    "308": {
+        "class": "gleditsia triacanthos l",
+        "top_5_acc": 84.52380952380952
+    },
+    "309": {
+        "class": "globularia alypum l",
+        "top_5_acc": 81.67938931297711
+    },
+    "310": {
+        "class": "hedera helix l",
+        "top_5_acc": 78.18930041152264
+    },
+    "311": {
+        "class": "helianthus annuus l",
+        "top_5_acc": 83.9622641509434
+    },
+    "312": {
+        "class": "heliotropium europaeum l",
+        "top_5_acc": 80.31914893617021
+    },
+    "313": {
+        "class": "helleborus foetidus l",
+        "top_5_acc": 83.16831683168317
+    },
+    "314": {
+        "class": "helleborus viridis l",
+        "top_5_acc": 93.99477806788512
+    },
+    "315": {
+        "class": "heracleum pyrenaicum lam",
+        "top_5_acc": 86.66666666666667
+    },
+    "316": {
+        "class": "heracleum sphondylium l",
+        "top_5_acc": 90.09009009009009
+    },
+    "317": {
+        "class": "hesperis matronalis l",
+        "top_5_acc": 77.54385964912281
+    },
+    "318": {
+        "class": "hibiscus rosa-sinensis l",
+        "top_5_acc": 84.7953216374269
+    },
+    "319": {
+        "class": "hibiscus syriacus l",
+        "top_5_acc": 80.76923076923077
+    },
+    "320": {
+        "class": "hippocrepis comosa l",
+        "top_5_acc": 82.37288135593221
+    },
+    "321": {
+        "class": "holcus lanatus l",
+        "top_5_acc": 90.44117647058823
+    },
+    "322": {
+        "class": "humulus lupulus l",
+        "top_5_acc": 83.25358851674642
+    },
+    "323": {
+        "class": "hyoscyamus albus l",
+        "top_5_acc": 82.32931726907631
+    },
+    "324": {
+        "class": "hyoseris radiata l",
+        "top_5_acc": 80.16194331983806
+    },
+    "325": {
+        "class": "hypericum androsaemum l",
+        "top_5_acc": 88.28451882845188
+    },
+    "326": {
+        "class": "hypericum hirsutum l",
+        "top_5_acc": 86.36363636363636
+    },
+    "327": {
+        "class": "hypericum perforatum l",
+        "top_5_acc": 84.44444444444444
+    },
+    "328": {
+        "class": "hypericum richeri vill",
+        "top_5_acc": 86.36363636363636
+    },
+    "329": {
+        "class": "hypochaeris radicata l",
+        "top_5_acc": 87.02702702702703
+    },
+    "330": {
+        "class": "ilex aquifolium l",
+        "top_5_acc": 84.86238532110092
+    },
+    "331": {
+        "class": "impatiens glandulifera royle",
+        "top_5_acc": 81.81818181818183
+    },
+    "332": {
+        "class": "imperatoria ostruthium l",
+        "top_5_acc": 88.23529411764706
+    },
+    "333": {
+        "class": "inula conyza dc",
+        "top_5_acc": 76.76767676767676
+    },
+    "334": {
+        "class": "iris foetidissima l",
+        "top_5_acc": 96.2406015037594
+    },
+    "335": {
+        "class": "iris lutescens lam",
+        "top_5_acc": 90.19607843137256
+    },
+    "336": {
+        "class": "iris pseudacorus l",
+        "top_5_acc": 96.7948717948718
+    },
+    "337": {
+        "class": "isatis tinctoria l",
+        "top_5_acc": 81.875
+    },
+    "338": {
+        "class": "jasione montana l",
+        "top_5_acc": 66.66666666666666
+    },
+    "339": {
+        "class": "jasminum fruticans l",
+        "top_5_acc": 75.0
+    },
+    "340": {
+        "class": "juglans nigra l",
+        "top_5_acc": 94.52054794520548
+    },
+    "341": {
+        "class": "juglans regia l",
+        "top_5_acc": 76.05633802816901
+    },
+    "342": {
+        "class": "juncus bulbosus l",
+        "top_5_acc": 89.73509933774835
+    },
+    "343": {
+        "class": "juncus effusus l",
+        "top_5_acc": 94.23076923076923
+    },
+    "344": {
+        "class": "juniperus communis l",
+        "top_5_acc": 91.66666666666666
+    },
+    "345": {
+        "class": "juniperus oxycedrus l",
+        "top_5_acc": 92.3841059602649
+    },
+    "346": {
+        "class": "juniperus phoenicea l",
+        "top_5_acc": 92.80000000000001
+    },
+    "347": {
+        "class": "juniperus sabina l",
+        "top_5_acc": 88.11188811188812
+    },
+    "348": {
+        "class": "koelreuteria paniculata laxm",
+        "top_5_acc": 85.71428571428571
+    },
+    "349": {
+        "class": "lactuca perennis l",
+        "top_5_acc": 79.47368421052632
+    },
+    "350": {
+        "class": "lactuca serriola l",
+        "top_5_acc": 78.98089171974523
+    },
+    "351": {
+        "class": "lagurus ovatus l",
+        "top_5_acc": 93.43434343434343
+    },
+    "352": {
+        "class": "lamium album l",
+        "top_5_acc": 86.49789029535864
+    },
+    "353": {
+        "class": "lamium amplexicaule l",
+        "top_5_acc": 81.50134048257372
+    },
+    "354": {
+        "class": "lamium purpureum l",
+        "top_5_acc": 75.34883720930232
+    },
+    "355": {
+        "class": "lantana camara l",
+        "top_5_acc": 85.08403361344537
+    },
+    "356": {
+        "class": "lapsana communis l",
+        "top_5_acc": 84.7328244274809
+    },
+    "357": {
+        "class": "larix decidua mill",
+        "top_5_acc": 100.0
+    },
+    "358": {
+        "class": "lathraea clandestina l",
+        "top_5_acc": 92.5
+    },
+    "359": {
+        "class": "lathyrus cicera l",
+        "top_5_acc": 85.23809523809524
+    },
+    "360": {
+        "class": "lathyrus latifolius l",
+        "top_5_acc": 82.6530612244898
+    },
+    "361": {
+        "class": "lathyrus pratensis l",
+        "top_5_acc": 83.89057750759878
+    },
+    "362": {
+        "class": "lathyrus sylvestris l",
+        "top_5_acc": 88.07106598984772
+    },
+    "363": {
+        "class": "laurus nobilis l",
+        "top_5_acc": 94.93087557603687
+    },
+    "364": {
+        "class": "lavandula stoechas l",
+        "top_5_acc": 84.39153439153439
+    },
+    "365": {
+        "class": "leontodon hispidus l",
+        "top_5_acc": 87.47514910536779
+    },
+    "366": {
+        "class": "lepidium draba l",
+        "top_5_acc": 84.74114441416893
+    },
+    "367": {
+        "class": "leucanthemum vulgare lam",
+        "top_5_acc": 73.92996108949417
+    },
+    "368": {
+        "class": "ligustrum vulgare l",
+        "top_5_acc": 74.72527472527473
+    },
+    "369": {
+        "class": "lilium martagon l",
+        "top_5_acc": 89.95433789954338
+    },
+    "370": {
+        "class": "lilium pyrenaicum gouan",
+        "top_5_acc": 94.11764705882352
+    },
+    "371": {
+        "class": "limonium vulgare mill",
+        "top_5_acc": 80.85106382978722
+    },
+    "372": {
+        "class": "linaria vulgaris mill",
+        "top_5_acc": 87.18535469107552
+    },
+    "373": {
+        "class": "linum campanulatum l",
+        "top_5_acc": 84.5771144278607
+    },
+    "374": {
+        "class": "linum narbonense l",
+        "top_5_acc": 86.90476190476191
+    },
+    "375": {
+        "class": "linum suffruticosum l",
+        "top_5_acc": 85.41666666666666
+    },
+    "376": {
+        "class": "linum usitatissimum l",
+        "top_5_acc": 81.28342245989305
+    },
+    "377": {
+        "class": "liquidambar styraciflua l",
+        "top_5_acc": 84.21052631578947
+    },
+    "378": {
+        "class": "liriodendron tulipifera l",
+        "top_5_acc": 96.36363636363636
+    },
+    "379": {
+        "class": "lithospermum officinale l",
+        "top_5_acc": 84.50704225352112
+    },
+    "380": {
+        "class": "lonicera alpigena l",
+        "top_5_acc": 81.64556962025317
+    },
+    "381": {
+        "class": "lonicera etrusca santi",
+        "top_5_acc": 88.23529411764706
+    },
+    "382": {
+        "class": "lonicera implexa aiton",
+        "top_5_acc": 89.32038834951457
+    },
+    "383": {
+        "class": "lonicera periclymenum l",
+        "top_5_acc": 73.96449704142012
+    },
+    "384": {
+        "class": "lonicera xylosteum l",
+        "top_5_acc": 84.21052631578947
+    },
+    "385": {
+        "class": "lotus corniculatus l",
+        "top_5_acc": 79.83392645314353
+    },
+    "386": {
+        "class": "lotus edulis l",
+        "top_5_acc": 70.95238095238095
+    },
+    "387": {
+        "class": "lotus maritimus l",
+        "top_5_acc": 59.183673469387756
+    },
+    "388": {
+        "class": "lunaria annua l",
+        "top_5_acc": 76.92307692307693
+    },
+    "389": {
+        "class": "lupinus angustifolius l",
+        "top_5_acc": 83.08457711442786
+    },
+    "390": {
+        "class": "lychnis flos-cuculi l",
+        "top_5_acc": 87.39837398373984
+    },
+    "391": {
+        "class": "lycopus europaeus l",
+        "top_5_acc": 79.12087912087912
+    },
+    "392": {
+        "class": "lysimachia nemorum l",
+        "top_5_acc": 87.5
+    },
+    "393": {
+        "class": "lysimachia vulgaris l",
+        "top_5_acc": 87.05035971223022
+    },
+    "394": {
+        "class": "lythrum salicaria l",
+        "top_5_acc": 89.04109589041096
+    },
+    "395": {
+        "class": "magnolia grandiflora l",
+        "top_5_acc": 96.55172413793103
+    },
+    "396": {
+        "class": "malus sylvestris mill",
+        "top_5_acc": 64.28571428571429
+    },
+    "397": {
+        "class": "malva moschata l",
+        "top_5_acc": 85.95988538681948
+    },
+    "398": {
+        "class": "malva neglecta wallr",
+        "top_5_acc": 66.66666666666666
+    },
+    "399": {
+        "class": "malva sylvestris l",
+        "top_5_acc": 85.86387434554975
+    },
+    "400": {
+        "class": "matricaria chamomilla l",
+        "top_5_acc": 85.2589641434263
+    },
+    "401": {
+        "class": "medicago arborea l",
+        "top_5_acc": 68.05555555555556
+    },
+    "402": {
+        "class": "medicago lupulina l",
+        "top_5_acc": 83.130081300813
+    },
+    "403": {
+        "class": "medicago sativa l",
+        "top_5_acc": 78.85714285714286
+    },
+    "404": {
+        "class": "melampyrum pratense l",
+        "top_5_acc": 91.75257731958763
+    },
+    "405": {
+        "class": "melia azedarach l",
+        "top_5_acc": 89.68253968253968
+    },
+    "406": {
+        "class": "melilotus albus medik",
+        "top_5_acc": 81.7910447761194
+    },
+    "407": {
+        "class": "melissa officinalis l",
+        "top_5_acc": 85.61151079136691
+    },
+    "408": {
+        "class": "melittis melissophyllum l",
+        "top_5_acc": 88.23529411764706
+    },
+    "409": {
+        "class": "mentha aquatica l",
+        "top_5_acc": 85.33791523482245
+    },
+    "410": {
+        "class": "mentha arvensis l",
+        "top_5_acc": 87.59183673469387
+    },
+    "411": {
+        "class": "mentha spicata l",
+        "top_5_acc": 63.04347826086957
+    },
+    "412": {
+        "class": "mentha suaveolens ehrh",
+        "top_5_acc": 64.70588235294117
+    },
+    "413": {
+        "class": "mercurialis annua l",
+        "top_5_acc": 78.02547770700637
+    },
+    "414": {
+        "class": "mercurialis perennis l",
+        "top_5_acc": 87.86407766990291
+    },
+    "415": {
+        "class": "mirabilis jalapa l",
+        "top_5_acc": 90.76086956521739
+    },
+    "416": {
+        "class": "monotropa hypopitys l",
+        "top_5_acc": 89.96763754045307
+    },
+    "417": {
+        "class": "morus alba l",
+        "top_5_acc": 84.94318181818183
+    },
+    "418": {
+        "class": "myosotis scorpioides l",
+        "top_5_acc": 76.81159420289855
+    },
+    "419": {
+        "class": "myrtus communis l",
+        "top_5_acc": 85.81314878892734
+    },
+    "420": {
+        "class": "narcissus dubius gouan",
+        "top_5_acc": 88.57142857142857
+    },
+    "421": {
+        "class": "narcissus pseudonarcissus l",
+        "top_5_acc": 93.95770392749245
+    },
+    "422": {
+        "class": "narcissus tazetta l",
+        "top_5_acc": 93.9799331103679
+    },
+    "423": {
+        "class": "nerium oleander l",
+        "top_5_acc": 91.96787148594377
+    },
+    "424": {
+        "class": "nigella damascena l",
+        "top_5_acc": 90.02695417789758
+    },
+    "425": {
+        "class": "oenanthe crocata l",
+        "top_5_acc": 84.5679012345679
+    },
+    "426": {
+        "class": "oenothera biennis l",
+        "top_5_acc": 80.4
+    },
+    "427": {
+        "class": "olea europaea l",
+        "top_5_acc": 84.19117647058823
+    },
+    "428": {
+        "class": "onobrychis viciifolia scop",
+        "top_5_acc": 71.9298245614035
+    },
+    "429": {
+        "class": "ononis minutissima l",
+        "top_5_acc": 69.62616822429906
+    },
+    "430": {
+        "class": "ononis natrix l",
+        "top_5_acc": 83.91304347826087
+    },
+    "431": {
+        "class": "ononis reclinata l",
+        "top_5_acc": 80.61224489795919
+    },
+    "432": {
+        "class": "ononis spinosa l",
+        "top_5_acc": 71.7948717948718
+    },
+    "433": {
+        "class": "ophrys apifera huds",
+        "top_5_acc": 91.54929577464789
+    },
+    "434": {
+        "class": "ophrys aranifera huds",
+        "top_5_acc": 79.6875
+    },
+    "435": {
+        "class": "ophrys insectifera l",
+        "top_5_acc": 94.921875
+    },
+    "436": {
+        "class": "ophrys lutea cav",
+        "top_5_acc": 87.3015873015873
+    },
+    "437": {
+        "class": "ophrys scolopax cav",
+        "top_5_acc": 85.77405857740585
+    },
+    "438": {
+        "class": "ophrys speculum link",
+        "top_5_acc": 85.24590163934425
+    },
+    "439": {
+        "class": "orchis purpurea huds",
+        "top_5_acc": 93.61179361179362
+    },
+    "440": {
+        "class": "orchis simia lam",
+        "top_5_acc": 90.10416666666666
+    },
+    "441": {
+        "class": "origanum vulgare l",
+        "top_5_acc": 85.26077097505669
+    },
+    "442": {
+        "class": "ornithogalum umbellatum l",
+        "top_5_acc": 88.08664259927798
+    },
+    "443": {
+        "class": "orobanche amethystea thuill",
+        "top_5_acc": 94.11764705882352
+    },
+    "444": {
+        "class": "orobanche caryophyllacea sm",
+        "top_5_acc": 88.63636363636364
+    },
+    "445": {
+        "class": "orobanche gracilis sm",
+        "top_5_acc": 90.58823529411765
+    },
+    "446": {
+        "class": "orobanche minor sm",
+        "top_5_acc": 89.92805755395683
+    },
+    "447": {
+        "class": "orobanche rapum-genistae thuill",
+        "top_5_acc": 92.62295081967213
+    },
+    "448": {
+        "class": "osmunda regalis l",
+        "top_5_acc": 95.40612516644474
+    },
+    "449": {
+        "class": "ostrya carpinifolia scop",
+        "top_5_acc": 82.87671232876713
+    },
+    "450": {
+        "class": "oxalis articulata savigny",
+        "top_5_acc": 85.9375
+    },
+    "451": {
+        "class": "oxalis corniculata l",
+        "top_5_acc": 88.37209302325581
+    },
+    "452": {
+        "class": "paliurus spina-christi mill",
+        "top_5_acc": 86.95652173913044
+    },
+    "453": {
+        "class": "pancratium maritimum l",
+        "top_5_acc": 93.125
+    },
+    "454": {
+        "class": "papaver alpinum l",
+        "top_5_acc": 86.58008658008657
+    },
+    "455": {
+        "class": "papaver rhoeas l",
+        "top_5_acc": 83.70927318295739
+    },
+    "456": {
+        "class": "papaver somniferum l",
+        "top_5_acc": 79.8507462686567
+    },
+    "457": {
+        "class": "parietaria judaica l",
+        "top_5_acc": 64.76190476190476
+    },
+    "458": {
+        "class": "paris quadrifolia l",
+        "top_5_acc": 95.33527696793003
+    },
+    "459": {
+        "class": "parnassia palustris l",
+        "top_5_acc": 93.43065693430657
+    },
+    "460": {
+        "class": "passiflora caerulea l",
+        "top_5_acc": 81.35593220338984
+    },
+    "461": {
+        "class": "pastinaca sativa l",
+        "top_5_acc": 77.77777777777779
+    },
+    "462": {
+        "class": "persicaria maculosa gray",
+        "top_5_acc": 98.07692307692307
+    },
+    "463": {
+        "class": "phacelia tanacetifolia benth",
+        "top_5_acc": 68.42105263157895
+    },
+    "464": {
+        "class": "philadelphus coronarius l",
+        "top_5_acc": 83.22981366459628
+    },
+    "465": {
+        "class": "phillyrea angustifolia l",
+        "top_5_acc": 88.29268292682927
+    },
+    "466": {
+        "class": "phillyrea media l",
+        "top_5_acc": 84.21052631578947
+    },
+    "467": {
+        "class": "phleum pratense l",
+        "top_5_acc": 93.71633752244165
+    },
+    "468": {
+        "class": "phlomis fruticosa l",
+        "top_5_acc": 89.81481481481481
+    },
+    "469": {
+        "class": "photinia serrulata lindl",
+        "top_5_acc": 90.0
+    },
+    "470": {
+        "class": "phyteuma hemisphaericum l",
+        "top_5_acc": 78.28054298642535
+    },
+    "471": {
+        "class": "phyteuma spicatum l",
+        "top_5_acc": 80.45977011494253
+    },
+    "472": {
+        "class": "phytolacca americana l",
+        "top_5_acc": 88.40579710144928
+    },
+    "473": {
+        "class": "picris hieracioides l",
+        "top_5_acc": 80.6941431670282
+    },
+    "474": {
+        "class": "pinguicula grandiflora lam",
+        "top_5_acc": 95.8904109589041
+    },
+    "475": {
+        "class": "pinus brutia ten",
+        "top_5_acc": 89.28571428571429
+    },
+    "476": {
+        "class": "pinus cembra l",
+        "top_5_acc": 95.3125
+    },
+    "477": {
+        "class": "pinus halepensis mill",
+        "top_5_acc": 97.70114942528735
+    },
+    "478": {
+        "class": "pinus mugo turra",
+        "top_5_acc": 95.0
+    },
+    "479": {
+        "class": "pinus pinaster aiton",
+        "top_5_acc": 88.88888888888889
+    },
+    "480": {
+        "class": "pinus pinea l",
+        "top_5_acc": 96.15384615384616
+    },
+    "481": {
+        "class": "pinus sylvestris l",
+        "top_5_acc": 97.12643678160919
+    },
+    "482": {
+        "class": "pistacia lentiscus l",
+        "top_5_acc": 90.47619047619048
+    },
+    "483": {
+        "class": "pistacia terebinthus l",
+        "top_5_acc": 84.10041841004184
+    },
+    "484": {
+        "class": "plantago coronopus l",
+        "top_5_acc": 89.54954954954954
+    },
+    "485": {
+        "class": "plantago lagopus l",
+        "top_5_acc": 88.85542168674698
+    },
+    "486": {
+        "class": "plantago lanceolata l",
+        "top_5_acc": 90.18987341772153
+    },
+    "487": {
+        "class": "plantago major l",
+        "top_5_acc": 88.46815834767642
+    },
+    "488": {
+        "class": "plantago maritima l",
+        "top_5_acc": 89.3854748603352
+    },
+    "489": {
+        "class": "plantago media l",
+        "top_5_acc": 80.53691275167785
+    },
+    "490": {
+        "class": "platanus orientalis l",
+        "top_5_acc": 91.25
+    },
+    "491": {
+        "class": "poa annua l",
+        "top_5_acc": 87.05179282868527
+    },
+    "492": {
+        "class": "polygala vulgaris l",
+        "top_5_acc": 88.40579710144928
+    },
+    "493": {
+        "class": "polypodium vulgare l",
+        "top_5_acc": 97.78242677824268
+    },
+    "494": {
+        "class": "populus alba l",
+        "top_5_acc": 83.92857142857143
+    },
+    "495": {
+        "class": "populus nigra l",
+        "top_5_acc": 84.67741935483872
+    },
+    "496": {
+        "class": "populus tremula l",
+        "top_5_acc": 83.96624472573839
+    },
+    "497": {
+        "class": "portulaca oleracea l",
+        "top_5_acc": 72.26027397260275
+    },
+    "498": {
+        "class": "potentilla recta l",
+        "top_5_acc": 84.19753086419753
+    },
+    "499": {
+        "class": "potentilla reptans l",
+        "top_5_acc": 72.88135593220339
+    },
+    "500": {
+        "class": "potentilla tabernaemontani asch",
+        "top_5_acc": 76.31578947368422
+    },
+    "501": {
+        "class": "poterium sanguisorba l",
+        "top_5_acc": 79.85611510791367
+    },
+    "502": {
+        "class": "prenanthes purpurea l",
+        "top_5_acc": 85.33333333333334
+    },
+    "503": {
+        "class": "primula veris l",
+        "top_5_acc": 80.0
+    },
+    "504": {
+        "class": "primula vulgaris huds",
+        "top_5_acc": 94.57831325301204
+    },
+    "505": {
+        "class": "prunella hastifolia brot",
+        "top_5_acc": 60.0
+    },
+    "506": {
+        "class": "prunella vulgaris l",
+        "top_5_acc": 77.54442649434571
+    },
+    "507": {
+        "class": "prunus armeniaca l",
+        "top_5_acc": 68.18181818181817
+    },
+    "508": {
+        "class": "prunus cerasifera ehrh",
+        "top_5_acc": 48.97959183673469
+    },
+    "509": {
+        "class": "prunus laurocerasus l",
+        "top_5_acc": 83.60655737704919
+    },
+    "510": {
+        "class": "prunus mahaleb l",
+        "top_5_acc": 74.40944881889764
+    },
+    "511": {
+        "class": "prunus padus l",
+        "top_5_acc": 79.23728813559322
+    },
+    "512": {
+        "class": "prunus serotina ehrh",
+        "top_5_acc": 82.77511961722487
+    },
+    "513": {
+        "class": "prunus serrulata lindl",
+        "top_5_acc": 81.66666666666667
+    },
+    "514": {
+        "class": "prunus spinosa l",
+        "top_5_acc": 68.37606837606837
+    },
+    "515": {
+        "class": "punica granatum l",
+        "top_5_acc": 81.05263157894737
+    },
+    "516": {
+        "class": "pyrus communis l",
+        "top_5_acc": 84.91620111731844
+    },
+    "517": {
+        "class": "quercus cerris l",
+        "top_5_acc": 89.25619834710744
+    },
+    "518": {
+        "class": "quercus coccifera l",
+        "top_5_acc": 83.55263157894737
+    },
+    "519": {
+        "class": "quercus ilex l",
+        "top_5_acc": 90.45801526717557
+    },
+    "520": {
+        "class": "quercus pubescens willd",
+        "top_5_acc": 86.57718120805369
+    },
+    "521": {
+        "class": "quercus robur l",
+        "top_5_acc": 83.78378378378379
+    },
+    "522": {
+        "class": "quercus rubra l",
+        "top_5_acc": 89.84375
+    },
+    "523": {
+        "class": "quercus suber l",
+        "top_5_acc": 82.29166666666666
+    },
+    "524": {
+        "class": "ranunculus aconitifolius l",
+        "top_5_acc": 77.85016286644951
+    },
+    "525": {
+        "class": "ranunculus acris l",
+        "top_5_acc": 80.08474576271186
+    },
+    "526": {
+        "class": "ranunculus bulbosus l",
+        "top_5_acc": 79.33723196881091
+    },
+    "527": {
+        "class": "ranunculus flammula l",
+        "top_5_acc": 76.29427792915531
+    },
+    "528": {
+        "class": "ranunculus gramineus l",
+        "top_5_acc": 80.78291814946618
+    },
+    "529": {
+        "class": "ranunculus paludosus poir",
+        "top_5_acc": 72.72727272727273
+    },
+    "530": {
+        "class": "ranunculus parviflorus l",
+        "top_5_acc": 70.69486404833837
+    },
+    "531": {
+        "class": "ranunculus peltatus schrank",
+        "top_5_acc": 54.666666666666664
+    },
+    "532": {
+        "class": "ranunculus platanifolius l",
+        "top_5_acc": 79.41176470588235
+    },
+    "533": {
+        "class": "ranunculus repens l",
+        "top_5_acc": 74.53580901856765
+    },
+    "534": {
+        "class": "ranunculus sceleratus l",
+        "top_5_acc": 73.09782608695652
+    },
+    "535": {
+        "class": "raphanus raphanistrum l",
+        "top_5_acc": 82.81622911694511
+    },
+    "536": {
+        "class": "reseda lutea l",
+        "top_5_acc": 82.50497017892644
+    },
+    "537": {
+        "class": "reseda luteola l",
+        "top_5_acc": 88.17567567567568
+    },
+    "538": {
+        "class": "reseda phyteuma l",
+        "top_5_acc": 78.89447236180904
+    },
+    "539": {
+        "class": "rhamnus alaternus l",
+        "top_5_acc": 81.48148148148148
+    },
+    "540": {
+        "class": "rhamnus alpina l",
+        "top_5_acc": 78.28571428571428
+    },
+    "541": {
+        "class": "rhamnus cathartica l",
+        "top_5_acc": 83.64312267657994
+    },
+    "542": {
+        "class": "rhamnus pumila turra",
+        "top_5_acc": 77.37226277372264
+    },
+    "543": {
+        "class": "rhinanthus minor l",
+        "top_5_acc": 90.0990099009901
+    },
+    "544": {
+        "class": "rhododendron ferrugineum l",
+        "top_5_acc": 78.07486631016043
+    },
+    "545": {
+        "class": "rhus coriaria l",
+        "top_5_acc": 85.03401360544217
+    },
+    "546": {
+        "class": "rhus typhina l",
+        "top_5_acc": 87.5
+    },
+    "547": {
+        "class": "ribes rubrum l",
+        "top_5_acc": 90.81081081081082
+    },
+    "548": {
+        "class": "robinia pseudoacacia l",
+        "top_5_acc": 81.30081300813008
+    },
+    "549": {
+        "class": "rosa agrestis savi",
+        "top_5_acc": 88.69346733668341
+    },
+    "550": {
+        "class": "rosa canina l",
+        "top_5_acc": 96.5793918918919
+    },
+    "551": {
+        "class": "rosa pendulina l",
+        "top_5_acc": 71.875
+    },
+    "552": {
+        "class": "rosa spinosissima l",
+        "top_5_acc": 84.68085106382979
+    },
+    "553": {
+        "class": "rosmarinus officinalis l",
+        "top_5_acc": 86.63594470046083
+    },
+    "554": {
+        "class": "rubia tinctorum l",
+        "top_5_acc": 82.14285714285714
+    },
+    "555": {
+        "class": "rubus fruticosus l",
+        "top_5_acc": 92.43697478991596
+    },
+    "556": {
+        "class": "rubus idaeus l",
+        "top_5_acc": 85.94377510040161
+    },
+    "557": {
+        "class": "rubus ulmifolius schott",
+        "top_5_acc": 92.77899343544857
+    },
+    "558": {
+        "class": "rumex acetosella l",
+        "top_5_acc": 79.2156862745098
+    },
+    "559": {
+        "class": "rumex crispus l",
+        "top_5_acc": 89.42857142857143
+    },
+    "560": {
+        "class": "rumex obtusifolius l",
+        "top_5_acc": 90.61371841155234
+    },
+    "561": {
+        "class": "ruscus aculeatus l",
+        "top_5_acc": 86.36363636363636
+    },
+    "562": {
+        "class": "salix alba l",
+        "top_5_acc": 84.01486988847584
+    },
+    "563": {
+        "class": "salix babylonica l",
+        "top_5_acc": 65.92592592592592
+    },
+    "564": {
+        "class": "salix caprea l",
+        "top_5_acc": 86.83812405446294
+    },
+    "565": {
+        "class": "salix cinerea l",
+        "top_5_acc": 83.61823361823362
+    },
+    "566": {
+        "class": "salix fragilis l",
+        "top_5_acc": 84.01084010840108
+    },
+    "567": {
+        "class": "salix herbacea l",
+        "top_5_acc": 79.70297029702971
+    },
+    "568": {
+        "class": "salvia officinalis l",
+        "top_5_acc": 65.03496503496503
+    },
+    "569": {
+        "class": "salvia pratensis l",
+        "top_5_acc": 87.32876712328768
+    },
+    "570": {
+        "class": "salvia verbenaca l",
+        "top_5_acc": 85.34482758620689
+    },
+    "571": {
+        "class": "sambucus ebulus l",
+        "top_5_acc": 86.82170542635659
+    },
+    "572": {
+        "class": "sambucus nigra l",
+        "top_5_acc": 80.57142857142857
+    },
+    "573": {
+        "class": "sambucus racemosa l",
+        "top_5_acc": 82.73615635179154
+    },
+    "574": {
+        "class": "saponaria ocymoides l",
+        "top_5_acc": 81.58730158730158
+    },
+    "575": {
+        "class": "saponaria officinalis l",
+        "top_5_acc": 88.11188811188812
+    },
+    "576": {
+        "class": "satureja montana l",
+        "top_5_acc": 84.28571428571429
+    },
+    "577": {
+        "class": "saxifraga aizoides l",
+        "top_5_acc": 81.50470219435736
+    },
+    "578": {
+        "class": "saxifraga granulata l",
+        "top_5_acc": 87.91208791208791
+    },
+    "579": {
+        "class": "saxifraga media gouan",
+        "top_5_acc": 83.87096774193549
+    },
+    "580": {
+        "class": "saxifraga moschata wulfen",
+        "top_5_acc": 90.71856287425149
+    },
+    "581": {
+        "class": "saxifraga paniculata mill",
+        "top_5_acc": 79.16666666666666
+    },
+    "582": {
+        "class": "saxifraga tridactylites l",
+        "top_5_acc": 84.15094339622642
+    },
+    "583": {
+        "class": "scabiosa atropurpurea l",
+        "top_5_acc": 69.44444444444444
+    },
+    "584": {
+        "class": "scabiosa columbaria l",
+        "top_5_acc": 84.88549618320612
+    },
+    "585": {
+        "class": "scolymus hispanicus l",
+        "top_5_acc": 94.85294117647058
+    },
+    "586": {
+        "class": "scrophularia auriculata l",
+        "top_5_acc": 86.73469387755102
+    },
+    "587": {
+        "class": "scrophularia nodosa l",
+        "top_5_acc": 79.7872340425532
+    },
+    "588": {
+        "class": "scutellaria galericulata l",
+        "top_5_acc": 77.87356321839081
+    },
+    "589": {
+        "class": "sedum acre l",
+        "top_5_acc": 81.40495867768594
+    },
+    "590": {
+        "class": "sedum album l",
+        "top_5_acc": 81.91489361702128
+    },
+    "591": {
+        "class": "sedum dasyphyllum l",
+        "top_5_acc": 78.66666666666666
+    },
+    "592": {
+        "class": "sedum rupestre l",
+        "top_5_acc": 87.83068783068782
+    },
+    "593": {
+        "class": "sempervivum arachnoideum l",
+        "top_5_acc": 87.42857142857143
+    },
+    "594": {
+        "class": "sempervivum montanum l",
+        "top_5_acc": 84.46601941747572
+    },
+    "595": {
+        "class": "sempervivum tectorum l",
+        "top_5_acc": 85.84070796460178
+    },
+    "596": {
+        "class": "senecio inaequidens dc",
+        "top_5_acc": 54.54545454545454
+    },
+    "597": {
+        "class": "senecio vulgaris l",
+        "top_5_acc": 68.6411149825784
+    },
+    "598": {
+        "class": "serapias lingua l",
+        "top_5_acc": 92.56198347107438
+    },
+    "599": {
+        "class": "sherardia arvensis l",
+        "top_5_acc": 79.23875432525952
+    },
+    "600": {
+        "class": "sideritis romana l",
+        "top_5_acc": 82.30088495575221
+    },
+    "601": {
+        "class": "silene conica l",
+        "top_5_acc": 79.28802588996764
+    },
+    "602": {
+        "class": "silene gallica l",
+        "top_5_acc": 85.19021739130434
+    },
+    "603": {
+        "class": "silene latifolia poir",
+        "top_5_acc": 86.04651162790698
+    },
+    "604": {
+        "class": "silene nutans l",
+        "top_5_acc": 80.67885117493474
+    },
+    "605": {
+        "class": "sinapis arvensis l",
+        "top_5_acc": 74.90636704119851
+    },
+    "606": {
+        "class": "sisymbrium irio l",
+        "top_5_acc": 74.30167597765363
+    },
+    "607": {
+        "class": "smilax aspera l",
+        "top_5_acc": 92.76729559748428
+    },
+    "608": {
+        "class": "smyrnium olusatrum l",
+        "top_5_acc": 83.56807511737088
+    },
+    "609": {
+        "class": "solanum dulcamara l",
+        "top_5_acc": 79.78436657681941
+    },
+    "610": {
+        "class": "solanum nigrum l",
+        "top_5_acc": 68.36027713625866
+    },
+    "611": {
+        "class": "solidago virgaurea l",
+        "top_5_acc": 78.330658105939
+    },
+    "612": {
+        "class": "sonchus tenerrimus l",
+        "top_5_acc": 71.09634551495017
+    },
+    "613": {
+        "class": "sophora japonica l",
+        "top_5_acc": 74.71264367816092
+    },
+    "614": {
+        "class": "sorbus aucuparia l",
+        "top_5_acc": 80.21390374331551
+    },
+    "615": {
+        "class": "sorbus domestica l",
+        "top_5_acc": 80.32786885245902
+    },
+    "616": {
+        "class": "spartium junceum l",
+        "top_5_acc": 88.88888888888889
+    },
+    "617": {
+        "class": "spergula arvensis l",
+        "top_5_acc": 87.64044943820225
+    },
+    "618": {
+        "class": "stachys recta l",
+        "top_5_acc": 73.87755102040816
+    },
+    "619": {
+        "class": "stachys sylvatica l",
+        "top_5_acc": 82.70270270270271
+    },
+    "620": {
+        "class": "staehelina dubia l",
+        "top_5_acc": 93.63295880149812
+    },
+    "621": {
+        "class": "stellaria holostea l",
+        "top_5_acc": 85.71428571428571
+    },
+    "622": {
+        "class": "succisa pratensis moench",
+        "top_5_acc": 62.5
+    },
+    "623": {
+        "class": "symphytum officinale l",
+        "top_5_acc": 82.3045267489712
+    },
+    "624": {
+        "class": "symphytum tuberosum l",
+        "top_5_acc": 82.26415094339623
+    },
+    "625": {
+        "class": "syringa vulgaris l",
+        "top_5_acc": 79.41176470588235
+    },
+    "626": {
+        "class": "tanacetum vulgare l",
+        "top_5_acc": 85.13513513513513
+    },
+    "627": {
+        "class": "taxus baccata l",
+        "top_5_acc": 96.8586387434555
+    },
+    "628": {
+        "class": "teucrium chamaedrys l",
+        "top_5_acc": 78.64583333333334
+    },
+    "629": {
+        "class": "teucrium flavum l",
+        "top_5_acc": 83.72093023255815
+    },
+    "630": {
+        "class": "teucrium fruticans l",
+        "top_5_acc": 75.4601226993865
+    },
+    "631": {
+        "class": "teucrium montanum l",
+        "top_5_acc": 85.678391959799
+    },
+    "632": {
+        "class": "teucrium scorodonia l",
+        "top_5_acc": 76.0204081632653
+    },
+    "633": {
+        "class": "thalictrum aquilegiifolium l",
+        "top_5_acc": 83.07692307692308
+    },
+    "634": {
+        "class": "thymus serpyllum l",
+        "top_5_acc": 91.33725820016821
+    },
+    "635": {
+        "class": "thymus vulgaris l",
+        "top_5_acc": 85.08771929824562
+    },
+    "636": {
+        "class": "tilia cordata mill",
+        "top_5_acc": 93.97590361445783
+    },
+    "637": {
+        "class": "tilia platyphyllos scop",
+        "top_5_acc": 92.25352112676056
+    },
+    "638": {
+        "class": "tordylium apulum l",
+        "top_5_acc": 82.97872340425532
+    },
+    "639": {
+        "class": "tordylium maximum l",
+        "top_5_acc": 79.13043478260869
+    },
+    "640": {
+        "class": "tozzia alpina l",
+        "top_5_acc": 87.41258741258741
+    },
+    "641": {
+        "class": "tragopogon porrifolius l",
+        "top_5_acc": 81.30081300813008
+    },
+    "642": {
+        "class": "tragopogon pratensis l",
+        "top_5_acc": 91.60000000000001
+    },
+    "643": {
+        "class": "tribulus terrestris l",
+        "top_5_acc": 85.05917159763314
+    },
+    "644": {
+        "class": "trifolium alpinum l",
+        "top_5_acc": 71.69811320754717
+    },
+    "645": {
+        "class": "trifolium campestre schreb",
+        "top_5_acc": 74.43609022556392
+    },
+    "646": {
+        "class": "trifolium cherleri l",
+        "top_5_acc": 74.4186046511628
+    },
+    "647": {
+        "class": "trifolium incarnatum l",
+        "top_5_acc": 81.33333333333333
+    },
+    "648": {
+        "class": "trifolium pratense l",
+        "top_5_acc": 74.8780487804878
+    },
+    "649": {
+        "class": "trifolium repens l",
+        "top_5_acc": 77.62430939226519
+    },
+    "650": {
+        "class": "trifolium resupinatum l",
+        "top_5_acc": 76.76240208877284
+    },
+    "651": {
+        "class": "trifolium scabrum l",
+        "top_5_acc": 78.26086956521739
+    },
+    "652": {
+        "class": "trifolium stellatum l",
+        "top_5_acc": 83.83838383838383
+    },
+    "653": {
+        "class": "trifolium subterraneum l",
+        "top_5_acc": 80.22598870056498
+    },
+    "654": {
+        "class": "trollius europaeus l",
+        "top_5_acc": 93.63295880149812
+    },
+    "655": {
+        "class": "tulipa sylvestris l",
+        "top_5_acc": 94.49838187702265
+    },
+    "656": {
+        "class": "tussilago farfara l",
+        "top_5_acc": 83.95904436860067
+    },
+    "657": {
+        "class": "ulex europaeus l",
+        "top_5_acc": 92.7927927927928
+    },
+    "658": {
+        "class": "ulex gallii planch",
+        "top_5_acc": 92.10526315789474
+    },
+    "659": {
+        "class": "ulmus minor mill",
+        "top_5_acc": 78.37837837837837
+    },
+    "660": {
+        "class": "urtica dioica l",
+        "top_5_acc": 89.34169278996865
+    },
+    "661": {
+        "class": "vaccinium myrtillus l",
+        "top_5_acc": 70.34482758620689
+    },
+    "662": {
+        "class": "vaccinium vitis-idaea l",
+        "top_5_acc": 73.23529411764706
+    },
+    "663": {
+        "class": "valeriana celtica l",
+        "top_5_acc": 87.65432098765432
+    },
+    "664": {
+        "class": "valeriana officinalis l",
+        "top_5_acc": 82.51533742331289
+    },
+    "665": {
+        "class": "veratrum album l",
+        "top_5_acc": 94.02173913043478
+    },
+    "666": {
+        "class": "verbascum blattaria l",
+        "top_5_acc": 89.84962406015038
+    },
+    "667": {
+        "class": "verbascum boerhavii l",
+        "top_5_acc": 86.51685393258427
+    },
+    "668": {
+        "class": "verbascum lychnitis l",
+        "top_5_acc": 90.37037037037037
+    },
+    "669": {
+        "class": "verbascum nigrum l",
+        "top_5_acc": 94.52054794520548
+    },
+    "670": {
+        "class": "verbascum pulverulentum vill",
+        "top_5_acc": 92.56198347107438
+    },
+    "671": {
+        "class": "verbascum sinuatum l",
+        "top_5_acc": 90.26845637583892
+    },
+    "672": {
+        "class": "verbascum thapsus l",
+        "top_5_acc": 90.5511811023622
+    },
+    "673": {
+        "class": "verbena officinalis l",
+        "top_5_acc": 80.1526717557252
+    },
+    "674": {
+        "class": "veronica anagallis-aquatica l",
+        "top_5_acc": 71.73913043478261
+    },
+    "675": {
+        "class": "veronica arvensis l",
+        "top_5_acc": 82.82548476454294
+    },
+    "676": {
+        "class": "veronica beccabunga l",
+        "top_5_acc": 75.5868544600939
+    },
+    "677": {
+        "class": "veronica chamaedrys l",
+        "top_5_acc": 77.77777777777779
+    },
+    "678": {
+        "class": "veronica cymbalaria bodard",
+        "top_5_acc": 86.32478632478633
+    },
+    "679": {
+        "class": "veronica hederifolia l",
+        "top_5_acc": 80.84291187739464
+    },
+    "680": {
+        "class": "veronica officinalis l",
+        "top_5_acc": 87.39255014326648
+    },
+    "681": {
+        "class": "veronica persica poir",
+        "top_5_acc": 77.30061349693251
+    },
+    "682": {
+        "class": "veronica serpyllifolia l",
+        "top_5_acc": 88.6178861788618
+    },
+    "683": {
+        "class": "viburnum lantana l",
+        "top_5_acc": 85.0828729281768
+    },
+    "684": {
+        "class": "viburnum opulus l",
+        "top_5_acc": 85.51236749116607
+    },
+    "685": {
+        "class": "viburnum tinus l",
+        "top_5_acc": 87.89473684210526
+    },
+    "686": {
+        "class": "vicia cracca l",
+        "top_5_acc": 87.67857142857143
+    },
+    "687": {
+        "class": "vicia hybrida l",
+        "top_5_acc": 73.18435754189943
+    },
+    "688": {
+        "class": "vicia pannonica crantz",
+        "top_5_acc": 82.11382113821138
+    },
+    "689": {
+        "class": "vicia sativa l",
+        "top_5_acc": 82.11678832116789
+    },
+    "690": {
+        "class": "vicia sepium l",
+        "top_5_acc": 80.7570977917981
+    },
+    "691": {
+        "class": "vinca major l",
+        "top_5_acc": 86.73469387755102
+    },
+    "692": {
+        "class": "vinca minor l",
+        "top_5_acc": 88.05309734513274
+    },
+    "693": {
+        "class": "vincetoxicum hirundinaria medik",
+        "top_5_acc": 88.14432989690721
+    },
+    "694": {
+        "class": "viola alba besser",
+        "top_5_acc": 90.6896551724138
+    },
+    "695": {
+        "class": "viola arvensis murray",
+        "top_5_acc": 57.7922077922078
+    },
+    "696": {
+        "class": "viola biflora l",
+        "top_5_acc": 89.12386706948641
+    },
+    "697": {
+        "class": "viola calcarata l",
+        "top_5_acc": 87.79661016949153
+    },
+    "698": {
+        "class": "viola cornuta l",
+        "top_5_acc": 88.11188811188812
+    },
+    "699": {
+        "class": "viola lutea huds",
+        "top_5_acc": 78.78787878787878
+    },
+    "700": {
+        "class": "viola odorata l",
+        "top_5_acc": 92.24318658280922
+    },
+    "701": {
+        "class": "viola riviniana rchb",
+        "top_5_acc": 86.66666666666667
+    },
+    "702": {
+        "class": "viola tricolor l",
+        "top_5_acc": 84.52041785375118
+    },
+    "703": {
+        "class": "vitex agnus-castus l",
+        "top_5_acc": 90.14778325123153
+    },
+    "704": {
+        "class": "vitis vinifera l",
+        "top_5_acc": 86.81318681318682
+    },
+    "705": {
+        "class": "aethionema saxatile",
+        "top_5_acc": 74.49392712550608
+    },
+    "706": {
+        "class": "ailanthus altissima",
+        "top_5_acc": 97.22222222222221
+    },
+    "707": {
+        "class": "ajuga chamaepitys",
+        "top_5_acc": 88.25910931174089
+    },
+    "708": {
+        "class": "ajuga iva",
+        "top_5_acc": 90.7488986784141
+    },
+    "709": {
+        "class": "alliaria petiolata",
+        "top_5_acc": 61.29032258064516
+    },
+    "710": {
+        "class": "allium polyanthum",
+        "top_5_acc": 96.875
+    },
+    "711": {
+        "class": "alnus cordata",
+        "top_5_acc": 90.29126213592234
+    },
+    "712": {
+        "class": "alnus glutinosa",
+        "top_5_acc": 74.9003984063745
+    },
+    "713": {
+        "class": "ammophila arenaria",
+        "top_5_acc": 95.33333333333334
+    },
+    "714": {
+        "class": "anacamptis laxiflora",
+        "top_5_acc": 97.12230215827337
+    },
+    "715": {
+        "class": "anacamptis morio",
+        "top_5_acc": 95.17684887459808
+    },
+    "716": {
+        "class": "anacyclus clavatus",
+        "top_5_acc": 82.78388278388277
+    },
+    "717": {
+        "class": "anarrhinum bellidifolium",
+        "top_5_acc": 86.54708520179372
+    },
+    "718": {
+        "class": "antennaria dioica",
+        "top_5_acc": 92.34338747099768
+    },
+    "719": {
+        "class": "anthriscus sylvestris",
+        "top_5_acc": 88.4514435695538
+    },
+    "720": {
+        "class": "arabidopsis thaliana",
+        "top_5_acc": 85.65573770491804
+    },
+    "721": {
+        "class": "argyrolobium zanonii",
+        "top_5_acc": 66.3265306122449
+    },
+    "722": {
+        "class": "asphodelus cerasiferus",
+        "top_5_acc": 88.37209302325581
+    },
+    "723": {
+        "class": "athyrium filix-femina",
+        "top_5_acc": 97.60824742268042
+    },
+    "724": {
+        "class": "barbarea vulgaris",
+        "top_5_acc": 77.9840848806366
+    },
+    "725": {
+        "class": "bellevalia romana",
+        "top_5_acc": 95.6989247311828
+    },
+    "726": {
+        "class": "berteroa incana",
+        "top_5_acc": 72.16494845360825
+    },
+    "727": {
+        "class": "betula utilis",
+        "top_5_acc": 70.37037037037037
+    },
+    "728": {
+        "class": "bituminaria bituminosa",
+        "top_5_acc": 75.60975609756098
+    },
+    "729": {
+        "class": "blackstonia imperfoliata",
+        "top_5_acc": 93.19727891156462
+    },
+    "730": {
+        "class": "blackstonia perfoliata",
+        "top_5_acc": 94.87870619946092
+    },
+    "731": {
+        "class": "calluna vulgaris",
+        "top_5_acc": 76.39593908629442
+    },
+    "732": {
+        "class": "capsella bursa-pastoris",
+        "top_5_acc": 84.74801061007958
+    },
+    "733": {
+        "class": "cardamine heptaphylla",
+        "top_5_acc": 96.2406015037594
+    },
+    "734": {
+        "class": "centaurium maritimum",
+        "top_5_acc": 87.5
+    },
+    "735": {
+        "class": "centella asiatica",
+        "top_5_acc": 86.06741573033709
+    },
+    "736": {
+        "class": "centranthus angustifolius",
+        "top_5_acc": 85.34482758620689
+    },
+    "737": {
+        "class": "centranthus ruber",
+        "top_5_acc": 77.51937984496125
+    },
+    "738": {
+        "class": "cephalanthera longifolia",
+        "top_5_acc": 92.42424242424242
+    },
+    "739": {
+        "class": "cephalanthera rubra",
+        "top_5_acc": 94.24920127795528
+    },
+    "740": {
+        "class": "cephalaria leucantha",
+        "top_5_acc": 82.92682926829268
+    },
+    "741": {
+        "class": "cirsium arvense",
+        "top_5_acc": 87.00361010830325
+    },
+    "742": {
+        "class": "cirsium eriophorum",
+        "top_5_acc": 92.80575539568345
+    },
+    "743": {
+        "class": "cirsium oleraceum",
+        "top_5_acc": 89.17910447761194
+    },
+    "744": {
+        "class": "cirsium palustre",
+        "top_5_acc": 87.91540785498489
+    },
+    "745": {
+        "class": "cirsium vulgare",
+        "top_5_acc": 86.36363636363636
+    },
+    "746": {
+        "class": "citrus limon",
+        "top_5_acc": 92.6829268292683
+    },
+    "747": {
+        "class": "corydalis solida",
+        "top_5_acc": 86.7704280155642
+    },
+    "748": {
+        "class": "crepis capillaris",
+        "top_5_acc": 64.36781609195403
+    },
+    "749": {
+        "class": "crepis sancta",
+        "top_5_acc": 82.15297450424929
+    },
+    "750": {
+        "class": "cytisus scoparius",
+        "top_5_acc": 78.57142857142857
+    },
+    "751": {
+        "class": "dicentra spectabilis",
+        "top_5_acc": 77.41935483870968
+    },
+    "752": {
+        "class": "diospyros kaki",
+        "top_5_acc": 87.5
+    },
+    "753": {
+        "class": "dipcadi serotinum",
+        "top_5_acc": 90.27777777777779
+    },
+    "754": {
+        "class": "diphasiastrum tristachyum",
+        "top_5_acc": 98.73015873015873
+    },
+    "755": {
+        "class": "diplotaxis erucoides",
+        "top_5_acc": 82.67716535433071
+    },
+    "756": {
+        "class": "diplotaxis tenuifolia",
+        "top_5_acc": 85.39325842696628
+    },
+    "757": {
+        "class": "dittrichia viscosa",
+        "top_5_acc": 89.47368421052632
+    },
+    "758": {
+        "class": "dorycnium hirsutum",
+        "top_5_acc": 85.64356435643565
+    },
+    "759": {
+        "class": "dryopteris filix-mas",
+        "top_5_acc": 97.59812536613943
+    },
+    "760": {
+        "class": "ecballium elaterium",
+        "top_5_acc": 95.58823529411765
+    },
+    "761": {
+        "class": "epipactis atrorubens",
+        "top_5_acc": 90.26845637583892
+    },
+    "762": {
+        "class": "epipactis helleborine",
+        "top_5_acc": 90.12048192771084
+    },
+    "763": {
+        "class": "epipactis palustris",
+        "top_5_acc": 92.0
+    },
+    "764": {
+        "class": "eranthis hyemalis",
+        "top_5_acc": 92.91338582677166
+    },
+    "765": {
+        "class": "eriobotrya japonica",
+        "top_5_acc": 86.95652173913044
+    },
+    "766": {
+        "class": "erysimum cheiri",
+        "top_5_acc": 77.21518987341773
+    },
+    "767": {
+        "class": "euonymus latifolius",
+        "top_5_acc": 87.83783783783784
+    },
+    "768": {
+        "class": "filipendula ulmaria",
+        "top_5_acc": 80.59701492537313
+    },
+    "769": {
+        "class": "gagea bohemica",
+        "top_5_acc": 92.03539823008849
+    },
+    "770": {
+        "class": "galium odoratum",
+        "top_5_acc": 87.5
+    },
+    "771": {
+        "class": "genista scorpius",
+        "top_5_acc": 78.29457364341084
+    },
+    "772": {
+        "class": "gentianopsis ciliata",
+        "top_5_acc": 91.0891089108911
+    },
+    "773": {
+        "class": "geranium pyrenaicum",
+        "top_5_acc": 88.39050131926122
+    },
+    "774": {
+        "class": "gymnadenia conopsea",
+        "top_5_acc": 92.85714285714286
+    },
+    "775": {
+        "class": "helianthemum apenninum",
+        "top_5_acc": 74.82517482517483
+    },
+    "776": {
+        "class": "helianthemum nummularium",
+        "top_5_acc": 71.72413793103448
+    },
+    "777": {
+        "class": "helichrysum stoechas",
+        "top_5_acc": 93.17343173431735
+    },
+    "778": {
+        "class": "helminthotheca echioides",
+        "top_5_acc": 82.55813953488372
+    },
+    "779": {
+        "class": "hemerocallis fulva",
+        "top_5_acc": 95.58823529411765
+    },
+    "780": {
+        "class": "himantoglossum hircinum",
+        "top_5_acc": 91.9831223628692
+    },
+    "781": {
+        "class": "homogyne alpina",
+        "top_5_acc": 90.80459770114942
+    },
+    "782": {
+        "class": "honckenya peploides",
+        "top_5_acc": 82.10526315789474
+    },
+    "783": {
+        "class": "hyacinthoides non-scripta",
+        "top_5_acc": 89.49771689497716
+    },
+    "784": {
+        "class": "hyparrhenia hirta",
+        "top_5_acc": 97.31404958677686
+    },
+    "785": {
+        "class": "kerria japonica",
+        "top_5_acc": 75.26881720430107
+    },
+    "786": {
+        "class": "kickxia spuria",
+        "top_5_acc": 73.68421052631578
+    },
+    "787": {
+        "class": "knautia arvensis",
+        "top_5_acc": 82.05128205128204
+    },
+    "788": {
+        "class": "lactuca muralis",
+        "top_5_acc": 86.62790697674419
+    },
+    "789": {
+        "class": "lactuca viminea",
+        "top_5_acc": 76.32850241545893
+    },
+    "790": {
+        "class": "lamium galeobdolon",
+        "top_5_acc": 80.0
+    },
+    "791": {
+        "class": "legousia speculum-veneris",
+        "top_5_acc": 67.44186046511628
+    },
+    "792": {
+        "class": "leucanthemopsis alpina",
+        "top_5_acc": 81.48148148148148
+    },
+    "793": {
+        "class": "limodorum abortivum",
+        "top_5_acc": 91.45299145299145
+    },
+    "794": {
+        "class": "limoniastrum monopetalum",
+        "top_5_acc": 90.66666666666666
+    },
+    "795": {
+        "class": "linaria alpina",
+        "top_5_acc": 80.82706766917293
+    },
+    "796": {
+        "class": "linaria repens",
+        "top_5_acc": 74.60317460317461
+    },
+    "797": {
+        "class": "linaria supina",
+        "top_5_acc": 80.17492711370262
+    },
+    "798": {
+        "class": "lithodora fruticosa",
+        "top_5_acc": 72.14285714285714
+    },
+    "799": {
+        "class": "lobularia maritima",
+        "top_5_acc": 74.4
+    },
+    "800": {
+        "class": "luzula campestris",
+        "top_5_acc": 93.85826771653544
+    },
+    "801": {
+        "class": "lychnis coronaria",
+        "top_5_acc": 88.97058823529412
+    },
+    "802": {
+        "class": "matthiola incana",
+        "top_5_acc": 82.6086956521739
+    },
+    "803": {
+        "class": "matthiola sinuata",
+        "top_5_acc": 90.53254437869822
+    },
+    "804": {
+        "class": "meconopsis cambrica",
+        "top_5_acc": 90.22988505747126
+    },
+    "805": {
+        "class": "misopates orontium",
+        "top_5_acc": 47.61904761904761
+    },
+    "806": {
+        "class": "muscari comosum",
+        "top_5_acc": 91.24087591240875
+    },
+    "807": {
+        "class": "muscari neglectum",
+        "top_5_acc": 91.80327868852459
+    },
+    "808": {
+        "class": "myosotis alpestris",
+        "top_5_acc": 70.05988023952095
+    },
+    "809": {
+        "class": "myosoton aquaticum",
+        "top_5_acc": 87.21461187214612
+    },
+    "810": {
+        "class": "nasturtium officinale",
+        "top_5_acc": 71.84466019417476
+    },
+    "811": {
+        "class": "neotinea ustulata",
+        "top_5_acc": 94.73684210526315
+    },
+    "812": {
+        "class": "neottia ovata",
+        "top_5_acc": 97.6958525345622
+    },
+    "813": {
+        "class": "odontites luteus",
+        "top_5_acc": 85.18518518518519
+    },
+    "814": {
+        "class": "odontites vernus",
+        "top_5_acc": 87.62541806020067
+    },
+    "815": {
+        "class": "ophrys fuciflora",
+        "top_5_acc": 80.48780487804879
+    },
+    "816": {
+        "class": "opuntia ficus-indica",
+        "top_5_acc": 88.88888888888889
+    },
+    "817": {
+        "class": "orchis anthropophora",
+        "top_5_acc": 93.83116883116884
+    },
+    "818": {
+        "class": "orchis mascula",
+        "top_5_acc": 89.26315789473685
+    },
+    "819": {
+        "class": "pallenis spinosa",
+        "top_5_acc": 84.6590909090909
+    },
+    "820": {
+        "class": "parthenocissus quinquefolia",
+        "top_5_acc": 82.41758241758241
+    },
+    "821": {
+        "class": "parthenocissus tricuspidata",
+        "top_5_acc": 83.92857142857143
+    },
+    "822": {
+        "class": "pittosporum tobira",
+        "top_5_acc": 89.1891891891892
+    },
+    "823": {
+        "class": "platanthera bifolia",
+        "top_5_acc": 94.4078947368421
+    },
+    "824": {
+        "class": "platanthera chlorantha",
+        "top_5_acc": 91.27906976744185
+    },
+    "825": {
+        "class": "polygonatum multiflorum",
+        "top_5_acc": 91.4572864321608
+    },
+    "826": {
+        "class": "polygonatum odoratum",
+        "top_5_acc": 71.875
+    },
+    "827": {
+        "class": "potentilla sterilis",
+        "top_5_acc": 44.44444444444444
+    },
+    "828": {
+        "class": "pteridium aquilinum",
+        "top_5_acc": 97.54931261207412
+    },
+    "829": {
+        "class": "pulicaria dysenterica",
+        "top_5_acc": 82.29665071770334
+    },
+    "830": {
+        "class": "rhinanthus alectorolophus",
+        "top_5_acc": 82.52427184466019
+    },
+    "831": {
+        "class": "serapias vomeracea",
+        "top_5_acc": 94.03973509933775
+    },
+    "832": {
+        "class": "silene acaulis",
+        "top_5_acc": 85.23676880222841
+    },
+    "833": {
+        "class": "silene dioica",
+        "top_5_acc": 79.72972972972973
+    },
+    "834": {
+        "class": "silene italica",
+        "top_5_acc": 83.27759197324414
+    },
+    "835": {
+        "class": "silene vulgaris",
+        "top_5_acc": 75.99337748344371
+    },
+    "836": {
+        "class": "silybum marianum",
+        "top_5_acc": 90.72847682119205
+    },
+    "837": {
+        "class": "sisymbrium officinale",
+        "top_5_acc": 72.16117216117216
+    },
+    "838": {
+        "class": "sonchus asper",
+        "top_5_acc": 75.7847533632287
+    },
+    "839": {
+        "class": "sorbus aria",
+        "top_5_acc": 91.5129151291513
+    },
+    "840": {
+        "class": "sorbus intermedia",
+        "top_5_acc": 91.30434782608695
+    },
+    "841": {
+        "class": "sorbus torminalis",
+        "top_5_acc": 82.5503355704698
+    },
+    "842": {
+        "class": "spiranthes spiralis",
+        "top_5_acc": 95.63492063492063
+    },
+    "843": {
+        "class": "stellaria media",
+        "top_5_acc": 73.01587301587301
+    },
+    "844": {
+        "class": "taraxacum officinale",
+        "top_5_acc": 76.76767676767676
+    },
+    "845": {
+        "class": "torilis arvensis",
+        "top_5_acc": 83.6734693877551
+    },
+    "846": {
+        "class": "tripodion tetraphyllum",
+        "top_5_acc": 77.08333333333334
+    },
+    "847": {
+        "class": "tuberaria guttata",
+        "top_5_acc": 80.66666666666666
+    },
+    "848": {
+        "class": "urospermum dalechampii",
+        "top_5_acc": 85.27918781725889
+    },
+    "849": {
+        "class": "vicia hirsuta",
+        "top_5_acc": 78.32167832167832
+    },
+    "850": {
+        "class": "vincetoxicum nigrum",
+        "top_5_acc": 89.42307692307693
+    }
+}
