@@ -469,8 +469,9 @@ class ImageExecutor:
         axes[0, 1].set_aspect('equal')
         axes[1, 0].imshow(images[2])
         axes[1, 0].set_aspect('equal')
-
-        plt.subplots_adjust(wspace=0, hspace=0)
+        axes[1, 1].imshow(images[3])
+        axes[1, 1].set_aspect('equal')
+        fig.subplots_adjust(wspace=0, hspace=0)
         plt.show()
 
 

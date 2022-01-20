@@ -262,6 +262,65 @@ class TrainedTFHClassifier:
         return class_top_5_accuracies
 
 
+    def calculate_top_5_acc_of_remaining_samples(self, current_process_bottlenecks, class_labels, positive_predictive_value_exceeds_threshold_class_labels):
+        # Note that positive_predictive_value_exceeds_threshold_class_labels should be omitted from computation
+        top_5_acc = 0.0
+        with tf.Session(graph=tf.Graph()) as sess:
+            tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], self.preceding_model_path)
+            input_raw_image_op = sess.graph.get_operation_by_name('source_model/resized_input')
+            input_bottleneck_op = sess.graph.get_operation_by_name('source_model/pre_trained_hub_module/inception_v3_hub_apply_default/hub_output/feature_vector/SpatialSqueeze')
+            input_bottleneck_tensor = sess.graph.get_tensor_by_name('source_model/pre_trained_hub_module/inception_v3_hub_apply_default/hub_output/feature_vector/SpatialSqueeze:0')
+            output_op = sess.graph.get_operation_by_name('eval_graph/retrain_ops/final_retrain_ops/y_proba')
+
+            bottlenecks_non_ppv_classifiable_samples = current_process_bottlenecks[~current_process_bottlenecks['class'].isin(positive_predictive_value_exceeds_threshold_class_labels)]
+            bottlenecks_ppv_classifiable_samples = current_process_bottlenecks[current_process_bottlenecks['class'].isin(positive_predictive_value_exceeds_threshold_class_labels)]
+            total_num_non_ppv_classifiable_samples = bottlenecks_non_ppv_classifiable_samples.shape[0]
+            samples_num_top_5_acc_correct = 0
+            samples_num_top_5_acc_incorrect = 0
+
+            for i, bottleneck_sample in enumerate(bottlenecks_non_ppv_classifiable_samples.itertuples()):
+                bottleneck_sample_value = bottleneck_sample.bottleneck
+                ground_truth_class_label = bottleneck_sample[1]
+                assert ground_truth_class_label not in positive_predictive_value_exceeds_threshold_class_labels
+
+                sample_result = sess.run(output_op.outputs[0], feed_dict={
+                    input_bottleneck_op.outputs[0]: np.expand_dims(bottleneck_sample_value, axis=0)
+                })
+                sample_result = np.squeeze(sample_result)
+
+                top_k = sample_result.argsort()[-5:][::-1]
+                pred_class_indices = top_k
+                pred_class_probs = [sample_result[pred_class_index] for pred_class_index in pred_class_indices]
+                pred_class_labels = [class_labels[pred_class_index] for pred_class_index in pred_class_indices]
+                # ground_truth_class_labels = [class_label for i in range(total_num_class_samples)]
+                print('\tSample [%d/%d] top-5 predicted classes: %s with %s probabilities. The real class was: \'%s (%d)\'' % (i+1, total_num_non_ppv_classifiable_samples, pred_class_labels, pred_class_probs, ground_truth_class_label, class_labels.index(ground_truth_class_label)))
+
+                if ground_truth_class_label in pred_class_labels:
+                    samples_num_top_5_acc_correct += 1
+                else:
+                    samples_num_top_5_acc_incorrect += 1
+            assert samples_num_top_5_acc_incorrect + samples_num_top_5_acc_correct == total_num_non_ppv_classifiable_samples
+            # assert total_num_non_ppv_classifiable_samples + total_num_ppv_classifiable_samples == current_process_bottlenecks.shape
+            print('Number of Samples which can be predicted with PPV and the chosen threshold: [%d/%d] (%.2f%%)'
+                  % (bottlenecks_ppv_classifiable_samples.shape[0], current_process_bottlenecks.shape[0], (bottlenecks_ppv_classifiable_samples.shape[0]/current_process_bottlenecks.shape[0])*100))
+            print('Number of samples which cannot be predicted with PPV and the chosen threshold: [%d/%d] (%.2f%%)'
+                  % (total_num_non_ppv_classifiable_samples, current_process_bottlenecks.shape[0], (total_num_non_ppv_classifiable_samples/current_process_bottlenecks.shape[0])*100))
+            print('Number of Samples with correct prediction in top k=5: [%d/%d] (%.2f%%)'
+                  % (samples_num_top_5_acc_correct, total_num_non_ppv_classifiable_samples, (samples_num_top_5_acc_correct/total_num_non_ppv_classifiable_samples)*100))
+            print('Number of Samples without correct prediction in top k=5: [%d/%d] (%.2f%%)'
+                  % (samples_num_top_5_acc_incorrect, total_num_non_ppv_classifiable_samples, (samples_num_top_5_acc_incorrect/total_num_non_ppv_classifiable_samples)*100))
+
+            overall_top_5_acc = (samples_num_top_5_acc_correct / total_num_non_ppv_classifiable_samples)*100
+            print('Overall top-5 acc computed on non-classifiable ppv samples: %.2f%%' % overall_top_5_acc)
+            print('Number of remaining samples which cannot be classified via PPV or drop-down: [%d/%d]' % (samples_num_top_5_acc_incorrect, current_process_bottlenecks.shape[0]))
+            print('=========')
+            print('Number of samples which can be classified with PPV and the chosen threshold, or prediction in the top-5: [%d/%d] (%.2f%%)'
+                  % (bottlenecks_ppv_classifiable_samples.shape[0] + samples_num_top_5_acc_correct, current_process_bottlenecks.shape[0], ((bottlenecks_ppv_classifiable_samples.shape[0] + samples_num_top_5_acc_correct)/current_process_bottlenecks.shape[0])*100))
+            print('Number of samples which cannot be classified with PPV and the chosen threshold, which are not correctly predicted in the top-5: [%d/%d] (%.2f%%)'
+                  % (samples_num_top_5_acc_incorrect, current_process_bottlenecks.shape[0], (samples_num_top_5_acc_incorrect/current_process_bottlenecks.shape[0])*100))
+            return overall_top_5_acc
+
+
 def main(run_config):
     if run_config['process'] == 'Training':
         preceding_process = None
@@ -353,23 +412,26 @@ def main(run_config):
                 num_samples_ppv_classified += info['num_current_process_samples']
                 print('\tClass \'%s\' (%d) can be classified automatically, with [%d/%d] the total number of samples' % (clss, class_labels.index(clss), info['num_current_process_samples'], val_bottlenecks.shape[0]))
         print('If the classifier only issues predictions for class labels whose top-1 PPV is at or above a threshold of %.2f%%, then %d samples can be classified automatically.' % (threshold, num_samples_ppv_classified))
-        print('Of the remaining classes...')
-        for clss, info in class_top_1_positive_predictive_values.items():
-            if clss not in ppv_viable_classes:
-                if class_top_5_accuracies[clss]['top_5_acc'] >= threshold:
-                    top_5_acc_but_not_ppv_viable_classes.append(clss)
-                    num_samples_top_5_acc_classified += info['num_current_process_samples']
-                    print('\tClass \'%s\' (%d) can be classified in the top-5 predictions, with [%d/%d] the total number of samples' % (clss, class_labels.index(clss), info['num_current_process_samples'], val_bottlenecks.shape[0]))
-        print('If the classifier only issues predictions for class labels whose top-5 acc is at or above a threshold of %.2f%%, then %d samples can be classified automatically.' % (threshold, num_samples_top_5_acc_classified))
-        percent_ppv_samples = (num_samples_ppv_classified*100)/total_num_samples_in_current_process
-        percent_top_5_samples = (num_samples_top_5_acc_classified*100)/total_num_samples_in_current_process
-        num_samples_manual_classified = total_num_samples_in_current_process - num_samples_ppv_classified - num_samples_top_5_acc_classified
-        percent_manual_samples = (num_samples_manual_classified*100)/total_num_samples_in_current_process
-        print('Therefore, [%d/%d] samples (%.2f%%) can be classified automatically. And [%d/%d] samples (%.2f%%) can be '
-              'classified via drop-down. There are [%d/%d] (%.2f%%) samples which require manual transcription in the '
-              'current process\'s (validation) dataset'
-              % (num_samples_ppv_classified, total_num_samples_in_current_process, percent_ppv_samples,
-                 num_samples_top_5_acc_classified, total_num_samples_in_current_process, percent_top_5_samples, num_samples_manual_classified, total_num_samples_in_current_process, percent_manual_samples))
+        print('Of the remaining classes, the top-5 accuracy is:')
+        overall_top_5_acc = tfh_classifier.calculate_top_5_acc_of_remaining_samples(current_process_bottlenecks=val_bottlenecks, class_labels=class_labels, positive_predictive_value_exceeds_threshold_class_labels=ppv_viable_classes)
+
+        # print('Of the remaining classes...')
+        # for clss, info in class_top_1_positive_predictive_values.items():
+        #     if clss not in ppv_viable_classes:
+        #         if class_top_5_accuracies[clss]['top_5_acc'] >= threshold:
+        #             top_5_acc_but_not_ppv_viable_classes.append(clss)
+        #             num_samples_top_5_acc_classified += info['num_current_process_samples']
+        #             print('\tClass \'%s\' (%d) can be classified in the top-5 predictions, with [%d/%d] the total number of samples' % (clss, class_labels.index(clss), info['num_current_process_samples'], val_bottlenecks.shape[0]))
+        # print('If the classifier only issues predictions for class labels whose top-5 acc is at or above a threshold of %.2f%%, then %d samples can be classified automatically.' % (threshold, num_samples_top_5_acc_classified))
+        # percent_ppv_samples = (num_samples_ppv_classified*100)/total_num_samples_in_current_process
+        # percent_top_5_samples = (num_samples_top_5_acc_classified*100)/total_num_samples_in_current_process
+        # num_samples_manual_classified = total_num_samples_in_current_process - num_samples_ppv_classified - num_samples_top_5_acc_classified
+        # percent_manual_samples = (num_samples_manual_classified*100)/total_num_samples_in_current_process
+        # print('Therefore, [%d/%d] samples (%.2f%%) can be classified automatically. And [%d/%d] samples (%.2f%%) can be '
+        #       'classified via drop-down. There are [%d/%d] (%.2f%%) samples which require manual transcription in the '
+        #       'current process\'s (validation) dataset'
+        #       % (num_samples_ppv_classified, total_num_samples_in_current_process, percent_ppv_samples,
+        #          num_samples_top_5_acc_classified, total_num_samples_in_current_process, percent_top_5_samples, num_samples_manual_classified, total_num_samples_in_current_process, percent_manual_samples))
 
         # print('Average top-1 Accuracy (validation set): %.2f%%' % (sum(top_1_accs)/len(top_1_accs)))
         # print('Average top-5 Accuracy (validation set): %.2f%%' % (sum(top_5_accs)/len(top_5_accs)))

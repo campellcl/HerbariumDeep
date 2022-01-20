@@ -179,11 +179,13 @@ def plot_boxplot_per_class_top_one_acc(top_1_acc_by_class_df, dataset='BOONE', p
         plot = sorted_df.plot(x='class', y='top_1_acc', kind='barh', grid=False, fontsize=8)
         # Remove legend:
         plot.get_legend().remove()
-        plt.ylabel('Species/Scientific Name', fontsize=12)
+        plt.ylabel('Species/Scientific Name', fontsize=24)
         plt.xticks(np.arange(0, 110, 10))
-        plt.xlabel('Top-1 Accuracy (Percent)', fontsize=12)
-        plt.title('Winning Model: Top-1 Accuracy by Class', fontsize=12)
+        plt.xlabel('Top-1 Accuracy (Percent)', fontsize=24)
+        plt.title('Winning Model: Top-1 Accuracy by Class', fontsize=24)
         # plt.suptitle('%s %s Set' % (dataset, process))
+        ax = plt.gca()
+        ax.tick_params('x', labelsize=16)
     plt.show()
 
 
@@ -192,24 +194,26 @@ def plot_boxplot_per_class_top_five_acc(top_5_acc_by_class_df, dataset='BOONE', 
     sorted_df = top_5_acc_by_class_df.sort_values('top_5_acc', ascending=True)
 
     if dataset == 'GoingDeeper':
-        plot = sorted_df.plot(x='class', y='top_5_acc', kind='barh', grid=False, fontsize=10)
+        plot = sorted_df.plot(x='class', y='top_5_acc', kind='barh', grid=False, fontsize=16)
         # Remove legend:
         plot.get_legend().remove()
-        plt.ylabel('Species/Scientific Name', fontsize=12)
+        plt.ylabel('Species/Scientific Name', fontsize=24)
         plt.xticks(np.arange(0, 110, 10))
-        plt.xlabel('Top-5 Accuracy (Percent)', fontsize=12)
-        plt.title('Winning Model: Top-5 Accuracy by Class')
+        plt.xlabel('Top-5 Accuracy (Percent)', fontsize=24)
+        plt.title('Winning Model: Top-5 Accuracy by Class', fontsize=24)
         # plt.suptitle('%s %s Set' % (dataset, process))
         plt.yticks([])
     elif dataset == 'BOONE':
-        plot = sorted_df.plot(x='class', y='top_5_acc', kind='barh', grid=False, fontsize=10)
+        plot = sorted_df.plot(x='class', y='top_5_acc', kind='barh', grid=False, fontsize=8)
         # Remove legend:
         plot.get_legend().remove()
-        plt.ylabel('Species/Scientific Name', fontsize=12)
+        plt.ylabel('Species/Scientific Name', fontsize=24)
         plt.xticks(np.arange(0, 110, 10))
-        plt.xlabel('Top-5 Accuracy (Percent)', fontsize=12)
-        plt.title('Winning Model: Top-5 Accuracy by Class')
+        plt.xlabel('Top-5 Accuracy (Percent)', fontsize=24)
+        plt.title('Winning Model: Top-5 Accuracy by Class', fontsize=24)
         # plt.suptitle('%s %s Set' % (dataset, process))
+        ax = plt.gca()
+        ax.tick_params('x', labelsize=16)
     plt.show()
 
 
@@ -221,24 +225,26 @@ def plot_boxplot_per_class_top_one_acc_aggregated(top_1_acc_by_class_df, dataset
     sorted_df = top_1_acc_by_class_df_local.sort_values('top_1_acc', ascending=True)
 
     if dataset == 'GoingDeeper':
-        plot = sorted_df.plot(x='class', y='top_1_acc', kind='barh', grid=False, fontsize=10)
+        plot = sorted_df.plot(x='class', y='top_1_acc', kind='barh', grid=False, fontsize=16)
         # Remove legend:
         plot.get_legend().remove()
-        plt.ylabel('Species/Scientific Name', fontsize=12)
-        plt.xlabel('Top-1 Accuracy (Percent)', fontsize=12)
+        plt.ylabel('Species/Scientific Name', fontsize=24)
+        plt.xlabel('Top-1 Accuracy (Percent)', fontsize=24)
         plt.xticks(np.arange(0, 110, 10.0))
-        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=12)
+        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
         # plt.suptitle('%s %s Set' % (dataset, process))
         plt.yticks([])
     elif dataset == 'BOONE':
         plot = sorted_df.plot(x='class', y='top_1_acc', kind='barh', grid=False, fontsize=10)
         # Remove legend:
         plot.get_legend().remove()
-        plt.ylabel('Species/Scientific Name', fontsize=12)
-        plt.xlabel('Top-1 Accuracy (Percent)', fontsize=12)
+        plt.ylabel('Species/Scientific Name', fontsize=24)
+        plt.xlabel('Top-1 Accuracy (Percent)', fontsize=24)
         plt.xticks(np.arange(0, 110, 10.0))
-        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=12)
+        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
         # plt.suptitle('%s %s Set' % (dataset, process))
+        ax = plt.gca()
+        ax.tick_params('x', labelsize=16)
 
     plt.show()
 
@@ -303,18 +309,30 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
     sm.set_clim(vmin=0, vmax=max(joined_df['num_class_samples']))
 
     cbar = plt.colorbar(sm, drawedges=False)
-    cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25, fontsize=12)
-
-    plt.ylabel('Species/Scientific Name', fontsize=12)
-    plt.xlabel('Top-1 Accuracy', fontsize=12)
-    plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=12)
-    # plt.suptitle('%s %s Set' % (dataset, process))
-    # Invert the y axis:
-    ax.invert_yaxis()
 
     if dataset == 'GoingDeeper':
-        ax.set_yticks([])
+        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25, fontsize=24)
 
+        plt.ylabel('Species/Scientific Name', fontsize=24)
+        plt.xlabel('Top-1 Accuracy', fontsize=24)
+        plt.title('Winning Model: Top-1 Accuracy by Class', fontsize=24)
+        # plt.suptitle('%s %s Set' % (dataset, process))
+        # Invert the y axis:
+        ax.invert_yaxis()
+        ax.tick_params(labelsize=16)
+        cbar.ax.tick_params(labelsize=16)
+        ax.set_yticks([])
+    elif dataset == 'BOONE':
+        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25, fontsize=24)
+
+        plt.ylabel('Species/Scientific Name', fontsize=24)
+        plt.xlabel('Top-1 Accuracy', fontsize=24)
+        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
+        # plt.suptitle('%s %s Set' % (dataset, process))
+        # Invert the y axis:
+        ax.tick_params(labelsize=16)
+        cbar.ax.tick_params(labelsize=16)
+        ax.invert_yaxis()
     plt.show()
 
     if training_top_1_acc_by_class_df is not None:
@@ -345,16 +363,27 @@ def plot_per_class_top_one_acc_vs_number_of_samples_aggregated(process_top_1_acc
         sm.set_clim(vmin=0, vmax=max(joined_training_df_same_class_subset_as_preceding_process['num_class_samples']))
 
         cbar = plt.colorbar(sm, drawedges=False)
-        cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25, fontsize=12)
-        plt.ylabel('Species/Scientific Name', fontsize=12)
-        plt.xlabel('Top-1 Accuracy', fontsize=12)
-        plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=12)
-        # plt.suptitle('%s %s Set' % (dataset, process))
-        # Invert the y-axis
-        ax.invert_yaxis()
-
         if dataset == 'GoingDeeper':
+            cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25, fontsize=24)
+            plt.ylabel('Species/Scientific Name', fontsize=24)
+            plt.xlabel('Top-1 Accuracy', fontsize=24)
+            plt.title('Winning Model: Top-1 Accuracy by Class', fontsize=24)
+            # plt.suptitle('%s %s Set' % (dataset, process))
+            # Invert the y-axis
+            ax.invert_yaxis()
+            ax.tick_params(labelsize=16)
+            cbar.ax.tick_params(labelsize=16)
             ax.set_yticks([])
+        elif dataset == 'BOONE':
+            cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25, fontsize=24)
+            plt.ylabel('Species/Scientific Name', fontsize=24)
+            plt.xlabel('Top-1 Accuracy', fontsize=24)
+            plt.title('Winning Model: Top-1 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
+            # plt.suptitle('%s %s Set' % (dataset, process))
+            # Invert the y-axis
+            ax.invert_yaxis()
+            ax.tick_params(labelsize=16)
+            cbar.ax.tick_params(labelsize=16)
         plt.show()
 
 
@@ -383,20 +412,31 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_ac
     sm.set_clim(vmin=min(joined_df['num_class_samples']), vmax=max(joined_df['num_class_samples']))
 
     cbar = plt.colorbar(sm, drawedges=False)
-    cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25, fontsize=24)
-
-    plt.ylabel('Species/Scientific Name', fontsize=24)
-    plt.xlabel('Top-5 Accuracy', fontsize=24)
-    plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
-    # plt.suptitle('%s %s Set' % (dataset, process))
-    ax.tick_params(labelsize=16)
-    cbar.ax.tick_params(labelsize=16)
-
-    # Invert y-axis
-    ax.invert_yaxis()
-
     if dataset == 'GoingDeeper':
+        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25, fontsize=24)
+
+        plt.ylabel('Species/Scientific Name', fontsize=24)
+        plt.xlabel('Top-5 Accuracy', fontsize=24)
+        plt.title('Winning Model: Top-5 Accuracy by Class', fontsize=24)
+        # plt.suptitle('%s %s Set' % (dataset, process))
+        ax.tick_params(labelsize=16)
+        cbar.ax.tick_params(labelsize=16)
+
+        # Invert y-axis
+        ax.invert_yaxis()
         ax.set_yticks([])
+    elif dataset == 'BOONE':
+        cbar.set_label('Number of Class Samples (%s Set)' % process, rotation=270, labelpad=25, fontsize=24)
+
+        plt.ylabel('Species/Scientific Name', fontsize=24)
+        plt.xlabel('Top-5 Accuracy', fontsize=24)
+        plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
+        # plt.suptitle('%s %s Set' % (dataset, process))
+        ax.tick_params(labelsize=16)
+        cbar.ax.tick_params(labelsize=16)
+
+        # Invert y-axis
+        ax.invert_yaxis()
 
     plt.show()
 
@@ -425,51 +465,90 @@ def plot_per_class_top_five_acc_vs_number_of_samples_aggregated(process_top_5_ac
         sm.set_clim(vmin=0, vmax=max(joined_training_df_subset['num_class_samples']))
 
         cbar = plt.colorbar(sm, drawedges=False)
-        cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25, fontsize=24)
-        plt.ylabel('Species/Scientific Name', fontsize=24)
-        plt.xlabel('Top-5 Accuracy', fontsize=24)
-        plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
-        # plt.suptitle('%s %s Set' % (dataset, process))
-        ax.tick_params(labelsize=16)
-        cbar.ax.tick_params(labelsize=16)
-        # Invert the y-axis so it maches the order of the source dataframe:
-        ax.invert_yaxis()
-
         if dataset == 'GoingDeeper':
+            cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25, fontsize=24)
+            plt.ylabel('Species/Scientific Name', fontsize=24)
+            plt.xlabel('Top-5 Accuracy', fontsize=24)
+            plt.title('Winning Model: Top-5 Accuracy by Class', fontsize=24)
+            # plt.suptitle('%s %s Set' % (dataset, process))
+            ax.tick_params(labelsize=16)
+            cbar.ax.tick_params(labelsize=16)
+            # Invert the y-axis so it maches the order of the source dataframe:
+            ax.invert_yaxis()
             ax.set_yticks([])
+        elif dataset == 'BOONE':
+            cbar.set_label('Number of Class Samples (%s Set)' % preceding_process, rotation=270, labelpad=25, fontsize=24)
+            plt.ylabel('Species/Scientific Name', fontsize=24)
+            plt.xlabel('Top-5 Accuracy', fontsize=24)
+            plt.title('Winning Model: Top-5 Accuracy by Class (Excluding 100% Accurate)', fontsize=24)
+            # plt.suptitle('%s %s Set' % (dataset, process))
+            ax.tick_params(labelsize=16)
+            cbar.ax.tick_params(labelsize=16)
+            # Invert the y-axis so it maches the order of the source dataframe:
+            ax.invert_yaxis()
+
         plt.show()
 
 
 def plot_boxplot_hyperparameters_vs_training_time(gs_hyperparams_df, dataset='BOONE', process='Validation'):
     gs_hyperparams_df['fit_time_min'] = gs_hyperparams_df['fit_time_sec'].apply(lambda x: x / 60)
 
-    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='train_batch_size')
-    plt.xlabel('Training Batch Size')
-    plt.ylabel('Fit Time (Minutes)')
-    plt.title('Training Time vs. Training Batch Size')
-    plt.suptitle("%s %s Set" % (dataset, process))
-    plt.show()
+    if dataset == 'GoingDeeper':
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='train_batch_size')
+        plt.xlabel('Training Batch Size')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Training Time vs. Training Batch Size')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
 
-    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='initializer')
-    plt.xlabel('Initializer')
-    plt.ylabel('Fit Time (Minutes)')
-    plt.title('Initializer vs. Training Time')
-    plt.suptitle("%s %s Set" % (dataset, process))
-    plt.show()
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='initializer')
+        plt.xlabel('Initializer')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Initializer vs. Training Time')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
 
-    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='optimizer')
-    plt.xlabel('Optimizer')
-    plt.ylabel('Fit Time (Minutes)')
-    plt.title('Optimizer vs. Training Time')
-    plt.suptitle("%s %s Set" % (dataset, process))
-    plt.show()
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='optimizer')
+        plt.xlabel('Optimizer')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Optimizer vs. Training Time')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
 
-    plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='activation')
-    plt.xlabel('Activation')
-    plt.ylabel('Fit Time (Minutes)')
-    plt.title('Activation vs. Training Time')
-    plt.suptitle("%s %s Set" % (dataset, process))
-    plt.show()
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='activation')
+        plt.xlabel('Activation')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Activation vs. Training Time')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
+    elif dataset == 'BOONE':
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='train_batch_size')
+        plt.xlabel('Training Batch Size')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Training Time vs. Training Batch Size')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
+
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='initializer')
+        plt.xlabel('Initializer')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Initializer vs. Training Time')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
+
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='optimizer')
+        plt.xlabel('Optimizer')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Optimizer vs. Training Time')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
+
+        plot = gs_hyperparams_df.boxplot(column='fit_time_min', by='activation')
+        plt.xlabel('Activation')
+        plt.ylabel('Fit Time (Minutes)')
+        plt.title('Activation vs. Training Time')
+        plt.suptitle("%s %s Set" % (dataset, process))
+        plt.show()
 
 
 def plot_bar_chart_class_count_by_top_one_acc(top_1_acc_by_class_df, bottlenecks_df, dataset, process):
@@ -700,4 +779,4 @@ if __name__ == '__main__':
         },
         'SERNEC': {}
     }
-    main(run_config=run_configs['GoingDeeper']['val'])
+    main(run_config=run_configs['BOONE']['val'])
